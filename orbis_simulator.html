@@ -669,6 +669,52 @@ html, body {
 .prov-path.player-owned {
   stroke: rgba(255, 255, 255, 0.45);
 }
+.prov-path.at-war {
+  stroke: #c23b3b;
+  stroke-width: 1.4;
+  animation: war-pulse 1.2s ease-in-out infinite;
+}
+@keyframes war-pulse {
+  0%, 100% { stroke-opacity: 0.55; }
+  50% { stroke-opacity: 1; }
+}
+.prov-path.playback-pulse {
+  filter: drop-shadow(0 0 6px rgba(255, 196, 64, 0.9));
+}
+.turn-playback-card {
+  position: fixed;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%) translateY(12px);
+  max-width: min(420px, 92vw);
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(18, 28, 44, 0.92);
+  color: #f4f7fb;
+  box-shadow: 0 10px 32px rgba(0,0,0,0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  z-index: 12000;
+}
+.turn-playback-card.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+.turn-playback-card .tp-date { font-size: 11px; opacity: 0.75; margin-bottom: 4px; }
+#turn-playback-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 11990;
+}
+#turn-playback-overlay:not([hidden]) ~ .turn-playback-controls { pointer-events: auto; }
+.turn-playback-controls {
+  position: fixed;
+  right: 18px;
+  bottom: 118px;
+  display: flex;
+  gap: 8px;
+  z-index: 12001;
+}
+.ending-timeline { margin: 12px 0 0; padding-left: 18px; max-height: 200px; overflow: auto; }
 
 /* Ocean Sea Zones */
 .sea-zone-path {
@@ -1534,7 +1580,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
       <div class="campaign-options">
         <label>難易度<select id="campaign-difficulty" class="form-select"><option value="story">対話重視 · 8交渉／月</option><option value="standard" selected>標準 · 6交渉／月</option><option value="hard">危機の時代 · 5交渉／月</option></select></label>
         <label>国家目標<select id="campaign-mandate" class="form-select"><option value="recovery">復興と憲政</option><option value="diplomacy">協調と影響力</option><option value="security">自立と安全保障</option></select></label>
-        <label>任期<select id="campaign-length" class="form-select"><option value="12">12か月</option><option value="24">24か月</option><option value="36">36か月</option><option value="70">1937年12月まで（70か月）</option></select></label>
+        <label>キャンペーン<select id="campaign-length" class="form-select"><option value="unlimited" selected>無制限（1972年12月の節目まで推奨）</option><option value="140">1937年12月まで（140半月）</option><option value="980">1972年12月まで（980半月）</option><option value="48">1年（48半月）</option></select></label>
       </div>
       <div class="lobby-footer">
         <div id="lobby-selected-summary"></div>
@@ -1833,6 +1879,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   </dialog>
   <dialog class="game-dialog wide-dialog" id="actor-directory" aria-labelledby="directory-title"><div class="modal-head"><strong id="directory-title">交渉先を選ぶ</strong><button class="btn btn-ghost" data-close-dialog="actor-directory">閉じる</button></div><div class="modal-body"><label class="sr-only" for="actor-search">国名・組織・人物を検索</label><input class="form-input" id="actor-search" type="search" placeholder="国名・組織・人物を検索"><div class="directory-filters" id="directory-filters"><button class="filter-btn active" data-actor-kind="all">すべて</button><button class="filter-btn" data-actor-kind="domestic">国内</button><button class="filter-btn" data-actor-kind="ministry">外務省</button><button class="filter-btn" data-actor-kind="embassy">大使館</button><button class="filter-btn" data-actor-kind="client">従属国・自治領</button><button class="filter-btn" data-actor-kind="foreign_group">国外の利益団体</button></div><div id="actor-directory-list"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
+  <div id="turn-playback-overlay" hidden></div>
+  <div class="turn-playback-controls" id="turn-playback-controls">
+    <button type="button" class="btn btn-ghost" id="btn-playback-skip">スキップ</button>
+    <button type="button" class="btn" id="btn-playback-speed">×2</button>
+  </div>
   <dialog class="game-dialog" id="game-ending" aria-labelledby="ending-title"><div class="modal-head"><strong id="ending-title">任期の結末</strong><button class="btn btn-ghost" data-close-dialog="game-ending">閉じる</button></div><div class="modal-body" id="ending-body"></div><div class="modal-foot"><button class="btn" id="btn-ending-export">歴史を保存</button><button class="btn btn-primary" id="btn-ending-lobby">新たな歴史へ</button></div></dialog>
   <dialog class="game-dialog" id="game-help" aria-labelledby="help-title">
     <div class="modal-head"><strong id="help-title">一か月の動かし方</strong><button class="btn btn-ghost" data-close-dialog="game-help">閉じる</button></div>
@@ -4091,6 +4142,7 @@ function updateMapVisuals() {
 
     el.classList.toggle('selected', s.id === state.selectedStateId);
     el.classList.toggle('player-owned', s.country === state.playerNationId);
+    el.classList.toggle('at-war', Boolean(state.activeConflicts?.[s.id]));
   });
 
   if (labelsLayer) {
@@ -4552,6 +4604,9 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <script src="orbis_events.js"></script>
+<script src="orbis_campaign_core.js"></script>
+<script src="orbis_timeline_engine.js"></script>
+<script src="orbis_turn_playback.js"></script>
 <script src="orbis_game.js"></script>
 
 </body>
