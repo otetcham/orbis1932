@@ -74,8 +74,26 @@
 ## ハーネステスト（再実行ログ）
 
 ```
-27 checks passed. Live provider credentials were not used.
+34 checks passed. Live provider credentials were not used.
 ```
+
+### 長期キャンペーン（半月ターン・1932-03〜1972-12）
+
+| 項目 | 内容 |
+|------|------|
+| 暦 | `orbis_campaign_core.js` — 1ターン＝半月（前半/後半）、既定節目 **980** 半月（1972年12月後半） |
+| セーブ | `orbis_campaign_v6`（v5月次セーブは `maxTurns` / `completedTurns` を×2で移行） |
+| 無制限 | ロビー `campaign-length=unlimited` または `maxTurns: 0` — 節目で振り返り後も継続可 |
+| 脚本イベント | `orbis_timeline_engine.js`（満洲承認・国際連盟脱退・盧溝橋等、条件で阻止/分岐） |
+| ターン再生 | `orbis_turn_playback.js` — 裁定後に地図パン＋カード（スキップ/×1〜×4、`file://`可） |
+| 戦争 API | `Orbis.declareWar` / `Orbis.signPeace`、地図 `.at-war` / 占領ハッチ |
+| 記事整合 | `establishedFacts` をAIへ渡し、矛盾する新聞は同一半月内で除外 |
+| モック通し | `node scripts/playtest_halfmonth_1972.mjs` → `playtest_1972_log.json`（980半月・早期敗北なし） |
+
+成果物スクリーンショット（`/opt/cursor/artifacts/`）:
+
+- `war-occupied-flat.png` / `war-occupied-globe.png` — 宣戦後の地図
+- `playback-flat.png` / `playback-globe.png` — ターン再生オーバーレイ
 
 主な追加・更新観点:
 

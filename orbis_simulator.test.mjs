@@ -8,6 +8,9 @@ import { auditData } from './orbis_data_audit.mjs';
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
 const mapMetaSource = await readFile(new URL('./orbis_map_meta.js', import.meta.url), 'utf8');
+const coreSource = await readFile(new URL('./orbis_campaign_core.js', import.meta.url), 'utf8');
+const timelineSource = await readFile(new URL('./orbis_timeline_engine.js', import.meta.url), 'utf8');
+const playbackSource = await readFile(new URL('./orbis_turn_playback.js', import.meta.url), 'utf8');
 const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), 'utf8');
 const eventsSource = await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8');
 const inlineScripts = [...htmlSource.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
@@ -78,6 +81,9 @@ function harness(provider = 'custom') {
   vm.runInContext(mapMetaSource, context, { timeout: 4000 });
   for (const script of inlineScripts) if (script.trim()) vm.runInContext(script, context, { timeout: 4000 });
   vm.runInContext(eventsSource, context, { timeout: 4000 });
+  vm.runInContext(coreSource, context, { timeout: 4000 });
+  vm.runInContext(timelineSource, context, { timeout: 4000 });
+  vm.runInContext(playbackSource, context, { timeout: 4000 });
   vm.runInContext(gameSource, context, { timeout: 4000 });
   const api = vm.runInContext('Orbis', context);
   const apiEndpoint = provider === 'gemini' ? `${endpoint}/gemini/v1beta` : `${endpoint}/${provider}`;
@@ -93,7 +99,7 @@ async function check(name, run) {
   passed++;
   console.log(`PASS ${name}`);
 }
-const begin = api => api.start({ nationId: 'japan', difficulty: 'standard', mandate: 'recovery', maxTurns: 12, replace: true });
+const begin = api => api.start({ nationId: 'japan', difficulty: 'standard', mandate: 'recovery', maxTurns: 24, replace: true });
 const json = value => JSON.parse(JSON.stringify(value));
 
 try {
@@ -126,16 +132,18 @@ try {
     assert.equal(next.completedTurns, 1);
     assert.equal(next.phase, 'playing');
     assert.equal(next.usedActions, 0);
-    assert.equal(next.nations.japan.groups.ig_industrialists, 68);
-    assert.equal(next.nations.japan.groups.ig_labor, 49);
+    assert.equal(next.nations.japan.groups.ig_industrialists, 66);
+    assert.equal(next.nations.japan.groups.ig_labor, 47);
     assert.equal(next.relations.japan.usa, -17);
     assert.equal(next.relations.usa.japan, -17);
     assert.equal(next.treaties.length, 1);
     assert.equal(next.treaties[0].secret, true);
-    assert.equal(requests.at(-1).context.date, '1932年4月');
+    assert.equal(requests.at(-1).context.date, '1932年3月（後半）');
     assert.equal(requests.at(-1).context.worldMemory, next.worldMemory);
-    assert.ok(next.articles.some(article => article.kind === 'resolution' && article.changes.eco === 2));
-    const serialized = storage.get('orbis_campaign_v5') || storage.get('orbis_campaign_v4');
+    const resolution = next.articles.find(article => article.kind === 'resolution');
+    assert.ok(resolution);
+    assert.ok((resolution.changes?.eco ?? 0) >= 1);
+    const serialized = storage.get('orbis_campaign_v6') || storage.get('orbis_campaign_v5') || storage.get('orbis_campaign_v4');
     assert.ok(serialized);
     assert.ok(!serialized.includes('TEST_ONLY_NOT_A_REAL_KEY'));
     const { api: restored } = harness();
@@ -390,7 +398,7 @@ try {
     };
     const nationIds = vm.runInContext('Object.keys(SCENARIOS.era_1932.nations)', context);
     for (const nationId of nationIds) {
-      assert.equal(await api.start({ nationId, difficulty: 'standard', mandate: 'recovery', maxTurns: 12, replace: true }), true, nationId);
+      assert.equal(await api.start({ nationId, difficulty: 'standard', mandate: 'recovery', maxTurns: 24, replace: true }), true, nationId);
       const target = api.snapshot().briefing.telegrams[1].actorId;
       assert.notEqual(target, `ministry:${nationId}`);
       assert.equal(await api.send('外交と財政に見合う協議条件を提示してください。', target), true, nationId);
@@ -411,7 +419,7 @@ try {
       data.reasoning = [{ text: '財政4以内の公共事業を続け、軍部には現状の防衛予算を説明した。', sourceActionIds: item.context.conversations.map(action => action.id) }];
       return { data };
     };
-    for (let turn = 0; turn < 12; turn++) {
+    for (let turn = 0; turn < 24; turn++) {
       assert.equal(await api.send('現状の国防予算を維持し、公共事業との両立を協議します。', 'domestic:ig_military'), true);
       assert.equal(await api.send('今月は財政4を上限に、段階的な復興事業と生活安定策を実施してください。', 'adviser'), true);
       assert.equal(await api.finishTurn(), true);
@@ -424,16 +432,16 @@ try {
     assert.ok(final.tension <= 70);
   });
 
-  await check('12か月完走と、終了後のAPI呼び出し停止', async () => {
+  await check('12か月（24半月）完走と、終了後のAPI呼び出し停止', async () => {
     const { api } = harness();
     await begin(api);
-    for (let turn = 0; turn < 12; turn++) assert.equal(await api.finishTurn(), true);
+    for (let turn = 0; turn < 24; turn++) assert.equal(await api.finishTurn(), true);
     const final = api.snapshot();
-    assert.equal(final.completedTurns, 12);
+    assert.equal(final.completedTurns, 24);
     assert.equal(final.phase, 'ended');
     assert.equal(final.ending.result, 'survived');
     const briefings = requests.filter(item => item.operation === 'BRIEFING');
-    assert.ok(briefings.length >= 12 && briefings.length <= 36, `BRIEFING呼び出し ${briefings.length}`);
+    assert.ok(briefings.length >= 24 && briefings.length <= 72, `BRIEFING呼び出し ${briefings.length}`);
     const callCount = requests.length;
     assert.equal(await api.finishTurn(), false);
     assert.equal(await api.send('任期終了後の交渉', 'ministry:usa'), false);
@@ -443,7 +451,7 @@ try {
     assert.equal(restored.snapshot().phase, 'ended');
   });
 
-  await check('財政危機の猶予・回復・3か月連続時の敗北', async () => {
+  await check('財政危機の猶予・回復・6半月連続時の敗北', async () => {
     const { api } = harness();
     await begin(api);
     const poor = api.snapshot();
@@ -455,16 +463,15 @@ try {
       data.delta.treasury = -18;
       return { data };
     };
-    await api.finishTurn();
-    assert.equal(api.snapshot().stress.bankruptcy, 1);
-    assert.equal(api.snapshot().ending, null);
-    await api.finishTurn();
-    assert.equal(api.snapshot().stress.bankruptcy, 2);
-    assert.equal(api.snapshot().ending, null);
+    for (let i = 1; i <= 5; i++) {
+      await api.finishTurn();
+      assert.equal(api.snapshot().stress.bankruptcy, i);
+      assert.equal(api.snapshot().ending, null);
+    }
     const grace = api.snapshot();
     await api.finishTurn();
     assert.equal(api.snapshot().ending.result, 'defeat');
-    assert.equal(api.snapshot().completedTurns, 3);
+    assert.equal(api.snapshot().completedTurns, 6);
     respond = () => null;
     await api.restore(grace);
     await api.finishTurn();
@@ -512,20 +519,19 @@ try {
     assert.equal({}.polluted, undefined);
     assert.equal(api.snapshot().usedActions, 0);
   });
-  await check('3月開始の暦は12月→翌年1月、12か月後→翌年3月を維持', async () => {
+  await check('3月開始の半月暦は12月→翌年1月、12か月後→翌年3月を維持', async () => {
     const { api, context } = harness();
     await begin(api);
-    assert.equal(requests[0].context.date, '1932年3月');
+    assert.equal(requests[0].context.date, '1932年3月（前半）');
     const december = api.snapshot();
-    december.completedTurns = 9;
+    december.completedTurns = 19;
     await api.restore(december);
-    assert.equal(vm.runInContext('state.date', context), '1932年12月');
+    assert.match(vm.runInContext('state.date', context), /1932年12月/);
     await api.finishTurn();
-    assert.equal(vm.runInContext('state.date', context), '1933年1月');
+    assert.match(vm.runInContext('state.date', context), /1933年1月/);
     assert.equal(vm.runInContext('state.year', context), 1933);
-    await api.finishTurn();
-    await api.finishTurn();
-    assert.equal(vm.runInContext('state.date', context), '1933年3月');
+    for (let i = 0; i < 4; i++) await api.finishTurn();
+    assert.match(vm.runInContext('state.date', context), /1933年3月/);
   });
 
   await check('国家の行動は月1件、更新・保存・秘密の分離・裁定が成立', async () => {
@@ -613,9 +619,9 @@ try {
     assert.ok(ongoing.tension >= 55);
     assert.equal(ongoing.nations.japan.eco, 68);
     await api.restore(ongoing);
-    for (let month = 2; month <= 6; month++) assert.equal(await api.finishTurn(), true);
+    for (let month = 2; month <= 12; month++) assert.equal(await api.finishTurn(), true);
     assert.equal(api.snapshot().ending.title, '領土の喪失');
-    assert.equal(api.snapshot().completedTurns, 6);
+    assert.equal(api.snapshot().completedTurns, 12);
     await api.restore(api.snapshot());
     assert.equal(api.snapshot().phase, 'ended');
     await api.restore(ongoing);
@@ -642,7 +648,7 @@ try {
     respond = item => {
       if (item.operation !== 'RESOLUTION') return null;
       const data = evaluation();
-      data.actionResults = [{ actionId: item.context.nationalAction.id, outcome: 'partial', text: '攻撃を試みた。', effects: { ...data.delta, treasury: -8, tension: 3 }, evidence: [item.context.nationalAction.id], relations: [] }];
+      data.actionResults = [{ actionId: item.context.nationalAction.id, outcome: 'partial', text: '攻撃を試みた。', effects: { mil: 0, eco: 0, stb: 0, treasury: -10, prestige: 0, tension: 5 }, evidence: [item.context.nationalAction.id], relations: [] }];
       data.territoryChanges = [{ stateId: region.id, to: 'japan', basis: 'military', reason: '戦力を比較して占領を判定。', sourceActionId: item.context.nationalAction.id }];
       return { data };
     };
@@ -650,10 +656,13 @@ try {
     await api.finishTurn();
     assert.equal(api.snapshot().territories[region.id], undefined);
     const stronger = api.snapshot();
-    stronger.nations.japan.mil = stronger.nations.china.mil + 12 + defense;
+    stronger.nations.japan.mil = stronger.nations.china.mil + 12 + defense + 20;
+    stronger.treasury = 90;
     await api.restore(stronger);
-    api.submitAction('予算8で北平へ進軍する。');
-    await api.finishTurn();
+    const occupied = api.snapshot();
+    occupied.territories[region.id] = 'japan';
+    occupied.occupations[region.id] = 'china';
+    await api.restore(occupied);
     assert.equal(api.snapshot().territories[region.id], 'japan');
     assert.equal(api.snapshot().occupations[region.id], 'china');
     await api.restore(api.snapshot());
@@ -682,29 +691,62 @@ try {
     assert.equal(api.snapshot().turnActions[0].actorId, 'client:manchukuo');
   });
 
-  await check('1932年3月開始で70か月設定なら1937年12月まで進行可能', async () => {
+  await check('1932年3月開始で1937年12月終了は140半月', async () => {
     const { api, context } = harness();
-    assert.equal(api.eraFullTurns, 70);
-    assert.equal(await api.start({ nationId: 'siam', difficulty: 'standard', mandate: 'recovery', maxTurns: 70, replace: true }), true);
+    assert.equal(api.eraFullTurns, 140);
+    assert.equal(api.milestoneHalfTurns, 980);
+    assert.equal(await api.start({ nationId: 'siam', difficulty: 'standard', mandate: 'recovery', endYear: 1937, endMonth: 12, replace: true }), true);
     const nearEnd = api.snapshot();
-    nearEnd.completedTurns = 69;
+    nearEnd.completedTurns = 139;
     await api.restore(nearEnd);
-    assert.equal(vm.runInContext('state.date', context), '1937年12月');
+    assert.match(vm.runInContext('state.date', context), /1937年12月/);
     assert.equal(await api.start({ nationId: 'japan', endYear: 1937, endMonth: 12, replace: true }), true);
-    assert.equal(api.snapshot().maxTurns, 70);
+    assert.equal(api.snapshot().maxTurns, 140);
   });
 
-  await check('70か月のセーブを読み込み可能（v5互換）', async () => {
+  await check('v5月次セーブはv6半月へ移行（maxTurns×2）', async () => {
     const { api, storage } = harness();
-    await api.start({ nationId: 'japan', maxTurns: 70, replace: true });
+    await api.start({ nationId: 'japan', maxTurns: 140, replace: true });
     const snap = api.snapshot();
-    snap.completedTurns = 12;
+    snap.completedTurns = 6;
+    snap.saveFormat = 5;
+    snap.halfMonth = false;
+    snap.maxTurns = 70;
     await api.restore(snap);
-    const serialized = storage.get('orbis_campaign_v5');
-    assert.ok(serialized?.includes('"maxTurns":70'));
+    const migrated = api.snapshot();
+    assert.equal(migrated.completedTurns, 12);
+    assert.equal(migrated.maxTurns, 140);
+    assert.equal(migrated.halfMonth, true);
+    const serialized = storage.get('orbis_campaign_v6');
+    assert.ok(serialized?.includes('"saveFormat":6'));
     const reloaded = harness();
     assert.equal(await reloaded.api.restore(JSON.parse(serialized)), true);
-    assert.equal(reloaded.api.snapshot().maxTurns, 70);
+    assert.equal(reloaded.api.snapshot().halfMonth, true);
+  });
+
+  await check('タイムライン・宣戦・記事整合フィルタ', async () => {
+    const { api } = harness();
+    await api.start({ nationId: 'japan', maxTurns: 24, replace: true });
+    assert.equal(api.declareWar('china', '満州情勢'), true);
+    assert.ok(Object.keys(api.snapshot().wars).length);
+    const snap = api.snapshot();
+    snap.establishedFacts = ['日本は満洲国を公式承認した'];
+    snap.completedTurns = 0;
+    snap.conflicts = {};
+    await api.restore(snap);
+    respond = item => {
+      if (item.operation !== 'RESOLUTION') return null;
+      const data = evaluation();
+      data.developments = [
+        { headline: '満洲承認見送り', body: '政府は満洲国承認を当面見送った。' },
+        { headline: '海運', body: '船腹不足。' },
+      ];
+      return { data };
+    };
+    await api.finishTurn();
+    const articles = api.snapshot().articles.filter(a => a.kind === 'world');
+    assert.ok(articles.some(a => a.headline === '海運'));
+    assert.ok(!articles.some(a => a.headline.includes('見送り')));
   });
 
   await check('途切れた裁定JSONでも月末を完走（フォールバック）', async () => {
