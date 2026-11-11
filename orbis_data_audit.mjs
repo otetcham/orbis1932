@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { pathToFileURL } from 'node:url';
 
 export function auditData(context) {
-  const { nations, regions, crises, events } = vm.runInContext('({ nations: SCENARIOS.era_1932.nations, regions: ORBIS_STATES_DB, crises: SCENARIO_CRISES.era_1932, events: HISTORICAL_TIMELINE_EVENTS })', context);
+  const { nations, regions, crises, events, history } = vm.runInContext('({ nations: SCENARIOS.era_1932.nations, regions: ORBIS_STATES_DB, crises: SCENARIO_CRISES.era_1932, events: HISTORICAL_TIMELINE_EVENTS, history: WORLD_EVENT_DB })', context);
   const ids = Object.keys(nations);
   const land = regions.filter(region => !region.isSea && !region.isSeaZone && region.type !== 'sea');
   assert.equal(new Set(ids.map(id => nations[id].code)).size, ids.length, '国コードの重複');
@@ -28,9 +28,15 @@ export function auditData(context) {
     assert.ok(Number.isInteger(event.year) && event.month >= 1 && event.month <= 12, `${event.id}: 歴史イベントにyear/monthなし`);
     assert.ok(event.choices?.length >= 2, `${event.id}: 選択肢不足`);
   }
+  assert.equal(history.length, 272, '史実DBの件数');
+  assert.equal(new Set(history.map(event => event.id)).size, history.length, '史実DBのID重複');
+  const historyIds = new Set(history.map(event => event.id));
+  for (const event of history) for (const dependency of event.depends_on || []) assert.ok(historyIds.has(dependency), `${event.id}: depends_on未解決 ${dependency}`);
+  assert.equal(Math.min(...history.map(event => event.year)), 1932, '史実DBの開始年');
+  assert.equal(Math.max(...history.map(event => event.year)), 1972, '史実DBの終了年');
   assert.equal(ids.length, 66, '国家数 (1932年・66カ国体制)');
   assert.equal(land.length, 165, '陸上州数');
-  return { nations: ids.length, regions: regions.length, events: events.length };
+  return { nations: ids.length, regions: regions.length, events: events.length, history: history.length };
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
@@ -38,6 +44,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   const context = vm.createContext({ document: { addEventListener() {} } });
   context.window = context;
   for (const [, script] of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) if (script.trim()) vm.runInContext(script, context);
+  vm.runInContext(await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8'), context);
   if (process.argv.includes('--inspect')) {
     const regions = vm.runInContext('ORBIS_STATES_DB', context);
     for (const region of regions.filter(region => !region.isSea)) {

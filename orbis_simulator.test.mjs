@@ -7,6 +7,7 @@ import { auditData } from './orbis_data_audit.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), 'utf8');
+const eventsSource = await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8');
 const inlineScripts = [...htmlSource.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
 const choices = [{ label: '条件を詰める', text: '予算の上限を明確にした上で、実施条件を協議しましょう。' }, { label: '見送る', text: '今月の実施は見送ります。代替案を示してください。' }];
 const opening = () => ({ headline: '軍縮と復興のあいだ', briefing: '大恐慌が続くなか、外務省と国内勢力が相反する条件を提示した。財政の範囲で決断が求められる。', telegrams: [{ actorId: 'domestic:ig_military', subject: '防衛費の折衝', text: '防衛を維持するための予算を協議したい。軍縮を進める場合も、指揮権の保障を求める。', urgency: 'urgent', choices }, { actorId: 'ministry:usa', subject: '通商の予備協議', text: '資源通商と極東の安定について協議する用意があります。条件をご提示ください。', urgency: 'important', choices }, { actorId: 'client:manchukuo', subject: '自治と開発', text: '開発資金の援助と、現地政府の裁量を確保したい。', urgency: 'important', choices }] });
@@ -53,6 +54,7 @@ function harness(provider = 'custom') {
   const context = vm.createContext({ console, document, fetch, URL, Blob, AbortController, AbortSignal, setTimeout, clearTimeout, crypto: webcrypto, localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) }, addEventListener() {}, confirm: () => true });
   context.window = context;
   for (const script of inlineScripts) if (script.trim()) vm.runInContext(script, context, { timeout: 4000 });
+  vm.runInContext(eventsSource, context, { timeout: 4000 });
   vm.runInContext(gameSource, context, { timeout: 4000 });
   const api = vm.runInContext('Orbis', context);
   const apiEndpoint = provider === 'gemini' ? `${endpoint}/gemini/v1beta` : `${endpoint}/${provider}`;
@@ -597,7 +599,21 @@ try {
 
   await check('史実データ監査 (66カ国・165陸上州・危機・歴史イベントの整合)', async () => {
     const { context } = harness();
-    assert.deepEqual(auditData(context), { nations: 66, regions: 176, events: 9 });
+    assert.deepEqual(auditData(context), { nations: 66, regions: 176, events: 9, history: 272 });
+  });
+
+  await check('史実DB連携: 電報文脈に当月・年内の史実ノートが入る', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    vm.runInContext(`WORLD_EVENT_DB.push({ id: 'test-year-note', year: 1932, date: '1932', title: '年内テスト事件', summary: 'YYYY精度の注入確認。', importance: 3, causal_kind: 'structural' })`, context);
+    await api.send('満洲国の承認動向を報告してください。', 'client:manchukuo', 'private');
+    const calendar = requests.filter(item => item.operation === 'ACTOR').at(-1).context.calendar;
+    assert.ok(calendar.includes('満洲国'), 'timelineノート');
+    assert.ok(calendar.includes('満州国建国'), '当月の史実DBノート');
+    assert.ok(calendar.includes('1932-03-01'), '当月ノートの日付');
+    assert.ok(calendar.includes('年内の注目事件'), '年内注目節');
+    assert.ok(calendar.includes('年内テスト事件'), 'YYYY精度の年内注目');
+    assert.ok(calendar.includes('自動発生させない'), '分岐指示文');
   });
 
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
