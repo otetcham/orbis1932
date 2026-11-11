@@ -2009,7 +2009,7 @@ const COUNTRY_MAP_COLORS = {
   estonia: '#0ea5e9',        // エストニア共和国 (Baltic Sky)
   latvia: '#a21caf',         // ラトヴィア共和国 (Carmine Violet)
   lithuania: '#f97316',      // リトアニア共和国 (Vytautas Orange)
-  sweden: '#38bdf8',         // スウェーデン王国 (Nordic Sky)
+  sweden: '#38bdf8',         // スウェーデン王国 (Scandinavian Sky)
   denmark: '#c084fc',        // デンマーク王国 (Dannebrog Violet)
   norway: '#94a3b8',         // ノルウェー王国 (Fjord Grey)
   finland: '#67e8f9',        // フィンランド共和国 (Sisu Cyan)
@@ -2119,20 +2119,11 @@ function getCountryFlagSvg(countryId, isLarge = false) {
     // モンゴル人民共和国 (1924-1940 赤地に金色のソヨンボ紋章)
     mongolia: `<svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#b91c1c"/><circle cx="8" cy="6" r="1.6" fill="#facc15"/><rect x="6.2" y="8.5" width="3.6" height="6" fill="none" stroke="#facc15" stroke-width="1.2"/><circle cx="8" cy="11.5" r="1.1" fill="#facc15"/></svg>`,
 
-    // チェコスロバキア・オーストリア (中欧諸国)
-    central_europe: `<svg viewBox="0 0 30 20"><rect width="30" height="10" fill="#ffffff"/><rect y="10" width="30" height="10" fill="#d7141a"/><polygon points="0,0 15,10 0,20" fill="#11457e"/></svg>`,
-
     // ルーマニア王国・東バルカン (青・黄・赤)
     romania: `<svg viewBox="0 0 30 20"><rect width="10" height="20" fill="#002b7f"/><rect x="10" width="10" height="20" fill="#fcd116"/><rect x="20" width="10" height="20" fill="#ce1126"/></svg>`,
 
     // ユーゴスラビア王国 (1918-1941 青・白・赤)
     yugoslavia: `<svg viewBox="0 0 30 20"><rect width="30" height="6.6" fill="#003893"/><rect y="6.6" width="30" height="6.7" fill="#ffffff"/><rect y="13.3" width="30" height="6.7" fill="#dd0000"/></svg>`,
-
-    // スウェーデン・北欧諸国 (スカンディナヴィア十字)
-    nordic: `<svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#006aa7"/><rect x="8" width="4" height="20" fill="#fecc02"/><rect y="8" width="30" height="4" fill="#fecc02"/></svg>`,
-
-    // オランダ・ベルギー (ベネルクス)
-    benelux: `<svg viewBox="0 0 30 20"><rect width="30" height="6.6" fill="#ae1c28"/><rect y="6.6" width="30" height="6.7" fill="#ffffff"/><rect y="13.3" width="30" height="6.7" fill="#21468b"/></svg>`,
 
     // トルコ共和国 (新月と星)
     turkey: `<svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#e30a17"/><circle cx="12" cy="10" r="5" fill="#ffffff"/><circle cx="13.5" cy="10" r="4" fill="#e30a17"/><polygon points="18,10 21,11 20,8.5 20,11.5 21,9" fill="#ffffff"/></svg>`,
@@ -2172,9 +2163,6 @@ function getCountryFlagSvg(countryId, isLarge = false) {
 
     // アルゼンチン共和国 (水色・白・水色に五月の太陽)
     argentina: `<svg viewBox="0 0 30 20"><rect width="30" height="6.6" fill="#74acdf"/><rect y="6.6" width="30" height="6.7" fill="#ffffff"/><rect y="13.3" width="30" height="6.7" fill="#74acdf"/><circle cx="15" cy="10" r="2.2" fill="#f6b40e"/></svg>`,
-
-    // ベネズエラ・アンデス諸国 (黄・青・赤)
-    andes: `<svg viewBox="0 0 30 20"><rect width="30" height="6.6" fill="#ffcc00"/><rect y="6.6" width="30" height="6.7" fill="#00247d"/><rect y="13.3" width="30" height="6.7" fill="#cf142b"/></svg>`,
 
     // バルト三国・中欧・東南欧
     estonia: `<svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#0072ce"/><rect y="6.6" width="30" height="6.7" fill="#101010"/><rect y="13.3" width="30" height="6.7" fill="#ffffff"/></svg>`,
@@ -2314,7 +2302,7 @@ const SCENARIOS = {
       japan: {
         id: 'japan', code: 'JPN', region: '東アジア・太平洋', isMajor: true,
         name: '大日本帝国', bloc: 'revisionist', blocName: '独自勢力圏 (日満ブロック)',
-        leader: '犬養 毅 内閣総理大臣', ministry: '大日本帝国外務省・大本営',
+        leader: '犬養 毅 内閣総理大臣', ministry: '大日本帝国外務省・参謀本部',
         mil: 84, eco: 70, stb: 64, tech: 80, gdpText: '¥13.7B',
         aiAgenda: '満蒙権益の確立と農村恐慌の克服・対米英通商摩擦の回避',
         summary: '金輸出再禁止（高橋財政）で恐慌からの脱出を図る一方、関東軍の独走と青年将校の急進化（五・一五事件の危機）に直面する。政党内閣を守り国際協調を維持するか、軍部主導の総力戦体制へ進むかの歴史的分岐点。',
@@ -2360,7 +2348,7 @@ const SCENARIOS = {
         summary: '1932年3月に建国宣言された新興国家。鞍山製鉄所や撫順炭鉱など豊富な石炭・鉄鉱資源と満鉄網を有し、日満経済ブロックの重工業拠点として急速な開発が進む。',
         interestGroups: [
           { id: 'ig_military', name: '関東軍参謀部・満洲国軍', influence: 45, approval: 75, demand: '治安粛正と対ソ国境要塞の建設', bonusText: '支持70%+: 軍事+6' },
-          { id: 'ig_industrialists', name: '満鉄（南満洲鉄道）・満業コンツェルン', influence: 30, approval: 70, demand: '重化学工業・鉄道網への集中投資', bonusText: '支持70%+: 鉱物・工業生産+15%' },
+          { id: 'ig_industrialists', name: '満鉄（南満洲鉄道）・満洲炭鉱・昭和製鉄所', influence: 30, approval: 70, demand: '重化学工業・鉄道網への集中投資', bonusText: '支持70%+: 鉱物・工業生産+15%' },
           { id: 'ig_parliament', name: '旧清朝宗室・奉天派文官（鄭孝胥）', influence: 15, approval: 60, demand: '帝政移行と列強からの外交承認獲得', bonusText: '支持70%+: 安定度+5%' },
           { id: 'ig_labor', name: '五族協和会・開拓農民・労働者', influence: 10, approval: 52, demand: '大豆価格の安定と民生治安の改善', bonusText: '支持70%+: 経済+4' }
         ],
@@ -2452,23 +2440,215 @@ const SCENARIOS = {
         name: 'アルゼンチン共和国', bloc: 'versailles', blocName: '南大西洋・対英通商圏',
         leader: 'アグスティン・ペドロ・フスト 大統領', ministry: 'アルゼンチン外務省',
         mil: 66, eco: 72, stb: 66, tech: 68, gdpText: '$3.8B',
-        aiAgenda: 'ロカ・ランシマン協定による対英牛肉・穀物輸出の維持と南米主導権の確保',
+        aiAgenda: '対英牛肉・穀物輸出の維持（ランシマン使節団との通商協定交渉）と南米主導権の確保',
         summary: '南米随一の富裕国であり、世界有数の牛肉・小麦輸出国。大英帝国との深い経済関係を持ちつつ、軍部と保守寡頭層のバランスを取る。',
         interestGroups: createDefaultInterestGroups('versailles'),
         cabinet: [
           { role: '大統領', name: 'アグスティン・P・フスト', trait: '対英通商協定・インフラ近代化' }
         ]
       },
-      andes: {
-        id: 'andes', code: 'VEN', region: '南北アメリカ', isMajor: false,
-        name: 'ベネズエラ・アンデス連邦', bloc: 'democratic', blocName: '世界最大級原油輸出圏',
+      venezuela: {
+        id: 'venezuela', code: 'VEN', region: '南北アメリカ', isMajor: false,
+        name: 'ベネズエラ合衆国', bloc: 'neutral', blocName: 'マラカイボ油田・カリブ通商圏',
         leader: 'フアン・ビセンテ・ゴメス 大統領', ministry: 'カラカス外務省',
-        mil: 58, eco: 68, stb: 65, tech: 58, gdpText: '$2.2B',
-        aiAgenda: 'マラカイボ湖大油田の原油輸出による外貨獲得とアンデス地域の安定',
-        summary: 'マラカイボ湖に世界有数の大油田を擁し、列強海軍と産業界が垂涎するエネルギー供給国。石油輸出を武器に高い外交交渉力を持つ。',
-        interestGroups: createDefaultInterestGroups('democratic'),
+        mil: 58, eco: 64, stb: 66, tech: 54, gdpText: '$1.1B',
+        aiAgenda: 'マラカイボ湖大油田の原油輸出による外貨獲得とカリブ海通商の安定',
+        summary: 'マラカイボ湖に世界有数の大油田を擁するゴメス軍事独裁政権。石油収入で外債を完済し、列強海軍と産業界が垂涎するエネルギー供給国として交渉力を保つ。',
+        interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
           { role: '大統領', name: 'フアン・ビセンテ・ゴメス', trait: '石油利権交渉・国家債務完済 (石油収支+6%)' }
+        ]
+      },
+      colombia: {
+        id: 'colombia', code: 'COL', region: '南北アメリカ', isMajor: false,
+        name: 'コロンビア共和国', bloc: 'neutral', blocName: 'パナマ運河近隣・コーヒー輸出国',
+        leader: 'エンリケ・オラヤ・エレーラ 大統領', ministry: 'ボゴタ外務省',
+        mil: 58, eco: 58, stb: 60, tech: 54, gdpText: '$0.8B',
+        aiAgenda: 'ペルーとのレティシア領土紛争の封じ込めとコーヒー・バナナ輸出市場の防衛',
+        summary: 'パナマ分離 (1903) の傷を抱えつつ米国と和解したコーヒー輸出国。ペルーのレティシア占領 (1932年9月) が迫り、国際連盟と米国の調停が鍵となる。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'E.オラヤ・エレーラ', trait: '労働法改革・連盟調停活用 (+外交)' }
+        ]
+      },
+      ecuador: {
+        id: 'ecuador', code: 'ECU', region: '南北アメリカ', isMajor: false,
+        name: 'エクアドル共和国', bloc: 'neutral', blocName: 'ガラパゴス・アマゾン上流国',
+        leader: 'フアン・デ・ディオス・マルティネス 大統領', ministry: 'キト外務省',
+        mil: 52, eco: 50, stb: 46, tech: 50, gdpText: '$0.3B',
+        aiAgenda: '頻発するクーデタの収拾とペルー・コロンビア両国との国境問題の管理',
+        summary: '1931年以来政変が相次ぐ政治的動乱国。カカオ輸出の低迷と国境未画定問題を抱え、列強の介入を警戒しながら生き延びる。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'J.デ・ディオス・マルティネス', trait: '政局収拾・周辺国均衡外交' }
+        ]
+      },
+      peru: {
+        id: 'peru', code: 'PER', region: '南北アメリカ', isMajor: false,
+        name: 'ペルー共和国', bloc: 'neutral', blocName: 'アンデス軍事大国・綿花砂糖輸出',
+        leader: 'ルイス・ミゲル・サンチェス・セロ 大統領', ministry: 'リマ外務省',
+        mil: 62, eco: 56, stb: 58, tech: 52, gdpText: '$0.6B',
+        aiAgenda: 'レティシア進出問題の収拾とAPRA左派運動の抑止、チリとのタコマレス問題',
+        summary: '1931年のサンチェス・セロ政権発足後、軍隊を列強装備に近づけた南米有数の軍事国。1932年9月のレティシア占領でコロンビアとの戦争に至るかが国際連盟の焦点となる。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'L.M.サンチェス・セロ', trait: '軍備近代化・ナショナリズム動員' }
+        ]
+      },
+      bolivia: {
+        id: 'bolivia', code: 'BOL', region: '南北アメリカ', isMajor: false,
+        name: 'ボリビア共和国', bloc: 'neutral', blocName: '錫産出国・チャコ進出派',
+        leader: 'ダニエル・サラマンカ 大統領', ministry: 'ラパス外務省',
+        mil: 60, eco: 52, stb: 54, tech: 50, gdpText: '$0.4B',
+        aiAgenda: 'チャコ・ボレアルの油田地帯への到達と太平洋岸への出口（鉄道・河口）確保',
+        summary: 'パラグアイ戦争 (1864-70) で沿岸を失った内陸国。錫と石油を輸出し、チャコ・グランの未画定地帯でパラグアイと対峙する。1932年6月の開戦が迫る。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'D.サラマンカ', trait: '強硬国境政策・錫輸出財政' }
+        ]
+      },
+      chile: {
+        id: 'chile', code: 'CHL', region: '南北アメリカ', isMajor: false,
+        name: 'チリ共和国', bloc: 'neutral', blocName: '硝石・銅輸出大国・長細国土',
+        leader: 'フアン・エステバン・モンテーロ 大統領', ministry: 'サンティアゴ外務省',
+        mil: 64, eco: 62, stb: 66, tech: 62, gdpText: '$0.9B',
+        aiAgenda: '硝石価格暴落への対処とタコマレス合意への復帰、南米海軍バランスの維持',
+        summary: '硝石戦争以来の南米最強海軍国。大恐慌で硝石・銅の輸出が半減し、1932年6月の社会主義共和国宣言 (12日間) など政局が揺れるが、イキケ〜プンタ・アレーナスの海軍拠点は南太平洋の鍵。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'J.E.モンテーロ', trait: '財政緊縮・海軍伝統 (+軍事)' }
+        ]
+      },
+      uruguay: {
+        id: 'uruguay', code: 'URU', region: '南北アメリカ', isMajor: false,
+        name: 'ウルグアイ東方共和国', bloc: 'neutral', blocName: 'ラ・プラタ通商・福祉先進国',
+        leader: 'ガブリエル・テラ 大統領', ministry: 'モンテビデオ外務省',
+        mil: 54, eco: 60, stb: 72, tech: 60, gdpText: '$0.5B',
+        aiAgenda: '羊毛・牛肉輸出と隣国アルゼンチン・ブラジルとの均衡、1930年モンテビデオ会議の外交遺産',
+        summary: '南米随一の教育・社会福祉先進国。ブラジルとアルゼンチンの緩衝国として、米国主導のモンテビデオ会議 (1930) で米州平和条約を主催した外交伝統を持つ。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'G.テラ', trait: '牧牛経済安定・バタービーフ輸出' }
+        ]
+      },
+      paraguay: {
+        id: 'paraguay', code: 'PAR', region: '南北アメリカ', isMajor: false,
+        name: 'パラグアイ共和国', bloc: 'neutral', blocName: 'チャコ防衛・アスンシオン',
+        leader: 'エウセビオ・アヤラ 大統領', ministry: 'アスンシオン外務省',
+        mil: 58, eco: 48, stb: 56, tech: 48, gdpText: '$0.2B',
+        aiAgenda: 'チャコ・グラン防衛戦の遂行と国際連盟・米国調停による戦争終結',
+        summary: 'チャコ・グランの大部分を現に防衛する最貧国。だがナナワ要塞と現地に適応した兵士の強靱さでボリビア軍を苦しめ、1932年6月以降の戦争で列強の注視を浴びる。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'E.アヤラ', trait: '文民統制・調停外交 (+安定)' }
+        ]
+      },
+      cuba: {
+        id: 'cuba', code: 'CUB', region: '南北アメリカ', isMajor: false,
+        name: 'キューバ共和国', bloc: 'versailles', blocName: 'ハバナ砂糖王国・米国和睦圏',
+        leader: 'ジェラルド・マチャド 大統領', ministry: 'ハバナ外務省',
+        mil: 56, eco: 60, stb: 48, tech: 56, gdpText: '$0.7B',
+        aiAgenda: '砂糖輸出の市場防衛とプラット条約修正 (1934) へ向けた対米交渉',
+        summary: '世界最大の砂糖輸出国。1934年のプラット条約修正条項へ向かう米国影響下の共和国で、砂糖価格暴落が反政府運動（1933年マチャド失脚）の火種となっている。',
+        interestGroups: createDefaultInterestGroups('versailles'),
+        cabinet: [
+          { role: '大統領', name: 'G.マチャド', trait: '砂糖財政・対米和睦 (米国関係+5%)' }
+        ]
+      },
+      guatemala: {
+        id: 'guatemala', code: 'GUA', region: '南北アメリカ', isMajor: false,
+        name: 'グアテマラ共和国', bloc: 'neutral', blocName: '中央アメリカ・コーヒー王国',
+        leader: 'ホルヘ・ウビコ 大統領', ministry: 'グアテマラシティ外務省',
+        mil: 54, eco: 50, stb: 62, tech: 46, gdpText: '$0.2B',
+        aiAgenda: 'コーヒー・バナナ経済の維持と英国領ベリーズ (英領ホンジュラス) の領有要求',
+        summary: 'ウビコ政権の下で鉄道・港の近代化を進めるコーヒー大国。英国領ベリーズ全域の領有を主張し続ける中央アメリカの要。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'J.ウビコ', trait: '強権近代化・コーヒー輸出' }
+        ]
+      },
+      el_salvador: {
+        id: 'el_salvador', code: 'ELS', region: '南北アメリカ', isMajor: false,
+        name: 'エルサルバドル共和国', bloc: 'neutral', blocName: '中央アメリカ・コーヒー共和国',
+        leader: 'マクシミリアーノ・エルナンデス・マルティネス 大統領', ministry: 'サンサルバドル外務省',
+        mil: 50, eco: 48, stb: 58, tech: 44, gdpText: '$0.15B',
+        aiAgenda: 'コーヒー価格暴落への対処と中央アメリカ五カ国会議の枠組み活用',
+        summary: '中米で唯一カリブ海に面しないコーヒー専業国。1931年のクーデタで成立したマルティネス政権が神秘主義的な社会政策と農民支持で政権を維持する。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'M.エルナンデス・マルティネス', trait: 'コーヒー専業・農民支持基盤' }
+        ]
+      },
+      honduras: {
+        id: 'honduras', code: 'HON', region: '南北アメリカ', isMajor: false,
+        name: 'ホンジュラス共和国', bloc: 'neutral', blocName: 'バナナ共和国・カリブ北岸',
+        leader: 'ティブリシオ・カリアス・アンディーノ 大統領', ministry: 'テグシガルパ外務省',
+        mil: 50, eco: 48, stb: 56, tech: 44, gdpText: '$0.15B',
+        aiAgenda: 'バナナ独占資本 (ユナイテッド・フルーツ) との関系管理と隣国との戦争回避',
+        summary: '1932年2月にカリアス政権が発足。中央アメリカで最も政変が多かった国が、強権と安定で「パックス・カリアーナ」へ向かう。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'T.カリアス', trait: '治安強化・バナナ財政' }
+        ]
+      },
+      nicaragua: {
+        id: 'nicaragua', code: 'NIC', region: '南北アメリカ', isMajor: false,
+        name: 'ニカラグア共和国', bloc: 'neutral', blocName: 'サンディーノ・米海兵隊問題',
+        leader: 'ホセ・マリア・モンカダ 大統領', ministry: 'マナグア外務省',
+        mil: 52, eco: 46, stb: 50, tech: 44, gdpText: '$0.1B',
+        aiAgenda: '米海兵隊撤退 (1933) とサンディーノゲリラの收拾、1932年総選挙の管理',
+        summary: '米海兵隊が駐留するバナナ・金鉱国。アウグスト・サンディーノのゲリラ戦が続く中、モンカダ政権が米国調停による選挙と撤退プロセスを進める。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'J.M.モンカダ', trait: '米国調停・選挙管理 (+米国関係)' }
+        ]
+      },
+      costa_rica: {
+        id: 'costa_rica', code: 'COS', region: '南北アメリカ', isMajor: false,
+        name: 'コスタリカ共和国', bloc: 'neutral', blocName: '中央アメリカ・民主主義先進国',
+        leader: 'クレト・ゴンサレス・ビケス 大統領', ministry: 'サンホセ外務省',
+        mil: 48, eco: 54, stb: 68, tech: 52, gdpText: '$0.2B',
+        aiAgenda: 'コーヒー経済の安定化と1932年5月の平和的政権交代、パナマとの国境裁定',
+        summary: '中央アメリカで唯一の安定した議会民主国。軍隊を大幅に縮小し教育予算を拡大する「先生の共和国」で、米ユナイテッド・フルーツの経済影響と共存する。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'C.ゴンサレス・ビケス', trait: '平和的政権交代・教育立国 (+安定)' }
+        ]
+      },
+      panama: {
+        id: 'panama', code: 'PAN', region: '南北アメリカ', isMajor: false,
+        name: 'パナマ共和国', bloc: 'neutral', blocName: '世界の運河・中立化条約国',
+        leader: 'フロレンシオ・アロセメナ 大統領', ministry: 'パナマシティ外務省',
+        mil: 46, eco: 52, stb: 58, tech: 50, gdpText: '$0.15B',
+        aiAgenda: 'パナマ運河中立化条約の維持と米国領運河地帯との共存',
+        summary: '世界貿易の大動脈「パナマ運河」の主権国。米国との条約体制下で運河の永久中立化が確定しており、米国艦隊と共生する世界戦略の要衝。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'F.アロセメナ', trait: '運河通商収入・対米和睦' }
+        ]
+      },
+      haiti: {
+        id: 'haiti', code: 'HAI', region: '南北アメリカ', isMajor: false,
+        name: 'ハイチ共和国', bloc: 'neutral', blocName: '米軍占領下の独立国',
+        leader: 'ステニオ・ヴァンサン 大統領', ministry: 'ポルトープランス外務省',
+        mil: 50, eco: 42, stb: 46, tech: 42, gdpText: '$0.1B',
+        aiAgenda: '米軍占領 (1915-) の終結交渉と「ハイチ化」政策への移行 への転換',
+        summary: '1915年以来米海兵隊が占領する独立国。1930年に選ばれたヴァンサン政権が米国撤退 (1934) へ向けた交渉を進め、砂糖・コーヒー経済の再建を図る。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'S.ヴァンサン', trait: '占領終結交渉・経済再建' }
+        ]
+      },
+      dominican: {
+        id: 'dominican', code: 'DOM', region: '南北アメリカ', isMajor: false,
+        name: 'ドミニカ共和国', bloc: 'neutral', blocName: '砂糖王国・トゥルヒーヨ台頭',
+        leader: 'ホラシオ・バスケス 大統領', ministry: 'サントドミンゴ外務省',
+        mil: 50, eco: 46, stb: 54, tech: 44, gdpText: '$0.15B',
+        aiAgenda: '砂糖輸出経済の維持と陸軍司令官トゥルヒーヨの台頭への対処',
+        summary: '世界最大級の砂糖輸出国。1924年の米占領終結後も財政監督が続く中、軍部で頭角を現すラファエル・トゥルヒーヨが1930年代の独裁体制への道を歩み始める。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'H.バスケス', trait: '砂糖経済・軍部抑止 (+安定)' }
         ]
       },
 
@@ -2528,7 +2708,7 @@ const SCENARIOS = {
           { role: '連邦大統領', name: 'P.フォン・ヒンデンブルク元帥', trait: '大統領緊急令権限・国軍の重鎮' },
           { role: '首相', name: 'ハインリヒ・ブリューニング', trait: '賠償金終了交渉・デフレ緊縮財政' },
           { role: '国防省幕僚長', name: 'クルト・フォン・シュライヒャー', trait: '国軍の政治工作・秘密再軍備計画' },
-          { role: 'ライヒスバンク総裁', name: 'ハンス・ルター / H.シャハト', trait: '金融工学・雇用創出プログラム' }
+          { role: 'ライヒスバンク総裁', name: 'ハンス・ルター', trait: '金融工学・雇用創出プログラム' }
         ]
       },
       italy: {
@@ -2561,7 +2741,7 @@ const SCENARIOS = {
           { id: 'ig_parliament', name: '全連邦共産党中央委員会・政治局 (モロトフ・キーロフ)', influence: 40, approval: 76, demand: '社会主義重工業化の推進と党の指導体制強化', bonusText: '支持70%+: 安定度+6%・政治力+5' },
           { id: 'ig_military', name: '労農赤軍参謀本部 (トゥハチェフスキー縦深戦理論)', influence: 28, approval: 70, demand: '機甲軍団・空挺部隊の大量編成と極東軍増強', bonusText: '支持70%+: 軍事+7' },
           { id: 'ig_industrialists', name: 'ゴスプラン（国家計画委員会）・重工業人民委員部', influence: 20, approval: 72, demand: '第2次五ヶ年計画に向けた工作機械・資源開発', bonusText: '支持70%+: 経済+6・鉱物+8%' },
-          { id: 'ig_labor', name: 'コルホーズ農民・炭鉱工場労働者 (スタハノフ運動)', influence: 12, approval: 50, demand: 'ウクライナ・南ロシアの食糧配給改善と消費財供給', bonusText: '支持70%+: 安定度+6% / 不満35%以下: 食糧危機' }
+          { id: 'ig_labor', name: 'コルホーズ農民・炭鉱工場労働者 (シャフチー裁判後の粛清下)', influence: 12, approval: 50, demand: 'ウクライナ・南ロシアの食糧配給改善と消費財供給', bonusText: '支持70%+: 安定度+6% / 不満35%以下: 食糧危機' }
         ],
         cabinet: [
           { role: '党書記長', name: 'ヨシフ・スターリン', trait: '重工業五ヶ年計画・一国社会主義建設' },
@@ -2572,14 +2752,14 @@ const SCENARIOS = {
       poland: {
         id: 'poland', code: 'POL', region: 'ヨーロッパ', isMajor: false,
         name: 'ポーランド第二共和国', bloc: 'versailles', blocName: 'サナツィア体制・仏波同盟',
-        leader: 'ユゼフ・ピウスツキ 元帥 (実質指導者)', ministry: 'ポーランド外務省 (ベック外相)',
+        leader: 'ユゼフ・ピウスツキ 元帥 (実質指導者)', ministry: 'ポーランド外務省 (ザレスキ外相)',
         mil: 74, eco: 64, stb: 68, tech: 68, gdpText: '$3.6B',
         aiAgenda: '独ソ二大国に対する「均衡外交（不可侵条約）」とバルト〜黒海「インテルマリウム（海間連邦）」構想',
         summary: 'ドイツとソ連という二大強国に挟まれた東欧の要衝。ピウスツキ元帥のもとで強力な陸軍を維持し、フランスとの同盟と独ソ双方との不可侵交渉を巧みに操る。',
         interestGroups: createDefaultInterestGroups('versailles'),
         cabinet: [
           { role: '軍事総監・元帥', name: 'ユゼフ・ピウスツキ', trait: '国家統合・インテルマリウム構想 (+軍事・安定)' },
-          { role: '外務大臣', name: 'ユゼフ・ベック', trait: '独ソ等距離均衡外交' }
+          { role: '外務大臣', name: 'オーギュスト・ザレスキ', trait: '独ソ等距離均衡外交・1932年不可侵条約網構築' }
         ]
       },
       spain: {
@@ -2602,10 +2782,10 @@ const SCENARIOS = {
       portugal: {
         id: 'portugal', code: 'POR', region: 'ヨーロッパ', isMajor: false,
         name: 'ポルトガル共和国 (エスタド・ノヴォ体制)', bloc: 'neutral', blocName: '英葡永久同盟・大西洋植民地帝国',
-        leader: 'アントニオ・デ・オリヴェイラ・サラザール 首相 (1932年就任)', ministry: 'リスボン外務省 (ネセシダーデス宮殿)',
+        leader: 'ドミンゴス・オリヴェイラ 首相 (サラザール財務相が実権)', ministry: 'リスボン外務省 (ネセシダーデス宮殿)',
         mil: 64, eco: 66, stb: 76, tech: 64, gdpText: '$1.8B',
         aiAgenda: 'サラザール財政改革による黒字化、英葡同盟の維持、アンゴラ・モザンビーク植民地帝国の防衛',
-        summary: '1932年7月に財務相サラザールが首相に就任し、権威主義的コーポラティズム体制「エスタド・ノヴォ（新国家）」を確立。大西洋の要衝リスボン・アゾレス諸島と広大なアフリカ植民地（アンゴラ・モザンビーク）を領有する歴史的海洋国家。',
+        summary: '財務相サラザールが奇跡の均衡財政で実権を握り、7月に首相へ就任して権威主義的コーポラティズム体制「エスタド・ノヴォ（新国家）」を確立する直前。大西洋の要衝リスボン・アゾレス諸島と広大なアフリカ植民地（アンゴラ・モザンビーク）を領有する歴史的海洋国家。',
         interestGroups: [
           { id: 'ig_parliament', name: '国民連合・コインブラ大学官僚層 (サラザール派)', influence: 35, approval: 76, demand: '均衡財政の厳守と新憲法（エスタド・ノヴォ）の制定', bonusText: '支持70%+: 安定度+8%・政治力+5' },
           { id: 'ig_military', name: 'ポルトガル陸海軍・植民地駐屯軍 (カルモナ大統領)', influence: 28, approval: 70, demand: 'アンゴラ・モザンビーク・マカオの防衛と軍備近代化', bonusText: '支持70%+: 軍事+5' },
@@ -2613,70 +2793,257 @@ const SCENARIOS = {
           { id: 'ig_labor', name: '国営協調組合（シンジケート）・農民層', influence: 15, approval: 56, demand: '小麦増産キャンペーンと生活物資の価格安定', bonusText: '支持70%+: 安定度+5%' }
         ],
         cabinet: [
-          { role: '首相・財務相', name: 'アントニオ・デ・オリヴェイラ・サラザール', trait: '奇跡の均衡財政・エスタド・ノヴォ (+経済・安定)' },
+          { role: '首相', name: 'ドミンゴス・オリヴェイラ', trait: '軍部推戴政権・エスタド・ノヴォ準備 (+安定)' },
+          { role: '財務相 (実質指導者)', name: 'アントニオ・デ・オリヴェイラ・サラザール', trait: '奇跡の均衡財政・7月に首相就任 (+経済・安定)' },
           { role: '大統領', name: 'オスカル・カルモナ元帥', trait: '軍部統合・英葡同盟維持 (+軍事)' }
         ]
       },
-      central_europe: {
-        id: 'central_europe', code: 'CZE', region: 'ヨーロッパ', isMajor: false,
-        name: 'チェコスロバキア・オーストリア (中欧連邦)', bloc: 'versailles', blocName: '小協商・ドナウ防衛圏',
-        leader: 'トマーシュ・マサリク 大統領 / ベネシュ外相', ministry: 'プラハ・ウィーン外務省',
-        mil: 76, eco: 76, stb: 72, tech: 84, gdpText: '$5.2B',
-        aiAgenda: 'スコダ重工業の兵器輸出とアルプス・ズデーテン要塞線の死守・小協商（対仏・対ルーマニア・対ユーゴ）結束',
-        summary: '世界屈指の兵器メーカー「スコダ工場」と堅固な国境要塞、そして中欧唯一の安定した議会民主制を誇る工業強国。',
+      estonia: {
+        id: 'estonia', code: 'EST', region: 'ヨーロッパ', isMajor: false,
+        name: 'エストニア共和国', bloc: 'neutral', blocName: 'バルト連盟・武装中立派',
+        leader: 'ヤーン・テーンニソン 国家長老', ministry: 'タリン外務省',
+        mil: 58, eco: 58, stb: 66, tech: 62, gdpText: '$0.4B',
+        aiAgenda: 'ラトヴィア・リトアニアとのバルト三国協商とソ連・ドイツ両大国への武装中立',
+        summary: 'バルトの最北端国家。優秀な軽機関銃・通信技術とリガ〜ヘルシンキ経由の通商で自立する共和国。ソ連の拡張とドイツ勢力の前進が迫る「バルトの関所」。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '国家長老 (政府首班)', name: 'J.テーンニソン', trait: '連盟外交・三国協商 (+安定)' }
+        ]
+      },
+      latvia: {
+        id: 'latvia', code: 'LAT', region: 'ヨーロッパ', isMajor: false,
+        name: 'ラトヴィア共和国', bloc: 'neutral', blocName: 'バルト連盟・リガ通商港',
+        leader: 'マルゲルス・スクイエニエクス 首相', ministry: 'リガ外務省',
+        mil: 58, eco: 58, stb: 64, tech: 60, gdpText: '$0.5B',
+        aiAgenda: 'リガ港・木材・亜麻輸出とバルト三国間の経済統合推進',
+        summary: 'ロシア帝国時代から「バルトの窓口」リガを擁する通商国。木材・亜麻・砂糖で輸出を支え、ドイツバルト貴族層とラトヴィア民族国家の均衡を保つ。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '首相', name: 'M.スクイエニエクス', trait: '通商国家経済・三国協商 (+経済)' }
+        ]
+      },
+      lithuania: {
+        id: 'lithuania', code: 'LIT', region: 'ヨーロッパ', isMajor: false,
+        name: 'リトアニア共和国', bloc: 'neutral', blocName: 'ヴィルニウス回復要求・カウナス',
+        leader: 'アンタナス・スメトナ 大統領 / ユオザス・トゥベリス首相', ministry: 'カウナス外務省',
+        mil: 60, eco: 56, stb: 62, tech: 58, gdpText: '$0.5B',
+        aiAgenda: 'ポーランドによるヴィルニウス (ヴィルノ) 占領への回復要求と武装対峙の管理',
+        summary: '1920年にポーランドのジェリゴフスキ将軍に「偽装反乱」で占領された歴史的首都ヴィルニウスを回復要求するが、国交もなく両国間は武装対峙状態。臨時首都カウナスで経済再建を進める。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '大統領', name: 'A.スメトナ', trait: '1926年クーデタ・ヴィルニウス回復旗手' },
+          { role: '首相', name: 'J.トゥベリス', trait: '財政再建・通貨リタス安定 (+経済)' }
+        ]
+      },
+      czechoslovakia: {
+        id: 'czechoslovakia', code: 'CZE', region: 'ヨーロッパ', isMajor: false,
+        name: 'チェコスロバキア共和国', bloc: 'versailles', blocName: '小協商・ドナウ防衛圏',
+        leader: 'トマーシュ・マサリク 大統領 / ウドルジャル首相', ministry: 'プラハ外務省',
+        mil: 76, eco: 76, stb: 72, tech: 84, gdpText: '$4.2B',
+        aiAgenda: 'スコダ重工業の兵器輸出とズデーテン要塞線の死守・小協商 (対仏・対ルーマニア・対ユーゴ) 結束',
+        summary: '世界屈指の兵器メーカー「スコダ工場」と堅固な国境要塞、そして中欧唯一の安定した議会民主制を誇る工業強国。ドイツの再軍備とハンガリーの条約改正要求に直面する。',
         interestGroups: createDefaultInterestGroups('versailles'),
         cabinet: [
           { role: '大統領', name: 'トマーシュ・マサリク', trait: '中欧民主主義の砦 (+安定度)' },
           { role: '外務大臣', name: 'エドヴァルド・ベネシュ', trait: '小協商・国際連盟外交の旗手 (+政治力)' }
         ]
       },
+      austria: {
+        id: 'austria', code: 'AUT', region: 'ヨーロッパ', isMajor: false,
+        name: 'オーストリア連邦国', bloc: 'neutral', blocName: 'ドナウ経済圏・独立防衛派',
+        leader: 'カール・ブレシュ 首相', ministry: 'ウィーン外務省',
+        mil: 62, eco: 62, stb: 58, tech: 74, gdpText: '$1.9B',
+        aiAgenda: '関税同盟問題の収拾、ドイツ併合運動とイタリア独立保証の板挟み、金融再建',
+        summary: '1931年独オーストリア関税同盟構想が仏により潰され、銀行恐慌 (クレジットアンシュタルト) で経済が疲弊。ウィーンのナチ党勢力とイタリアの独立保証がせめぎ合う中、7月にドルフス内閣へ交代する。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '首相', name: 'カール・ブレシュ', trait: '金融再建・独立維持 (+安定)' },
+          { role: '外務大臣', name: 'カール・バーリニ', trait: '対伊独均衡外交' }
+        ]
+      },
+      switzerland: {
+        id: 'switzerland', code: 'SWI', region: 'ヨーロッパ', isMajor: false,
+        name: 'スイス連邦', bloc: 'neutral', blocName: '永世中立・金融要塞',
+        leader: 'ジュゼッペ・モッタ 連邦大統領', ministry: 'ベルン外務省',
+        mil: 64, eco: 78, stb: 88, tech: 84, gdpText: '$2.6B',
+        aiAgenda: '永世中立の維持と金融・精密機械・医薬 (バーゼル・チューリッヒ) の自立',
+        summary: '国際連盟ジュネーヴ本部を擁する永世中立国。世界恐慌でも堅牢な金融と全民皆兵の山岳防衛で安定を保つ「アルプスの要塞」。列強の外交交渉の仲介地。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '連邦大統領', name: 'G.モッタ', trait: '永世中立・連盟本部国 (+外交・安定)' }
+        ]
+      },
       romania: {
         id: 'romania', code: 'ROM', region: 'ヨーロッパ', isMajor: false,
-        name: 'ルーマニア王国・東バルカン', bloc: 'versailles', blocName: '小協商・プロイェシュティ産油圏',
-        leader: 'カロル2世 国王 / チトゥレスク外相', ministry: 'ブカレスト外務省',
+        name: 'ルーマニア王国', bloc: 'versailles', blocName: '小協商・プロイェシュティ産油圏',
+        leader: 'カロル2世 国王 / ヨルガ首相', ministry: 'ブカレスト外務省',
         mil: 68, eco: 68, stb: 64, tech: 64, gdpText: '$2.8B',
         aiAgenda: '欧州最大の「プロイェシュティ油田」の防衛と小協商・バルカン協商による国境保全',
         summary: 'ヨーロッパ大陸で最も重要な「プロイェシュティ大油田」を保有する資源戦略国。英仏独ソのすべてがルーマニアの石油を狙っており、資源外交で大きな主導権を握れる。',
         interestGroups: createDefaultInterestGroups('versailles'),
         cabinet: [
+          { role: '首相', name: 'ニコラエ・ヨルガ', trait: '学識政治家・1932年6月までの連立政権' },
           { role: '外務大臣', name: 'ニコラエ・チトゥレスク', trait: '国際連盟議長・集団安全保障外交 (石油収支+5%)' }
+        ]
+      },
+      hungary: {
+        id: 'hungary', code: 'HUN', region: 'ヨーロッパ', isMajor: false,
+        name: 'ハンガリー王国', bloc: 'revisionist', blocName: 'トリアノン条約改正派',
+        leader: 'ホルティ・ミクローシュ 摂政 / カーロイ首相', ministry: 'ブダペスト外務省',
+        mil: 66, eco: 62, stb: 60, tech: 70, gdpText: '$1.6B',
+        aiAgenda: 'トリアノン条約（軍備制限・領土喪失）の改正運動と小協商3国との対抗、農業経済の再建',
+        summary: '領土の3分の2と人口の3分の1をトリアノン条約で失った「国なき王国」。ホルティ摂政のもと軍備制限を破りながら、ルーマニア・ユーゴ・チェコスロバキアの小協商と対峙する条約改正の旗手。',
+        interestGroups: createDefaultInterestGroups('revisionist'),
+        cabinet: [
+          { role: '摂政', name: 'ホルティ・ミクローシュ', trait: '王国海軍提督出身・軍備制限打破 (+軍事)' },
+          { role: '首相', name: 'カーロイ・ジュラ', trait: '保守安定・10月にゲンベシュへ交代' }
+        ]
+      },
+      bulgaria: {
+        id: 'bulgaria', code: 'BUL', region: 'ヨーロッパ', isMajor: false,
+        name: 'ブルガリア王国', bloc: 'revisionist', blocName: 'ヌイイ条約改正派・バルカン対峙',
+        leader: 'ボリス3世 国王 / ムシャノフ首相', ministry: 'ソフィア外務省',
+        mil: 64, eco: 56, stb: 58, tech: 58, gdpText: '$0.7B',
+        aiAgenda: 'ヌイイ条約による領土・軍備制限の改正とマケドニア問題 (ユーゴ) の対峙、連盟外交の並行運用',
+        summary: '第一次大戦の敗戦国で、トラキア・南ドブルジャ・マケドニアの一部を失った「バルカンの敗者」。ボリス3世とムシャノフ政権が連盟外交と領土改正運動の板挟みにある。',
+        interestGroups: createDefaultInterestGroups('revisionist'),
+        cabinet: [
+          { role: '国王', name: 'ボリス3世', trait: '列強均衡・軍事外交 (+軍事)' },
+          { role: '首相', name: 'A.ムシャノフ', trait: '連盟外交・条約改正の並行路線' }
         ]
       },
       yugoslavia: {
         id: 'yugoslavia', code: 'YUG', region: 'ヨーロッパ', isMajor: false,
-        name: 'ユーゴスラビア王国・ギリシャ (バルカン協商)', bloc: 'versailles', blocName: 'バルカン協商・小協商',
-        leader: 'アレクサンダル1世 国王 / ヴェニゼロス首相', ministry: 'ベオグラード・アテネ外務省',
+        name: 'ユーゴスラビア王国', bloc: 'versailles', blocName: '小協商・バルカン協商',
+        leader: 'アレクサンダル1世 国王 / ジヴコヴィッチ首相', ministry: 'ベオグラード外務省',
         mil: 68, eco: 62, stb: 60, tech: 62, gdpText: '$2.9B',
-        aiAgenda: 'アドリア海・エーゲ海の防衛とバルカン諸国の独立維持',
-        summary: 'イタリアのアドリア海進出を牽制しつつ、フランス・チェコスロバキア・ルーマニアと小協商を形成するバルカンの要。',
+        aiAgenda: 'アドリア海の防衛、イタリア・ハンガリー・ブルガリアの修正主義に対する小協商結束、マケドニア問題の管理',
+        summary: '六民族の複合王国。イタリアのアドリア海進出を牽制しつつ、フランス・チェコスロバキア・ルーマニアと小協商を形成するバルカンの要。だがクロアチア分離主義 (パヴェリッチ) が内政の火種。',
         interestGroups: createDefaultInterestGroups('versailles'),
         cabinet: [
-          { role: '国王', name: 'アレクサンダル1世', trait: 'バルカン協商・王権統合' }
+          { role: '国王', name: 'アレクサンダル1世', trait: '「軍人国王」・王国統合 (+軍事)' },
+          { role: '首相', name: 'ペタル・ジヴコヴィッチ', trait: '「1月6日体制」親衛政権・独裁安定化' }
         ]
       },
-      nordic: {
-        id: 'nordic', code: 'SWE', region: 'ヨーロッパ', isMajor: false,
-        name: 'スウェーデン・北欧諸国連合', bloc: 'democratic', blocName: 'オスロ条約・武装中立圏',
-        leader: 'ペール・アルビン・ハンソン 首相 / マンネルヘイム国防評議会議長', ministry: 'ストックホルム・北欧外務省',
-        mil: 70, eco: 78, stb: 84, tech: 86, gdpText: '$4.8B',
+      greece: {
+        id: 'greece', code: 'GRE', region: 'ヨーロッパ', isMajor: false,
+        name: 'ギリシャ第二共和政', bloc: 'versailles', blocName: 'エーゲ海・連盟加盟国',
+        leader: 'エレフテリオス・ヴェニゼロス 首相', ministry: 'アテネ外務省',
+        mil: 66, eco: 60, stb: 62, tech: 62, gdpText: '$1.1B',
+        aiAgenda: '小アジア敗戦 (1922) 後の110万人難民の復興と対ブルガリア・対トルコ関係の安定化',
+        summary: '君主制を廃止した第二共和政。ヴェニゼロスがトルコ (1930) ・イタリア (1928) との友好条約でバルカンを安定化させつつ、難民定住とドラクマ防衛に苦闘する。',
+        interestGroups: createDefaultInterestGroups('versailles'),
+        cabinet: [
+          { role: '首相', name: 'エレフテリオス・ヴェニゼロス', trait: 'クレタの政治家・対外友好網構築 (+外交)' }
+        ]
+      },
+      albania: {
+        id: 'albania', code: 'ALB', region: 'ヨーロッパ', isMajor: false,
+        name: 'アルバニア王国', bloc: 'neutral', blocName: 'イタリア影響下の山岳王国',
+        leader: 'ゾグー1世 国王', ministry: 'ティラナ外務省',
+        mil: 52, eco: 48, stb: 60, tech: 50, gdpText: '$0.2B',
+        aiAgenda: 'イタリア経済・軍事援助への依存管理とユーゴ (コソボ) ・ギリシャ (北エピロス) との国境問題',
+        summary: '1928年にゾグーが王位についた山岳王国。イタリアの資金・士官・ティラナからの道路網に支えられた保護国的存在。アドリア海の「イタリアの玄関」として列強が注視する。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '国王', name: 'ゾグー1世', trait: '部族統合・イタリア均衡 (+生存本能)' }
+        ]
+      },
+      sweden: {
+        id: 'sweden', code: 'SWE', region: 'ヨーロッパ', isMajor: false,
+        name: 'スウェーデン王国', bloc: 'democratic', blocName: 'オスロ協定・武装中立圏',
+        leader: 'カール・グスタフ・ハムリン 首相', ministry: 'ストックホルム外務省',
+        mil: 70, eco: 76, stb: 84, tech: 84, gdpText: '$3.2B',
         aiAgenda: 'キルナ鉄鉱山とボフォース社兵器技術を背景とした武装中立・「国民の家」福祉国家建設',
-        summary: '最高品質の「キルナ鉄鉱石」とボフォース社の高射砲技術を有し、1932年に発足した社民党政権が世界恐慌をいち早く克服する北欧の模範国。',
+        summary: '最高品質の「キルナ鉄鉱石」とボフォース社の高射砲技術を有する北欧の工業国。9月には社民党ハンソン政権が発足し、大恐慌をいち早く克服する北欧モデルの先駆となる。',
         interestGroups: createDefaultInterestGroups('democratic'),
         cabinet: [
-          { role: 'スウェーデン首相', name: 'P.A.ハンソン', trait: '「国民の家」福祉・労使協調 (+安定・経済)' },
-          { role: 'フィンランド国防議長', name: 'C.G.E.マンネルヘイム', trait: '北欧防衛・冬季要塞戦術 (+要塞)' }
+          { role: '首相', name: 'C.G.ハムリン', trait: 'デフレ収拾・9月にハンソンへ交代' }
         ]
       },
-      benelux: {
-        id: 'benelux', code: 'HOL', region: 'ヨーロッパ', isMajor: false,
-        name: 'オランダ王国・ベルギー (ベネルクス)', bloc: 'democratic', blocName: 'オスロ条約・中立通商圏',
-        leader: 'ヘンドリクス・コijn 首相 / アルベール1世', ministry: 'ハーグ・ブリュッセル外務省',
-        mil: 68, eco: 80, stb: 78, tech: 84, gdpText: '$5.6B',
-        aiAgenda: 'ロッテルダム・アントワープ国際貿易港の維持、エバン・エマール要塞防衛、蘭印植民地との連携',
-        summary: 'ロイヤル・ダッチ・シェルなどの国際巨大資本と豊かな植民地貿易を擁する金融・海運大国。英仏独の緩衝地帯として中立維持と防空要塞化を進める。',
+      denmark: {
+        id: 'denmark', code: 'DEN', region: 'ヨーロッパ', isMajor: false,
+        name: 'デンマーク王国', bloc: 'democratic', blocName: 'オスロ協定・農業輸出王国',
+        leader: 'トールヴァル・ストゥーニング 首相', ministry: 'コペンハーゲン外務省',
+        mil: 62, eco: 72, stb: 82, tech: 76, gdpText: '$1.6B',
+        aiAgenda: 'バター・豚肉輸出の市場防衛と北シュレースヴィク回復 (1920) 後の安定、コペンハーゲン通商',
+        summary: '農業協同組合で世界のバター・ベーコン市場を制する「乳と豚の王国」。ストゥーニング社民政権が失業対策を先駆的に進める北欧の福祉先進国。',
         interestGroups: createDefaultInterestGroups('democratic'),
         cabinet: [
-          { role: 'オランダ首相', name: 'ヘンドリクス・コijn', trait: '金本位ブロック・国際海運通商' }
+          { role: '首相', name: 'T.ストゥーニング', trait: '社民主政・農業輸出防衛 (+安定)' }
+        ]
+      },
+      norway: {
+        id: 'norway', code: 'NOR', region: 'ヨーロッパ', isMajor: false,
+        name: 'ノルウェー王国', bloc: 'democratic', blocName: 'オスロ協定・北海海上国',
+        leader: 'ペーデル・コールスタッド 首相', ministry: 'オスロ外務省',
+        mil: 62, eco: 70, stb: 84, tech: 74, gdpText: '$1.4B',
+        aiAgenda: '世界第4位の商船隊の維持と水力発電・アルミ精錬、グリーンランド・ヤンマイエン問題',
+        summary: '世界第4位の商船隊と水力発電を武器にする海洋中立国。グリーンランド東部領有問題でデンマーク (1931年占領) と対立する一方、ボフォース兵器とキルナ鉄を経由する中立通商を守る。',
+        interestGroups: createDefaultInterestGroups('democratic'),
+        cabinet: [
+          { role: '首相', name: 'P.コールスタッド', trait: '農民党中道政権・商船通商 (+経済)' }
+        ]
+      },
+      finland: {
+        id: 'finland', code: 'FIN', region: 'ヨーロッパ', isMajor: false,
+        name: 'フィンランド共和国', bloc: 'democratic', blocName: 'バルト防衛・オスロ協定',
+        leader: 'ユホ・スニラ 首相', ministry: 'ヘルシンキ外務省',
+        mil: 68, eco: 64, stb: 76, tech: 72, gdpText: '$1.0B',
+        aiAgenda: 'マンネルヘイム防衛計画 (カレリア地峡要塞化) と1月に調印した対ソ不可侵条約の活用',
+        summary: '1932年1月にソ連と不可侵条約を調印したばかりの共和国。マンネルヘイム議長がカレリア地峡の要塞化を進め、木材パルプ輸出と世界有数の教育水準で独立を支える。',
+        interestGroups: createDefaultInterestGroups('democratic'),
+        cabinet: [
+          { role: '首相', name: 'J.スニラ', trait: '農民党連立・木材経済 (+経済)' },
+          { role: '国防評議会議長', name: 'C.G.E.マンネルヘイム', trait: '北欧防衛・冬季要塞戦術 (+要塞)' }
+        ]
+      },
+      netherlands: {
+        id: 'netherlands', code: 'HOL', region: 'ヨーロッパ', isMajor: false,
+        name: 'オランダ王国', bloc: 'democratic', blocName: 'オスロ協定・植民地帝国中立',
+        leader: 'ライス・デ・ベレンブラウク 首相', ministry: 'ハーグ外務省',
+        mil: 66, eco: 78, stb: 80, tech: 80, gdpText: '$3.0B',
+        aiAgenda: 'ロッテルダム国際貿易港の維持、金本位ブロック堅持、蘭領東インドとの連携防衛',
+        summary: 'ロイヤル・ダッチ・シェルなどの国際巨大資本と豊かな植民地貿易を擁する金融・海運大国。金本位制を最後まで守り抜き、極東の蘭印防衛と連動する中立国。',
+        interestGroups: createDefaultInterestGroups('democratic'),
+        cabinet: [
+          { role: '首相', name: 'ライス・デ・ベレンブラウク', trait: '金本位ブロック・国際海運通商' }
+        ]
+      },
+      belgium: {
+        id: 'belgium', code: 'BEL', region: 'ヨーロッパ', isMajor: false,
+        name: 'ベルギー王国', bloc: 'versailles', blocName: 'ロカルノ保証・コンゴ鉱物圏',
+        leader: 'ジュル・レンキン 首相', ministry: 'ブリュッセル外務省',
+        mil: 68, eco: 78, stb: 74, tech: 80, gdpText: '$2.9B',
+        aiAgenda: 'ロカルノ条約保证体系の死守とエバン・エマール要塞の増強、コンゴのウラン・銅鉱物',
+        summary: 'ヴェルサイユ条約でエウペン・マルメディを獲得した「要塞中立国」。世界最大級のコンゴ鉱物圏 (銅・ウラン・ダイヤ) を擁し、英仏の保証とアントワープ港で外交と通商の結節点となる。',
+        interestGroups: createDefaultInterestGroups('versailles'),
+        cabinet: [
+          { role: '首相', name: 'J.レンキン', trait: '保証中立・要塞防衛 (+軍事)' }
+        ]
+      },
+      luxembourg: {
+        id: 'luxembourg', code: 'LUX', region: 'ヨーロッパ', isMajor: false,
+        name: 'ルクセンブルク大公国', bloc: 'neutral', blocName: '永世中立・鉄鋼専業国',
+        leader: 'ジョゼフ・ベッシュ 首相', ministry: 'ルクセンブルク外務省',
+        mil: 50, eco: 70, stb: 84, tech: 72, gdpText: '$0.4B',
+        aiAgenda: 'ベルギー・ルクセンブルク経済同盟 (BLEU) とアルベド (ARBED) 鉄鋼財閥の輸出防衛',
+        summary: '人口数十万ながらARBED鉄鋼財閥が世界製鉄に食い込む「鉄鋼専業の中立国」。ベルギーと通貨同盟を組み、ドイツ・フランス・ベルギーの国境要衝に立つ。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '首相', name: 'J.ベッシュ', trait: 'BLEU通貨同盟・鉄鋼外交 (+経済)' }
+        ]
+      },
+      ireland: {
+        id: 'ireland', code: 'IRE', region: 'ヨーロッパ', isMajor: false,
+        name: 'アイルランド自由国', bloc: 'neutral', blocName: '英連邦離反派・中立外交',
+        leader: 'W.T.コスグレイヴ 執行会議議長', ministry: 'ダブリン外務省',
+        mil: 54, eco: 58, stb: 68, tech: 64, gdpText: '$0.7B',
+        aiAgenda: '2月総選挙で勝利したデ・ヴァレラ政権への交代 (3月9日) と英連邦条約残滓の撤廃',
+        summary: '自由国成立10年目。2月の総選挙で内戦条約を否定するデ・ヴァレラ (フィアナ・フォイル) が勝利し、9日に就任する。枢密院への訴えの撤廃など英連邦からの離脱路線が始まる。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '執行会議議長', name: 'W.T.コスグレイヴ / E.デ・ヴァレラ', trait: '10年政権の交代期・対英条約交渉 (+外交)' }
         ]
       },
 
@@ -2686,7 +3053,7 @@ const SCENARIOS = {
         name: 'トルコ共和国', bloc: 'neutral', blocName: 'ケマル主義・海峡中立圏',
         leader: 'ムスタファ・ケマル・アタテュルク 大統領', ministry: 'アンカラ外務省 (アラス外相)',
         mil: 72, eco: 66, stb: 80, tech: 68, gdpText: '$2.1B',
-        aiAgenda: '世俗化・工業化五ヶ年計画の推進、1932年国際連盟加盟、ボスポラス海峡の主権回復（モントルー条約）',
+        aiAgenda: '世俗化・工業化五ヶ年計画の推進、1932年国際連盟加盟、ローザンヌ条約による海峡主権の完全回復',
         summary: '建国の父アタテュルクのもとで急速な近代化を成し遂げ、1932年7月に国際連盟へ加盟。黒海と地中海を結ぶボスポラス海峡を握る地政学上の要衝。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
@@ -2704,6 +3071,18 @@ const SCENARIOS = {
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
           { role: '皇帝 (シャー)', name: 'レザー・シャー・パフラヴィー', trait: '石油利権改定・イラン縦貫鉄道建設' }
+        ]
+      },
+      afghanistan: {
+        id: 'afghanistan', code: 'AFG', region: '中東・アフリカ', isMajor: false,
+        name: 'アフガニスタン王国', bloc: 'neutral', blocName: '英ソ均衡・ヒンドゥークシ王国',
+        leader: 'モハメッド・ナーディル・シャー 国王', ministry: 'カブール外務省',
+        mil: 58, eco: 46, stb: 60, tech: 46, gdpText: '$0.2B',
+        aiAgenda: '1929年内乱後の王国再建と英国・ソ連両帝国の均衡外交',
+        summary: '1929年の王政崩壊と内乱を経て、1932年にナーディル・シャーが再建した王国。英国とソ連という両帝国の緩衝地帯として、1919年の独立回復条約以来の均衡外交を続ける山岳国。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '国王', name: 'M.ナーディル・シャー', trait: '王政再建・英ソ均衡 (+安定)' }
         ]
       },
       saudi_arabia: {
@@ -2736,7 +3115,7 @@ const SCENARIOS = {
         leader: 'ハイレ・セラシエ1世 皇帝', ministry: 'アディスアベバ外務省',
         mil: 62, eco: 54, stb: 72, tech: 54, gdpText: '$0.7B',
         aiAgenda: '1931年明治憲法範型の近代憲法施行、皇帝親衛隊の近代装備化、イタリアの侵略抑止',
-        summary: 'アフリカで唯一植民地化を免れ国際連盟に加盟している独立帝国。1931年に大日本帝国憲法をモデルとした初の成文憲法を発布し、迫り来るイタリアの脅威に備える。',
+        summary: 'リベリアとともにアフリカで植民地化を免れ国際連盟に加盟している独立帝国。1931年に大日本帝国憲法をモデルとした初の成文憲法を発布し、迫り来るイタリアの脅威に備える。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
           { role: '皇帝', name: 'ハイレ・セラシエ1世', trait: '近代化憲法・国際連盟への訴え (+安定・外交)' }
@@ -2797,6 +3176,30 @@ const SCENARIOS = {
         cabinet: [
           { role: '首相', name: 'ジョセフ・ライオンズ', trait: '財政再建・日英豪通商調整 (+安定・経済)' }
         ]
+      },
+      siam: {
+        id: 'siam', code: 'SIA', region: 'アジア・オセアニア', isMajor: false,
+        name: 'シャム王国', bloc: 'neutral', blocName: '英仏植民地緩衝・絶対王政末期',
+        leader: 'プラチャーティポック王 (ラーマ7世)', ministry: 'バンコク外務省',
+        mil: 60, eco: 60, stb: 68, tech: 56, gdpText: '$0.9B',
+        aiAgenda: '絶対王政の維持か立憲化か (6月立憲革命)、英仏両植民地帝国との均衡外交',
+        summary: '東南アジアで唯一植民地化を免れた独立国。米留学経験のある改革派官僚と軍若手 (ピブーン・プレディー) が立憲革命を準備し、6月24日にアジア初の立憲革命が起きる。',
+        interestGroups: createDefaultInterestGroups('neutral'),
+        cabinet: [
+          { role: '国王', name: 'プラチャーティポック', trait: '立憲化受諾・タイ語改革 (+安定)' }
+        ]
+      },
+      new_zealand: {
+        id: 'new_zealand', code: 'NZL', region: 'アジア・オセアニア', isMajor: false,
+        name: 'ニュージーランド', bloc: 'versailles', blocName: 'イギリス連邦・南太平洋要石',
+        leader: 'ジョージ・フォーブス 首相', ministry: 'ウェリントン外務省',
+        mil: 56, eco: 66, stb: 78, tech: 72, gdpText: '$1.1B',
+        aiAgenda: '羊毛・バター輸出の防衛と帝国特恵関税 (オタワ会議) への参加、太平洋島嶼統治',
+        summary: 'イギリス連邦で最も「英国らしさ」を保つ自治領。羊毛とバターで英国市場に依存し、オタワ会議で帝国特恵関税を真っ先に支持する南太平洋の要石。',
+        interestGroups: createDefaultInterestGroups('versailles'),
+        cabinet: [
+          { role: '首相', name: 'G.フォーブス', trait: '連合政権・帝国特恵推進 (+対英関係)' }
+        ]
       }
     }
   }
@@ -2819,7 +3222,7 @@ const SCENARIO_CRISES = {
       control: 44,      // <50 favors Revisionist (Japan/Manchukuo), >=50 favors Versailles/ROC/League
       escalation: 72,
       stakesText: '満蒙の重工業資源（鉱物収支±6%）と国際連盟の威信',
-      desc: '柳条湖事件に端を発する関東軍の満洲全土展開と1932年1月の第一次上海事変。国際連盟のリットン調査団が現地調査に入る中、不拡大・外交妥結か満洲国承認・連盟脱退かの選択が迫られる。',
+      desc: '柳条湖事件から半年。1932年3月1日に新京で溥儀を執政とする満洲国が建国宣言され、上海の第一次上海事変も停戦交渉が進む。リットン調査団は4月に満洲入りし、10月に報告書を公表する。日本の満洲国承認か連盟との妥協か、スチムソン不承認主義との対峙の行方が世界を分ける。',
       cx: 1697, cy: 318
     },
     {
@@ -2861,11 +3264,12 @@ const SCENARIO_CRISES = {
 // ============================================================================
 const HISTORICAL_TIMELINE_EVENTS = [
   {
-    id: 'hist_1932_shanghai',
-    triggerTurn: 2,
-    dateLabel: '1932年1月〜3月',
-    title: '【歴史イベント】第一次上海事変と満洲国建国宣言',
-    desc: '上海での日華両軍の衝突（第一次上海事変）に続き、1932年3月1日に新京（長春）で溥儀を執政とする「満洲国」の建国が宣言されました。米国務長官スチムソンは「不承認主義（スチムソン・ドクトリン）」を通告しています。',
+    id: 'hist_1932_march_manchukuo',
+    triggerTurn: 1,
+    year: 1932, month: 3,
+    dateLabel: '1932年3月',
+    title: '【歴史イベント】満洲国建国と上海事変の停戦',
+    desc: '1932年3月1日、新京（長春）で溥儀を執政とする「満洲国」の建国が宣言されました。上海の第一次上海事変は英米調停で停戦に向かい、5月に淞滬停戦協定が調印されます。米国務長官スチムソンは「不承認主義」を通告、アイルランドでは9日にデ・ヴァレラ政権が発足します。',
     choices: [
       {
         text: '白川義則大将・重光葵公使を通じ上海停戦協定を早期締結し、列強との全面対立を回避する',
@@ -2880,11 +3284,12 @@ const HISTORICAL_TIMELINE_EVENTS = [
     ]
   },
   {
-    id: 'hist_1932_may15',
-    triggerTurn: 4,
-    dateLabel: '1932年5月〜7月',
-    title: '【歴史イベント】五・一五事件の衝撃とローザンヌ賠償会議',
-    desc: '日本では急進派青年将校による政党内閣襲撃事件（五・一五事件）の危機が高まり、欧州ではドイツの賠償金を事実上帳消しにする「ローザンヌ会議」が開催されています。国内の統制と国際経済への対応を決断してください。',
+    id: 'hist_1932_may_t15',
+    triggerTurn: 3,
+    year: 1932, month: 5,
+    dateLabel: '1932年5月',
+    title: '【歴史イベント】五・一五事件とローザンヌ会議開幕',
+    desc: '5月15日、日本で犬養毅首相が青年将校に暗殺される「五・一五事件」が発生し、政党政治が終焉・斎藤実挙国一致内閣が成立します。同月にはドイツ賠償問題を扱うローザンヌ会議が開幕し、7月に賠償金を事実上終了させる合意が生まれます。',
     choices: [
       {
         text: '軍紀を厳正に粛正して議会政治・憲政の常道を守り、ローザンヌ国際経済協調に参加する',
@@ -2899,11 +3304,32 @@ const HISTORICAL_TIMELINE_EVENTS = [
     ]
   },
   {
-    id: 'hist_1932_ottawa_fdr',
-    triggerTurn: 6,
-    dateLabel: '1932年8月〜11月',
-    title: '【歴史イベント】オタワ帝国経済会議と米大統領選（ルーズベルト当選）',
-    desc: '大英帝国がオタワ会議で「帝国特恵関税（ブロック経済）」を導入し、米国では「ニューディール政策」を掲げるフランクリン・D・ルーズベルトが圧勝しました。世界経済の再編に対する自国の通商方針を選択してください。',
+    id: 'hist_1932_june_chaco_siam',
+    triggerTurn: 4,
+    year: 1932, month: 6,
+    dateLabel: '1932年6月',
+    title: '【歴史イベント】チャコ戦争開戦とシャム立憲革命',
+    desc: '南米ではボリビアとパラグアイが未画定のチャコ・グラン（油田地帯）で全面戦争に突入し、国際連盟と米国の調停が始まります。シャムでは6月24日に立憲革命が起き、プラチャーティポック王が立憲君主制を受け入れます。',
+    choices: [
+      {
+        text: '国際連盟・米国の調停路線を支持し、局地紛争の封じ込めに協力する',
+        effectsSummary: '国際緊張度 -6% / 政党支持 +10 / 安定度 +4%',
+        delta: { tension: -6, stb: 4, ig_parliament: +10, ig_industrialists: +4 }
+      },
+      {
+        text: '紛争地の資源・市場に接近し、勢力圏の拡大を図る',
+        effectsSummary: '石油・鉱物 +8% / 軍部・財界支持 +10 / 国際緊張度 +8%',
+        delta: { tension: 8, mil: 3, oil: 6, minerals: 8, ig_military: +10, ig_industrialists: +6 }
+      }
+    ]
+  },
+  {
+    id: 'hist_1932_july_ottawa',
+    triggerTurn: 5,
+    year: 1932, month: 7,
+    dateLabel: '1932年7月',
+    title: '【歴史イベント】オタワ帝国経済会議とブロック経済化',
+    desc: '大英帝国がオタワ会議で「帝国特恵関税（ブロック経済）」を導入し、世界市場が「持てる国」の経済圏へと分断され始めます。ローザンヌ会議はドイツ賠償の事実上の終了で閉幕。',
     choices: [
       {
         text: '為替調整と二国間通商交渉（日印会商・互恵通商協定）を推進し、輸出と資源輸入を拡大する',
@@ -2918,11 +3344,72 @@ const HISTORICAL_TIMELINE_EVENTS = [
     ]
   },
   {
-    id: 'hist_1933_weimar_lytton',
-    triggerTurn: 8,
-    dateLabel: '1933年1月〜3月',
-    title: '【歴史イベント】1933年の大転換：リットン報告書採択とドイツ政変',
-    desc: 'ジュネーヴの国際連盟総会で「リットン報告書」の採択が行われ、ドイツではヒンデンブルク大統領のもとで政権交代と再軍備・連盟脱退の動きが表面化しています。ヴェルサイユ・ワシントン体制の正念場です。',
+    id: 'hist_1932_september_lytton',
+    triggerTurn: 7,
+    year: 1932, month: 9,
+    dateLabel: '1932年9月',
+    title: '【歴史イベント】満洲国承認とリットン報告書、レティシア紛争',
+    desc: '9月15日、日本政府は満洲国を正式承認し「日満議定書」を調印。10月2日にはリットン報告書が公表され、満洲国の承認を否定して自治拡大案を提示します。同月、ペルー軍がコロンビア領レティシアを占領し、南米に紛争が勃発します。',
+    choices: [
+      {
+        text: '満洲国承認を見合わせ、連盟・米英との妥協案（自治拡大・共同管理）を探る',
+        effectsSummary: '国際緊張度 -8% / 政党・外務省支持 +10 / 対米英関係 +10',
+        delta: { tension: -8, stb: 4, ig_parliament: +10, ig_industrialists: +6, ig_military: -5, rel_usa: 10, rel_uk: 10 }
+      },
+      {
+        text: '日満議定書に基づき満洲国を承認し、満洲重工業の独自開発を断行する',
+        effectsSummary: '満洲危機主導権 +12% / 軍部支持 +12 / 鉱物 +10% / 国際緊張度 +10%',
+        delta: { tension: 10, mil: 5, minerals: 10, ig_military: +12, ig_parliament: -8, crisisId: 'crisis_manchuria', advDelta: 12 }
+      }
+    ]
+  },
+  {
+    id: 'hist_1932_november_fdr',
+    triggerTurn: 9,
+    year: 1932, month: 11,
+    dateLabel: '1932年11月',
+    title: '【歴史イベント】米大統領選（ルーズベルト圧勝）とペルシア石油利権改定',
+    desc: '11月8日、米大統領選挙で「ニューディール」を掲げるフランクリン・D・ルーズベルトが圧勝します。同月、レザー・シャーは英資本のアングロ・ペルシア石油会社との不平等な利権契約の破棄・再交渉に踏み切ります。',
+    choices: [
+      {
+        text: '新米政権との早期関係構築と資源利権の国際交渉（互恵通商）を進める',
+        effectsSummary: '経済 +6 / 石油 +10% / 対米関係 +10 / 財界支持 +8',
+        delta: { tension: -5, eco: 6, oil: 10, ig_industrialists: +8, ig_parliament: +6, rel_usa: 10 }
+      },
+      {
+        text: '外国資本の利権契約を見直し、自国資源の主権管理を強化する',
+        effectsSummary: '鉱物 +12% / 安定度 +4% / 国際緊張度 +6%',
+        delta: { tension: 6, minerals: 12, stb: 4, ig_military: +8, ig_industrialists: -4 }
+      }
+    ]
+  },
+  {
+    id: 'hist_1933_january_hitler',
+    triggerTurn: 11,
+    year: 1933, month: 1,
+    dateLabel: '1933年1月',
+    title: '【歴史イベント】ドイツ政変：ヒトラー内閣成立',
+    desc: '1月30日、ヒンデンブルク大統領がアドルフ・ヒトラーを首相に任命し、ヴァイマル共和政が終わりを告げます。再軍備・連盟脱退へ向かうドイツの動きが、ヴェルサイユ体制の根幹を揺るがします。',
+    choices: [
+      {
+        text: 'ヴェルサイユ体制の擁護と四カ国協商・軍縮による欧州秩序の再構築に動く',
+        effectsSummary: '国際緊張度 -6% / 政党支持 +10 / 対英仏関係 +10',
+        delta: { tension: -6, stb: 5, ig_parliament: +10, rel_uk: 10, rel_france: 10 }
+      },
+      {
+        text: '秩序変動を利用し、条約の制限突破と勢力圏の実力的拡張を進める',
+        effectsSummary: '軍事 +8 / 全危機主導権 +10% / 軍部支持 +15 / 国際緊張度 +14%',
+        delta: { tension: 14, mil: 8, ig_military: +15, ig_parliament: -10, crisisId: 'crisis_geneva_lausanne', advDelta: 12, setGermanReich: true }
+      }
+    ]
+  },
+  {
+    id: 'hist_1933_february_lytton',
+    triggerTurn: 12,
+    year: 1933, month: 2,
+    dateLabel: '1933年2月',
+    title: '【歴史イベント】リットン報告書採択と連盟の決断',
+    desc: '2月24日、国際連盟総会は「リットン報告書」を採択します（42対1・日本反対）。日本の連盟脱退通告（3月27日）が迫り、ヴェルサイユ・ワシントン体制の正念場です。',
     choices: [
       {
         text: '国際連盟での妥協案（満洲における特別自治・欧州四国協商）を成立させ、国際孤立を回避する',
@@ -2932,13 +3419,14 @@ const HISTORICAL_TIMELINE_EVENTS = [
       {
         text: '旧秩序の束縛を断ち切り、自主国防・条約制限突破を宣言して勢力圏を実力で固める',
         effectsSummary: '軍事 +8 / 全危機主導権 +10% / 軍部支持 +15 / 国際緊張度 +14%',
-        delta: { tension: 14, mil: 8, ig_military: +15, ig_parliament: -10, crisisId: 'crisis_geneva_lausanne', advDelta: 12, setGermanReich: true }
+        delta: { tension: 14, mil: 8, ig_military: +15, ig_parliament: -10 }
       }
     ]
   },
   {
     id: 'hist_1934_london_ethiopia',
     triggerTurn: 11,
+    year: 1934, month: 1,
     dateLabel: '1934年〜1935年',
     title: '【歴史イベント】ロンドン海軍軍縮予備交渉とエチオピア・ラインラント危機',
     desc: '海軍軍縮条約の期限切れを前に列強の建艦競争が再燃し、東アフリカとラインラントでも緊張が高まっています。最終盤に向けた国家戦略を決定してください。',
@@ -2972,9 +3460,34 @@ function computeInitialRelation(n1, n2) {
     'china_usa': 50,
     'france_germany': -45,
     'france_poland': 70,
-    'france_central_europe': 75,
+    'france_czechoslovakia': 75,
     'france_romania': 65,
+    'france_yugoslavia': 60,
     'france_uk': 60,
+    'czechoslovakia_yugoslavia': 65,
+    'czechoslovakia_romania': 65,
+    'czechoslovakia_hungary': -45,
+    'hungary_romania': -55,
+    'hungary_yugoslavia': -50,
+    'bulgaria_yugoslavia': -60,
+    'bulgaria_greece': -55,
+    'bulgaria_romania': -40,
+    'greece_turkey': 60,
+    'austria_italy': 55,
+    'hungary_italy': 50,
+    'colombia_peru': -45,
+    'bolivia_paraguay': -70,
+    'lithuania_poland': -60,
+    'new_zealand_uk': 85,
+    'dutch_indies_netherlands': 75,
+    'ireland_uk': 15,
+    'japan_siam': 40,
+    'afghanistan_russia': 40,
+    'finland_russia': 0,
+    'estonia_russia': -10,
+    'latvia_russia': -10,
+    'lithuania_russia': -10,
+    'china_russia': 15,
     'germany_poland': -40,
     'germany_russia': 25, // Rapallo Treaty still active in 1932!
     'italy_uk': 35,
@@ -3554,12 +4067,21 @@ const COUNTRY_LABEL_NAMES = {
   japan: '日本', china: '中華民国', manchukuo: '満洲国', mongolia: 'モンゴル',
   usa: 'アメリカ', uk: 'イギリス', france: 'フランス', germany: 'ドイツ',
   russia: 'ソ連', italy: 'イタリア', poland: 'ポーランド', spain: 'スペイン',
-  portugal: 'ポルトガル', central_europe: '中欧', romania: 'ルーマニア',
-  yugoslavia: 'ユーゴ', nordic: '北欧', benelux: 'ベネルクス', turkey: 'トルコ',
-  iran: 'ペルシア', saudi_arabia: 'サウジ', egypt: 'エジプト', ethiopia: 'エチオピア',
+  portugal: 'ポルトガル', romania: 'ルーマニア', yugoslavia: 'ユーゴ',
+  turkey: 'トルコ', iran: 'ペルシア', saudi_arabia: 'サウジ', egypt: 'エジプト', ethiopia: 'エチオピア',
   south_africa: '南アフリカ', india: 'インド', dutch_indies: '蘭領東インド',
-  australia: 'オーストラリア', canada: 'カナダ', mexico: 'メキシコ',
-  brazil: 'ブラジル', argentina: 'アルゼンチン', andes: 'ベネズエラ'
+  australia: 'オーストラリア', new_zealand: 'ニュージーランド', canada: 'カナダ', mexico: 'メキシコ',
+  brazil: 'ブラジル', argentina: 'アルゼンチン',
+  estonia: 'エストニア', latvia: 'ラトヴィア', lithuania: 'リトアニア',
+  czechoslovakia: 'チェコ', austria: 'オーストリア', switzerland: 'スイス',
+  hungary: 'ハンガリー', bulgaria: 'ブルガリア', greece: 'ギリシャ', albania: 'アルバニア',
+  sweden: 'スウェーデン', denmark: 'デンマーク', norway: 'ノルウェー', finland: 'フィンランド',
+  netherlands: 'オランダ', belgium: 'ベルギー', luxembourg: 'ルクセンブルク', ireland: 'アイルランド',
+  afghanistan: 'アフガニスタン', siam: 'シャム',
+  venezuela: 'ベネズエラ', colombia: 'コロンビア', ecuador: 'エクアドル', peru: 'ペルー',
+  bolivia: 'ボリビア', chile: 'チリ', uruguay: 'ウルグアイ', paraguay: 'パラグアイ',
+  cuba: 'キューバ', guatemala: 'グアテマラ', el_salvador: 'エルサルバドル', honduras: 'ホンジュラス',
+  nicaragua: 'ニカラグア', costa_rica: 'コスタリカ', panama: 'パナマ', haiti: 'ハイチ', dominican: 'ドミニカ'
 };
 const mapLabelPool = new Map();
 
