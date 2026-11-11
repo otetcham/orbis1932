@@ -660,7 +660,8 @@ try {
     const { context } = harness();
     const audit = auditData(context);
     assert.equal(audit.nations, 66);
-    assert.ok(audit.land >= 3500, `陸上州数 ${audit.land}`);
+    assert.ok(audit.land >= 900 && audit.land <= 2000, `陸上州数 ${audit.land}`);
+    assert.ok(audit.land <= 1300, `ヨーロッパ集約後の州数上限目安 (${audit.land})`);
     assert.equal(audit.events, 9);
     assert.equal(audit.history, 272);
     assert.ok(audit.regions >= audit.land);

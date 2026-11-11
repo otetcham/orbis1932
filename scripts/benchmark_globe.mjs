@@ -6,7 +6,7 @@ const pageUrl = pathToFileURL(new URL('../orbis_simulator.html', import.meta.url
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 await page.goto(pageUrl, { waitUntil: 'load' });
-await page.waitForFunction(() => typeof updateMapVisuals === 'function' && state?.states?.length > 1000);
+await page.waitForFunction(() => typeof updateMapVisuals === 'function' && state?.states?.length > 500);
 
 const stats = await page.evaluate(() => {
   const sample = (fn, n = 28) => {

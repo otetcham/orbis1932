@@ -120,18 +120,31 @@ await page.evaluate(() => {
 await page.screenshot({ path: `${artifactDir}/walkthrough-08-east-asia-max-zoom.png`, fullPage: true });
 
 await page.evaluate(() => {
-  state.mapTransform.scale = 4.5;
-  state.mapTransform.x = -320;
-  state.mapTransform.y = -520;
+  state.mapProjection = 'flat';
+  const lon = -53;
+  const lat = -12;
+  const mapX = (lon + 180) * (2000 / 360);
+  const mapY = (90 - lat) * 9.32 + 60;
+  const vp = document.getElementById('map-viewport');
+  const scale = 5;
+  state.mapTransform.scale = scale;
+  state.mapTransform.x = vp.clientWidth / 2 - mapX * scale;
+  state.mapTransform.y = vp.clientHeight / 2 - mapY * scale;
   applyFlatTransform();
   updateMapVisuals();
 });
 await page.screenshot({ path: `${artifactDir}/walkthrough-09-brazil-provinces.png`, fullPage: true });
 
 await page.evaluate(() => {
-  state.mapTransform.scale = 4;
-  state.mapTransform.x = -180;
-  state.mapTransform.y = 60;
+  const lon = -98;
+  const lat = 56;
+  const mapX = (lon + 180) * (2000 / 360);
+  const mapY = (90 - lat) * 9.32 + 60;
+  const vp = document.getElementById('map-viewport');
+  const scale = 3.8;
+  state.mapTransform.scale = scale;
+  state.mapTransform.x = vp.clientWidth / 2 - mapX * scale;
+  state.mapTransform.y = vp.clientHeight / 2 - mapY * scale;
   applyFlatTransform();
   updateMapVisuals();
 });

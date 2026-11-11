@@ -39,11 +39,14 @@ export function auditData(context) {
   assert.equal(Math.min(...history.map(event => event.year)), 1932, '史実DBの開始年');
   assert.equal(Math.max(...history.map(event => event.year)), 1972, '史実DBの終了年');
   assert.equal(ids.length, 66, '国家数 (1932年・66カ国体制)');
-  assert.ok(land.length >= 800, `陸上州数が少なすぎます (${land.length})`);
-  assert.ok(land.length <= 6000, `陸上州数が多すぎます (${land.length})`);
+  assert.ok(land.length >= 900, `陸上州数が少なすぎます (${land.length})`);
+  assert.ok(land.length <= 2000, `陸上州数が多すぎます (${land.length})`);
   assert.ok((regions.filter(r => r.country === 'brazil').length) >= 20, 'ブラジルの州分割');
   assert.ok((regions.filter(r => r.country === 'canada').length) >= 10, 'カナダの州分割');
   assert.ok((regions.filter(r => r.country === 'usa').length) >= 45, '米国の州分割');
+  assert.ok(!land.some(r => r.country === 'canada' && /nunavut/i.test(r.name)), 'カナダにヌナブト（1999年）が残存');
+  assert.ok((regions.filter(r => r.country === 'uk').length) <= 22, '英国の州数集約');
+  assert.ok((regions.filter(r => r.country === 'japan').length) >= 47 && (regions.filter(r => r.country === 'japan').length) <= 55, '日本は道府県＋帝国領');
   return { nations: ids.length, regions: regions.length, land: land.length, events: events.length, history: history.length };
 }
 
