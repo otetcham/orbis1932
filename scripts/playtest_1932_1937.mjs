@@ -92,7 +92,8 @@ function mockPayload(operation, payload) {
 }
 
 async function runCampaign(page, nationId, plan, label, shots, log) {
-  const run = { label, nationId, maxTurns: 36, months: [], issues: [] };
+  const maxTurns = 70;
+  const run = { label, nationId, maxTurns, months: [], issues: [] };
   await page.goto(pageUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof Orbis !== 'undefined' && ORBIS_STATES_DB?.length);
   await page.evaluate(() => {
@@ -106,14 +107,14 @@ async function runCampaign(page, nationId, plan, label, shots, log) {
   await page.evaluate(async (id) => {
     state.lobbyNationId = id;
     const len = document.getElementById('campaign-length');
-    if (len) len.value = '36';
+    if (len) len.value = String(maxTurns);
     renderLobbyNationsGrid();
-    await Orbis.start({ nationId: id, maxTurns: 36, replace: true });
+    await Orbis.start({ nationId: id, maxTurns, replace: true });
   }, nationId);
   await page.waitForFunction(() => document.getElementById('lobby-overlay')?.classList.contains('hidden'), { timeout: 120000 });
   await page.waitForFunction(() => Orbis.snapshot()?.phase === 'playing', { timeout: 180000 });
 
-  for (let step = 0; step < 36; step++) {
+  for (let step = 0; step < maxTurns; step++) {
     const snap0 = await page.evaluate(() => Orbis.snapshot());
     const gd = gameDate(snap0.completedTurns);
     const action = plan.get(snap0.completedTurns) || `${gd.year}年${gd.month}月: 国内安定と財政再建を優先し、隣国との関係を維持する。`;
@@ -124,7 +125,7 @@ async function runCampaign(page, nationId, plan, label, shots, log) {
     await page.evaluate(() => Orbis.finishTurn());
     try {
       await page.waitForFunction(t => (Orbis.snapshot()?.completedTurns ?? 0) > t, turnsBefore, { timeout: 180000 });
-      await page.waitForFunction(() => Orbis.snapshot()?.phase === 'playing', { timeout: 180000 });
+      await page.waitForFunction(() => { const p = Orbis.snapshot()?.phase; return p === 'playing' || p === 'ended'; }, { timeout: 180000 });
     } catch (e) {
       const shot = `${artifactDir}/playtest-issue-${label}-turn${step}.png`;
       await page.screenshot({ path: shot, fullPage: true });
@@ -161,7 +162,7 @@ async function runCampaign(page, nationId, plan, label, shots, log) {
 
     run.months.push({ step, calendar: gd, action, snap, mock: true });
 
-    if (gd.month === 12 || step === 35) {
+    if (gd.month === 12 || step === maxTurns - 1) {
       const fn = `${artifactDir}/playtest-${label}-${gd.year}-end.png`;
       await page.screenshot({ path: fn, fullPage: true });
       shots.push({ nation: label, year: gd.year, file: fn });
@@ -188,7 +189,7 @@ await context.route('**/*', async route => {
 });
 
 const page = await context.newPage();
-const log = { generatedAt: new Date().toISOString(), mockDisclaimer: 'AI裁定は127.0.0.1モック。本物のLLMでは未検証。', engineLimit: 'maxTurnsは12/24/36のみ。連続36ヶ月まで実プレイ可能（1932年3月〜1935年2月相当）。', campaigns: [], eventDbSample: eventDb.filter(e => e.year >= 1932 && e.year <= 1937).length, screenshots: [] };
+const log = { generatedAt: new Date().toISOString(), mockDisclaimer: 'AI裁定は127.0.0.1モック。本物のLLMでは未検証。', engineLimit: 'maxTurns最大70（1932年3月〜1937年12月）。', campaigns: [], eventDbSample: eventDb.filter(e => e.year >= 1932 && e.year <= 1937).length, screenshots: [] };
 const shots = log.screenshots;
 
 await runCampaign(page, 'siam', SIAM_PLAN, 'siam', shots, log);

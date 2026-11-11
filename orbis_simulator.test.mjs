@@ -682,6 +682,31 @@ try {
     assert.equal(api.snapshot().turnActions[0].actorId, 'client:manchukuo');
   });
 
+  await check('1932年3月開始で70か月設定なら1937年12月まで進行可能', async () => {
+    const { api, context } = harness();
+    assert.equal(api.eraFullTurns, 70);
+    assert.equal(await api.start({ nationId: 'siam', difficulty: 'standard', mandate: 'recovery', maxTurns: 70, replace: true }), true);
+    const nearEnd = api.snapshot();
+    nearEnd.completedTurns = 69;
+    await api.restore(nearEnd);
+    assert.equal(vm.runInContext('state.date', context), '1937年12月');
+    assert.equal(await api.start({ nationId: 'japan', endYear: 1937, endMonth: 12, replace: true }), true);
+    assert.equal(api.snapshot().maxTurns, 70);
+  });
+
+  await check('70か月のセーブを読み込み可能（v5互換）', async () => {
+    const { api, storage } = harness();
+    await api.start({ nationId: 'japan', maxTurns: 70, replace: true });
+    const snap = api.snapshot();
+    snap.completedTurns = 12;
+    await api.restore(snap);
+    const serialized = storage.get('orbis_campaign_v5');
+    assert.ok(serialized?.includes('"maxTurns":70'));
+    const reloaded = harness();
+    assert.equal(await reloaded.api.restore(JSON.parse(serialized)), true);
+    assert.equal(reloaded.api.snapshot().maxTurns, 70);
+  });
+
   await check('途切れた裁定JSONでも月末を完走（フォールバック）', async () => {
     const { api } = harness();
     await begin(api);

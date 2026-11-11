@@ -68,6 +68,19 @@ const Orbis = (() => {
   const uid = prefix => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   const copy = value => JSON.parse(JSON.stringify(value));
   const shortName = id => SHORT_NAMES[id] || SCENARIOS.era_1932.nations[id]?.name.split(/[（(・]/)[0] || id;
+  const CAMPAIGN_CALENDAR = { startYear: 1932, startMonth: 3, maxEndYear: 1937, maxEndMonth: 12 };
+  const turnsThroughCalendarMonth = (endYear, endMonth) => {
+    const months = (endYear - CAMPAIGN_CALENDAR.startYear) * 12 + (endMonth - CAMPAIGN_CALENDAR.startMonth) + 1;
+    if (!Number.isInteger(months) || months < 1 || months > 96) throw new Error('キャンペーン終了年月が範囲外です。');
+    return months;
+  };
+  const ERA_FULL_TURNS = turnsThroughCalendarMonth(CAMPAIGN_CALENDAR.maxEndYear, CAMPAIGN_CALENDAR.maxEndMonth);
+  const PRESET_CAMPAIGN_LENGTHS = [12, 24, 36, ERA_FULL_TURNS];
+  const resolveMaxTurns = (options = {}) => {
+    if (options.endYear != null) return turnsThroughCalendarMonth(Number(options.endYear), Number(options.endMonth ?? 12));
+    return Number(options.maxTurns || $('campaign-length')?.value || 12);
+  };
+  const allowedMaxTurns = turns => Number.isInteger(turns) && turns >= 12 && turns <= ERA_FULL_TURNS;
   const calendarDate = game => {
     const scenario = SCENARIOS.era_1932;
     const month = scenario.startMonth - 1 + game.completedTurns;
@@ -1327,8 +1340,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const nationId = options.nationId || state.lobbyNationId;
     const difficulty = options.difficulty || $('campaign-difficulty')?.value || 'standard';
     const mandate = options.mandate || $('campaign-mandate')?.value || 'recovery';
-    const maxTurns = Number(options.maxTurns || $('campaign-length')?.value || 12);
-    if (!SCENARIOS.era_1932.nations[nationId] || !RULES[difficulty] || !['recovery', 'diplomacy', 'security'].includes(mandate) || ![12, 24, 36].includes(maxTurns)) throw new Error('キャンペーン設定が不正です。');
+    const maxTurns = resolveMaxTurns(options);
+    if (!SCENARIOS.era_1932.nations[nationId] || !RULES[difficulty] || !['recovery', 'diplomacy', 'security'].includes(mandate) || !allowedMaxTurns(maxTurns)) throw new Error('キャンペーン設定が不正です。');
     if (campaign && !options.replace && typeof window.confirm === 'function' && !window.confirm('新しい歴史を始めます。現在の自動保存を置き換えますか？')) return false;
     campaign = createCampaign(nationId, difficulty, mandate, maxTurns);
     resetDesktop();
@@ -2099,7 +2112,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   function validateSave(raw) {
     requireObject(raw, 'セーブ');
     if (raw.version !== 4) throw new Error('この版以前のセーブとは形式が異なります。現行版で新しい歴史を始めてください。');
-    if (!SCENARIOS.era_1932.nations[raw.playerNationId] || !RULES[raw.difficulty] || !['recovery', 'diplomacy', 'security'].includes(raw.mandate) || ![12, 24, 36].includes(raw.maxTurns)) throw new Error('セーブのキャンペーン設定が不正です。');
+    if (!SCENARIOS.era_1932.nations[raw.playerNationId] || !RULES[raw.difficulty] || !['recovery', 'diplomacy', 'security'].includes(raw.mandate) || !allowedMaxTurns(raw.maxTurns)) throw new Error('セーブのキャンペーン設定が不正です。');
     const game = createCampaign(raw.playerNationId, raw.difficulty, raw.mandate, raw.maxTurns);
     game.id = requiredText(raw.id, 'キャンペーンID', 100);
     game.completedTurns = saveNumber(raw.completedTurns, '経過ターン', 0, game.maxTurns);
@@ -2427,5 +2440,5 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     render();
   }
 
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, prepareRegionalOrder, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave });
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, prepareRegionalOrder, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, campaignCalendar: CAMPAIGN_CALENDAR, eraFullTurns: ERA_FULL_TURNS, turnsThroughCalendarMonth });
 })();
