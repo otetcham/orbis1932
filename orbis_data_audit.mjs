@@ -26,7 +26,9 @@ export function auditData(context) {
   for (const crisis of crises) assert.ok(regions.some(region => region.id === crisis.stateId), `${crisis.id}: 危機の州ID不整合`);
   for (const event of events) {
     assert.ok(Number.isInteger(event.year) && event.month >= 1 && event.month <= 12, `${event.id}: 歴史イベントにyear/monthなし`);
-    assert.ok(event.choices?.length >= 2, `${event.id}: 選択肢不足`);
+    assert.ok(typeof event.title === 'string' && event.title.length >= 4, `${event.id}: タイトル不足`);
+    assert.ok(typeof event.desc === 'string' && event.desc.length >= 20, `${event.id}: 説明不足`);
+    assert.equal(Object.keys(event).sort().join(','), 'desc,id,month,title,year', `${event.id}: 余分なフィールド`);
   }
   assert.equal(history.length, 272, '史実DBの件数');
   assert.equal(new Set(history.map(event => event.id)).size, history.length, '史実DBのID重複');
@@ -41,8 +43,10 @@ export function auditData(context) {
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   const source = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
+  const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
   const context = vm.createContext({ document: { addEventListener() {} } });
   context.window = context;
+  vm.runInContext(statesSource, context);
   for (const [, script] of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) if (script.trim()) vm.runInContext(script, context);
   vm.runInContext(await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8'), context);
   if (process.argv.includes('--inspect')) {

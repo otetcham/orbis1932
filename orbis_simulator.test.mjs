@@ -6,6 +6,7 @@ import { webcrypto } from 'node:crypto';
 import { auditData } from './orbis_data_audit.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
+const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
 const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), 'utf8');
 const eventsSource = await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8');
 const inlineScripts = [...htmlSource.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
@@ -53,6 +54,7 @@ function harness(provider = 'custom') {
   const document = { getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, activeElement: null };
   const context = vm.createContext({ console, document, fetch, URL, Blob, AbortController, AbortSignal, setTimeout, clearTimeout, crypto: webcrypto, localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) }, addEventListener() {}, confirm: () => true });
   context.window = context;
+  vm.runInContext(statesSource, context, { timeout: 4000 });
   for (const script of inlineScripts) if (script.trim()) vm.runInContext(script, context, { timeout: 4000 });
   vm.runInContext(eventsSource, context, { timeout: 4000 });
   vm.runInContext(gameSource, context, { timeout: 4000 });
@@ -595,6 +597,14 @@ try {
     const future = api.snapshot();
     future.nationalAction = { id: 'fake', text: '未来からの行動', turn: 9 };
     await assert.rejects(api.restore(future), /提出行動の月/);
+  });
+
+  await check('開始時から満洲国(client:manchukuo)宛の電報が送れる', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(await api.send('自治と開発援助の条件を協議したい。', 'client:manchukuo'), true);
+    assert.equal(api.snapshot().usedActions, 1);
+    assert.equal(api.snapshot().turnActions[0].actorId, 'client:manchukuo');
   });
 
   await check('史実データ監査 (66カ国・165陸上州・危機・歴史イベントの整合)', async () => {
