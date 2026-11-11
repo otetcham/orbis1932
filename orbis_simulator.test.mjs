@@ -192,15 +192,18 @@ try {
     await begin(api);
     let blockBriefing = true;
     respond = item => (item.operation === 'BRIEFING' && item.context.turn === 2 && blockBriefing ? { status: 503 } : null);
-    assert.equal(await api.finishTurn(), false);
+    assert.equal(await api.finishTurn(), true);
     assert.equal(api.snapshot().completedTurns, 1);
-    assert.equal(api.snapshot().phase, 'briefing');
+    assert.equal(api.snapshot().phase, 'playing');
+    assert.ok(api.snapshot().briefing?.telegrams?.length >= 3, 'BRIEFING失敗時は定型電報で継続');
     const balance = api.snapshot().treasury;
+    const resolutionsAfterFirst = requests.filter(item => item.operation === 'RESOLUTION').length;
     blockBriefing = false;
-    assert.equal(await api.retryBriefing(), true);
-    assert.equal(api.snapshot().completedTurns, 1);
-    assert.equal(api.snapshot().treasury, balance);
-    assert.ok(requests.filter(item => item.operation === 'RESOLUTION').length >= 1);
+    respond = () => null;
+    assert.equal(await api.finishTurn(), true);
+    assert.equal(api.snapshot().completedTurns, 2);
+    assert.ok(requests.filter(item => item.operation === 'RESOLUTION').length > resolutionsAfterFirst);
+    assert.ok(Math.abs(api.snapshot().treasury - balance) < 25);
   });
 
   await check('二重送信防止と、交渉枠の上限', async () => {
@@ -557,7 +560,7 @@ try {
     assert.equal(api.snapshot().nationalAction, null);
   });
 
-  await check('行動裁定の根拠を偽造しても未反映・行動は保持される', async () => {
+  await check('行動裁定の根拠を偽造しても提出行動IDを補正して月を進める', async () => {
     const { api } = harness();
     await begin(api);
     api.submitAction('予算2で救済を実施する。');
@@ -565,13 +568,13 @@ try {
     respond = item => {
       if (item.operation !== 'RESOLUTION') return null;
       const data = evaluation();
-      data.actionResults = [{ actionId: 'forged-id', outcome: 'success', text: '無償で成功。', effects: data.delta, evidence: ['forged-id'] }];
+      data.actionResults = [{ actionId: 'forged-id', outcome: 'success', text: '無償で成功。', effects: { mil: 0, eco: 0, stb: 0, treasury: 0, prestige: 0, tension: 0 }, evidence: ['forged-id'] }];
       return { data };
     };
-    assert.equal(await api.finishTurn(), false);
-    assert.equal(api.snapshot().completedTurns, 0);
-    assert.equal(api.snapshot().nationalAction.id, before.nationalAction.id);
-    assert.deepEqual(json(api.snapshot().nations), json(before.nations));
+    assert.equal(await api.finishTurn(), true);
+    assert.equal(api.snapshot().completedTurns, 1);
+    assert.equal(api.snapshot().actionHistory[0].actionId, before.nationalAction.id);
+    assert.equal(api.snapshot().nationalAction, null);
   });
 
   await check('NPC外交は対称に最大±8、非敵対的合意を記録し領土を渡さない', async () => {
@@ -677,6 +680,51 @@ try {
     assert.equal(await api.send('自治と開発援助の条件を協議したい。', 'client:manchukuo'), true);
     assert.equal(api.snapshot().usedActions, 1);
     assert.equal(api.snapshot().turnActions[0].actorId, 'client:manchukuo');
+  });
+
+  await check('途切れた裁定JSONでも月末を完走（フォールバック）', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(await api.submitAction('フォールバック裁定のテスト。'), true);
+    respond = item => item.operation === 'RESOLUTION' ? { raw: '{"headline":"途切れ","article":"月次"' } : null;
+    assert.equal(await api.finishTurn(), true);
+    const snap = api.snapshot();
+    assert.equal(snap.completedTurns, 1);
+    assert.equal(snap.phase, 'playing');
+    assert.ok(snap.articles.some(a => a.kind === 'resolution'));
+  });
+
+  await check('不正な提出行動IDは補正して裁定を適用', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(await api.submitAction('ID補正テストの国家方針。'), true);
+    const realId = api.snapshot().nationalAction.id;
+    respond = item => {
+      if (item.operation !== 'RESOLUTION') return null;
+      const data = evaluation();
+      data.actionResults = [{ actionId: 'wrong-order-id', outcome: 'partial', text: '補正対象。', effects: { mil: 0, eco: 0, stb: 0, treasury: -2, prestige: 0, tension: 0 }, evidence: ['wrong-order-id'], relations: [] }];
+      return { data };
+    };
+    assert.equal(await api.finishTurn(), true);
+    assert.equal(api.snapshot().completedTurns, 1);
+    assert.ok(api.snapshot().actionHistory.some(item => item.actionId === realId));
+  });
+
+  await check('不正な電報宛先は除外・補完して開始', async () => {
+    const { api } = harness();
+    respond = item => {
+      if (item.operation !== 'BRIEFING') return null;
+      const roster = item.context.roster;
+      const domestic = roster.find(a => a.kind === 'domestic');
+      return { data: { headline: '破損', briefing: '不正ID混在のブリーフィング。', telegrams: [
+        { actorId: 'ministry:atlantis', subject: '誤', text: '存在しない相手。', urgency: 'routine', choices },
+        { actorId: domestic.id, subject: '国内', text: '正しい国内電報。', urgency: 'important', choices },
+        { actorId: domestic.id, subject: '重複', text: '重複ID。', urgency: 'routine', choices },
+      ] } };
+    };
+    assert.equal(await begin(api), true);
+    assert.equal(api.snapshot().briefing.telegrams.length, 3);
+    assert.ok(api.snapshot().briefing.telegrams.every(t => t.actorId !== 'ministry:atlantis'));
   });
 
   await check('史実データ監査 (66カ国・Admin-1州・危機・歴史イベントの整合)', async () => {
