@@ -50,10 +50,11 @@ const Orbis = (() => {
   let actors = {};
   let config = { provider: 'gemini', endpoint: PROVIDER_CONFIGS.gemini.defaultEndpoint, apiKey: '', model: 'gemini-2.5-flash', remember: false };
   const runtime = {
-    busy: false, controller: null, cancelled: false, status: '', error: '', retry: '', saved: null,
-    connection: 'untested', pending: null, directoryKind: 'all', toastTimer: null, saveFailed: false,
+    busy: false, controller: null, cancelled: false, status: '', error: '', retry: '', saved: null, statusStartedAt: 0,
+    connection: 'untested', pending: null, streamPreview: '', directoryKind: 'all', toastTimer: null, saveFailed: false,
     actorId: '', mapDirty: true, chatView: 'list', threadFilter: 'all', actorInfo: false, threadScroll: 0,
     historyLimit: 8, historySeen: 0, frontPanel: null, windowOrder: Object.keys(PANELS), windowDrag: null,
+    readOnly: false, tabGuardNotice: '', sessionTokens: { input: 0, output: 0 },
     windows: Object.fromEntries(Object.entries(PANELS).map(([id, panel]) => [id, { open: false, collapsed: false, x: null, y: null, width: panel.width, height: panel.height }]))
   };
   const $ = id => document.getElementById(id);
@@ -368,15 +369,23 @@ const Orbis = (() => {
     return true;
   }
 
-  async function requestAI(messages, maxTokens) {
-    const chosen = validConfig(config);
+  function recordTokenUsage(usage) {
+    if (!usage) return;
+    runtime.sessionTokens.input += Number(usage.input || usage.prompt_tokens || 0) || 0;
+    runtime.sessionTokens.output += Number(usage.output || usage.completion_tokens || 0) || 0;
+    if ($('ai-session-tokens')) text('ai-session-tokens', `今回のセッション: 入力 ${runtime.sessionTokens.input.toLocaleString()} / 出力 ${runtime.sessionTokens.output.toLocaleString()} トークン`);
+  }
+
+  function buildProviderRequest(chosen, messages, maxTokens, stream) {
     let url = chosen.endpoint;
-    let body;
     const headers = { 'Content-Type': 'application/json' };
     const system = messages.filter(message => message.role === 'system').map(message => message.content).join('\n');
     const conversation = messages.filter(message => message.role !== 'system');
+    let body;
     if (chosen.provider === 'gemini') {
-      if (!url.endsWith(':generateContent')) url += `/models/${encodeURIComponent(chosen.model)}:generateContent`;
+      const suffix = stream ? ':streamGenerateContent?alt=sse' : ':generateContent';
+      if (!url.includes(':generateContent') && !url.includes(':streamGenerateContent')) url += `/models/${encodeURIComponent(chosen.model)}${suffix}`;
+      else if (stream) url = url.replace(':generateContent', ':streamGenerateContent?alt=sse');
       headers['x-goog-api-key'] = chosen.apiKey;
       body = { systemInstruction: { parts: [{ text: system }] }, contents: conversation.map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] })), generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens, responseMimeType: 'application/json' } };
       if (chosen.model.startsWith('gemini-2.5-flash')) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
@@ -384,60 +393,157 @@ const Orbis = (() => {
       headers['x-api-key'] = chosen.apiKey;
       headers['anthropic-version'] = '2023-06-01';
       headers['anthropic-dangerous-direct-browser-access'] = 'true';
-      body = { model: chosen.model, system, messages: conversation, max_tokens: maxTokens, temperature: 0.7 };
+      body = { model: chosen.model, system, messages: conversation, max_tokens: maxTokens, temperature: 0.7, stream: Boolean(stream) };
     } else {
       if (chosen.apiKey) headers.Authorization = `Bearer ${chosen.apiKey}`;
-      body = { model: chosen.model, messages };
+      body = { model: chosen.model, messages, stream: Boolean(stream) };
       if (chosen.provider === 'openai') body.max_completion_tokens = maxTokens;
       else body.max_tokens = maxTokens;
       if (!/^(o[134]|gpt-5)/.test(chosen.model)) body.temperature = 0.7;
     }
-    const timeout = new AbortController();
-    const timer = setTimeout(() => timeout.abort(), 120000);
-    const signal = runtime.controller ? AbortSignal.any([runtime.controller.signal, timeout.signal]) : timeout.signal;
-    let response;
-    try {
-      response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
-      const raw = await response.text();
-      signal.throwIfAborted();
-      let data;
-      try { data = JSON.parse(raw); }
-      catch { throw new Error(`APIがJSONを返しませんでした（HTTP ${response.status}）。API URLを確認してください。`); }
-      if (!response.ok || data.error) {
-        const reason = String(data.error?.message || data.message || response.statusText || 'APIエラー').replaceAll(chosen.apiKey || '\u0000', '[非表示]').slice(0, 260);
-        const hint = response.status === 401 || response.status === 403 ? 'APIキーとモデルの利用権限を確認してください。' : response.status === 429 ? '利用上限に達しました。残高・制限を確認して再試行してください。' : response.status === 404 ? 'API URLとモデルIDを確認してください。' : '設定を確認して再試行してください。';
-        throw new Error(`HTTP ${response.status}: ${reason} ${hint}`);
-      }
-      let result;
-      if (chosen.provider === 'gemini') {
-        const candidate = data.candidates?.[0];
-        if (candidate?.finishReason === 'MAX_TOKENS') throw new Error('モデルの出力が上限で途切れました。短い返答が得意なモデルに変更して再試行してください。');
-        result = candidate?.content?.parts?.filter(part => typeof part.text === 'string' && !part.thought).map(part => part.text).join('');
-      } else if (chosen.provider === 'anthropic') {
-        if (data.stop_reason === 'max_tokens') throw new Error('モデルの出力が上限で途切れました。モデルを変更して再試行してください。');
-        result = data.content?.filter(part => part.type === 'text').map(part => part.text).join('');
-      } else {
-        const choice = data.choices?.[0];
-        if (choice?.finish_reason === 'length') throw new Error('モデルの出力が上限で途切れました。モデルを変更して再試行してください。');
-        const content = choice?.message?.content;
-        result = Array.isArray(content) ? content.filter(part => part.type === 'text').map(part => part.text).join('') : content;
-      }
-      if (typeof result !== 'string' || !result.trim()) throw new Error('モデルの本文が空でした。利用可能な別のモデルで再試行してください。');
-      runtime.connection = 'verified';
-      return result;
-    } catch (error) {
-      if (runtime.controller?.signal.aborted) throw new Error('処理を中断しました。');
-      if (timeout.signal.aborted) throw new Error('AIの応答が120秒以内に届きませんでした。モデルを確認して再試行してください。');
-      runtime.connection = 'error';
-      if (error instanceof TypeError) throw new Error('APIに接続できません。URL・ネットワーク・ブラウザからの接続許可（CORS）を確認してください。');
-      throw error;
-    } finally {
-      clearTimeout(timer);
+    return { url, headers, body };
+  }
+
+  function extractProviderText(chosen, data) {
+    if (chosen.provider === 'gemini') {
+      const candidate = data.candidates?.[0];
+      if (candidate?.finishReason === 'MAX_TOKENS') throw new Error('モデルの出力が上限で途切れました。短い返答が得意なモデルに変更して再試行してください。');
+      return candidate?.content?.parts?.filter(part => typeof part.text === 'string' && !part.thought).map(part => part.text).join('');
     }
+    if (chosen.provider === 'anthropic') {
+      if (data.stop_reason === 'max_tokens') throw new Error('モデルの出力が上限で途切れました。モデルを変更して再試行してください。');
+      return data.content?.filter(part => part.type === 'text').map(part => part.text).join('');
+    }
+    const choice = data.choices?.[0];
+    if (choice?.finish_reason === 'length') throw new Error('モデルの出力が上限で途切れました。モデルを変更して再試行してください。');
+    const content = choice?.message?.content ?? choice?.delta?.content;
+    return Array.isArray(content) ? content.filter(part => part.type === 'text').map(part => part.text).join('') : content;
+  }
+
+  function parseSseChunk(chosen, line, onText) {
+    if (!line.startsWith('data:')) return '';
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') return '';
+    let data;
+    try { data = JSON.parse(payload); }
+    catch { return ''; }
+    if (chosen.provider === 'gemini') {
+      const text = data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('');
+      if (text) { onText(text); return text; }
+    } else if (chosen.provider === 'anthropic') {
+      if (data.type === 'content_block_delta' && data.delta?.text) { onText(data.delta.text); return data.delta.text; }
+      if (data.type === 'message_delta' && data.usage) recordTokenUsage({ input: data.usage.input_tokens, output: data.usage.output_tokens });
+    } else {
+      const text = data.choices?.[0]?.delta?.content;
+      if (typeof text === 'string' && text) { onText(text); return text; }
+    }
+    return '';
+  }
+
+  function retryableRequestError(error, status) {
+    if (runtime.controller?.signal.aborted) return false;
+    if (error instanceof TypeError) return true;
+    return status === 429 || (status >= 500 && status <= 599);
+  }
+
+  async function requestAI(messages, maxTokens, onChunk = null) {
+    const chosen = validConfig(config);
+    let lastError;
+  const attempt = async (stream, allowRetry = true) => {
+      const { url, headers, body } = buildProviderRequest(chosen, messages, maxTokens, stream);
+      const timeout = new AbortController();
+      const timer = setTimeout(() => timeout.abort(), 120000);
+      const signal = runtime.controller ? AbortSignal.any([runtime.controller.signal, timeout.signal]) : timeout.signal;
+      try {
+        const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+        if (!response.ok) {
+          const raw = await response.text();
+          let data = {};
+          try { data = JSON.parse(raw); }
+          catch { data = {}; }
+          const reason = String(data.error?.message || data.message || response.statusText || 'APIエラー').replaceAll(chosen.apiKey || '\u0000', '[非表示]').slice(0, 260);
+          const hint = response.status === 401 || response.status === 403 ? 'APIキーとモデルの利用権限を確認してください。' : response.status === 429 ? '利用上限に達しました。残高・制限を確認して再試行してください。' : response.status === 404 ? 'API URLとモデルIDを確認してください。' : '設定を確認して再試行してください。';
+          const err = new Error(`HTTP ${response.status}: ${reason} ${hint}`);
+          err.status = response.status;
+          throw err;
+        }
+        if (stream && response.headers.get('content-type')?.includes('text/event-stream') && response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let text = '';
+          let buffer = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) text += parseSseChunk(chosen, line.trim(), chunk => {
+              if (onChunk) onChunk(chunk);
+              runtime.streamPreview = (runtime.streamPreview || '') + chunk;
+              if (runtime.pending) renderConversation();
+            });
+          }
+          if (buffer.trim()) text += parseSseChunk(chosen, buffer.trim(), chunk => {
+            if (onChunk) onChunk(chunk);
+            runtime.streamPreview = (runtime.streamPreview || '') + chunk;
+            if (runtime.pending) renderConversation();
+          });
+          runtime.streamPreview = '';
+          if (!text.trim()) throw new Error('ストリームの本文が空でした。');
+          runtime.connection = 'verified';
+          return text;
+        }
+        const raw = await response.text();
+        signal.throwIfAborted();
+        let data;
+        try { data = JSON.parse(raw); }
+        catch { throw new Error(`APIがJSONを返しませんでした（HTTP ${response.status}）。API URLを確認してください。`); }
+        if (data.error) {
+          const reason = String(data.error?.message || data.message || 'APIエラー').replaceAll(chosen.apiKey || '\u0000', '[非表示]').slice(0, 260);
+          const err = new Error(reason);
+          err.status = data.error?.code || 500;
+          throw err;
+        }
+        recordTokenUsage(data.usage || data.usageMetadata);
+        const result = extractProviderText(chosen, data);
+        if (typeof result !== 'string' || !result.trim()) throw new Error('モデルの本文が空でした。利用可能な別のモデルで再試行してください。');
+        runtime.connection = 'verified';
+        return result;
+      } catch (error) {
+        if (runtime.controller?.signal.aborted) throw new Error('処理を中断しました。');
+        if (timeout.signal.aborted) throw new Error('AIの応答が120秒以内に届きませんでした。モデルを確認して再試行してください。');
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    for (let retry = 0; retry <= 2; retry++) {
+      try {
+        try { return await attempt(true); }
+        catch (streamError) {
+          if (runtime.controller?.signal.aborted) throw streamError;
+          return await attempt(false);
+        }
+      } catch (error) {
+        lastError = error;
+        if (!retryableRequestError(error, error.status) || retry >= 2) break;
+        const wait = Math.pow(2, retry + 1);
+        runtime.status = `${runtime.status.replace(/ · 再試行.*/, '')} · 再試行 ${retry + 1}/2 (${wait}秒後)`;
+        renderStatus();
+        await new Promise(resolve => setTimeout(resolve, wait * 1000));
+        if (runtime.cancelled) throw new Error('処理を中断しました。');
+      }
+    }
+    runtime.connection = 'error';
+    if (lastError instanceof TypeError) throw new Error('APIに接続できません。URL・ネットワーク・ブラウザからの接続許可（CORS）を確認してください。');
+    throw lastError;
   }
 
   async function structuredAI(operation, prompt, context, validate, maxTokens) {
     const messages = [{ role: 'system', content: `${BASE_PROMPT}\nOPERATION: ${operation}\n${prompt}` }, { role: 'user', content: JSON.stringify({ operation, context }) }];
+    runtime.streamPreview = '';
     const first = await requestAI(messages, maxTokens);
     try { return validate(parseJSON(first)); }
     catch (error) {
@@ -844,12 +950,61 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     renderSaveStatus();
   }
 
+  function initMultiTabGuard() {
+    const HEARTBEAT_KEY = 'orbis_tab_heartbeat';
+    const tabId = uid('tab');
+    let channel = null;
+    try { channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('orbis_tabs') : null; }
+    catch { channel = null; }
+    let leader = true;
+    const readLeader = () => {
+      try {
+        const raw = localStorage.getItem(HEARTBEAT_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    };
+    const active = readLeader();
+    if (active && active.id !== tabId && Date.now() - active.at < 4000) {
+      leader = false;
+      runtime.readOnly = true;
+      runtime.tabGuardNotice = '別タブで進行中のため、このタブは閲覧専用です。操作は先に開いたタブで行ってください。';
+    }
+    const refreshLease = () => {
+      if (!leader || runtime.readOnly) return;
+      localStorage.setItem(HEARTBEAT_KEY, JSON.stringify({ id: tabId, at: Date.now() }));
+      channel?.postMessage({ type: 'claim', id: tabId, at: Date.now() });
+    };
+    channel?.addEventListener('message', event => {
+      if (!leader && event.data?.type === 'claim' && event.data.id !== tabId) {
+        runtime.tabGuardNotice = '別タブで進行中のため、このタブは閲覧専用です。操作は先に開いたタブで行ってください。';
+        renderStatus();
+      }
+    });
+    window.addEventListener('storage', event => {
+      if (event.key !== HEARTBEAT_KEY || leader) return;
+      const next = readLeader();
+      if (next && next.id !== tabId && Date.now() - next.at < 4000) renderStatus();
+    });
+    refreshLease();
+    runtime.tabHeartbeat = setInterval(() => { refreshLease(); render(['status']); }, 2000);
+    window.addEventListener('beforeunload', () => {
+      if (runtime.tabHeartbeat) clearInterval(runtime.tabHeartbeat);
+      if (!leader) return;
+      try {
+        const raw = localStorage.getItem(HEARTBEAT_KEY);
+        if (raw && JSON.parse(raw).id === tabId) localStorage.removeItem(HEARTBEAT_KEY);
+      } catch { /* ignore */ }
+    });
+  }
+
   async function runOperation(label, retry, work) {
     if (runtime.busy) return false;
+    if (runtime.readOnly) { toast(runtime.tabGuardNotice || 'このタブは閲覧専用です。'); return false; }
     runtime.busy = true;
     runtime.cancelled = false;
     runtime.controller = new AbortController();
     runtime.status = label;
+    runtime.statusStartedAt = Date.now();
     runtime.error = '';
     runtime.retry = retry;
     renderStatus();
@@ -1417,11 +1572,13 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       const atBottom = forceBottom || switched || container.scrollHeight - container.scrollTop - container.clientHeight < 70;
       const messages = [...channel.messages];
       if (runtime.pending?.actorId === actor.id) messages.push({ ...runtime.pending, pending: true });
+      if (runtime.streamPreview && runtime.pending?.actorId === actor.id) messages.push({ role: 'actor', text: runtime.streamPreview, pending: true, date: dateOf(campaign), visibility: runtime.pending.visibility });
       let lastDate = '';
       html('chat-stream-box', messages.map(message => {
         const divider = message.date !== lastDate ? `<div class="chat-date-divider">${escapeHtml(message.date)}</div>` : '';
         lastDate = message.date;
-        return `${divider}<article class="telegram ${message.role === 'player' ? 'player' : ''} ${message.pending ? 'pending' : ''}"><div class="telegram-meta"><span>${message.visibility === 'official' ? '公式声明' : '非公開'}</span>${message.urgency === 'urgent' ? '<span class="urgent-label">今月中の回答を要請</span>' : ''}</div><div class="telegram-body">${message.subject ? `<div class="telegram-subject">${escapeHtml(message.subject)}</div>` : ''}${escapeHtml(message.text)}</div>${message.stance ? `<div class="telegram-stance">${STANCES[message.stance]}</div>` : ''}${message.pending ? '<div class="telegram-stance">返電を待っています…</div>' : ''}</article>`;
+        const pendingHint = message.pending && message.role === 'player' ? '返電を待っています…' : message.pending ? '受信中…' : '';
+        return `${divider}<article class="telegram ${message.role === 'player' ? 'player' : ''} ${message.pending ? 'pending' : ''}"><div class="telegram-meta"><span>${message.visibility === 'official' ? '公式声明' : '非公開'}</span>${message.urgency === 'urgent' ? '<span class="urgent-label">今月中の回答を要請</span>' : ''}</div><div class="telegram-body">${message.subject ? `<div class="telegram-subject">${escapeHtml(message.subject)}</div>` : ''}${escapeHtml(message.text)}</div>${message.stance ? `<div class="telegram-stance">${STANCES[message.stance]}</div>` : ''}${pendingHint ? `<div class="telegram-stance">${pendingHint}</div>` : ''}</article>`;
       }).join('') || `<p class="empty-state">${escapeHtml(actor.name)}との回線が開きました。最初のメッセージを送ってください。</p>`);
       if (atBottom) container.scrollTop = container.scrollHeight;
     }
@@ -1472,9 +1629,12 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   }
 
   function renderStatus() {
+    const elapsed = runtime.statusStartedAt ? Math.floor((Date.now() - runtime.statusStartedAt) / 1000) : 0;
     if ($('request-status')) {
-      $('request-status').hidden = !runtime.busy;
-      html('request-status', `<span>${escapeHtml(runtime.status)} ${runtime.progress || 0}%</span><button class="text-button" data-cancel-request>中断</button>`);
+      $('request-status').hidden = !runtime.busy && !runtime.readOnly;
+      const busyLine = runtime.busy ? `<span>${escapeHtml(runtime.status)} ${runtime.progress || 0}% · ${elapsed}秒</span><button class="text-button" data-cancel-request>中断</button>` : '';
+      const guardLine = runtime.readOnly ? `<span>${escapeHtml(runtime.tabGuardNotice)}</span>` : '';
+      html('request-status', `${busyLine}${guardLine}`);
     }
     if ($('game-error')) {
       $('game-error').hidden = !runtime.error;
@@ -1483,20 +1643,25 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     updateAIStatus();
   }
 
-  function render() {
-    renderTop();
-    renderDomestic();
-    renderHistory();
-    renderThreads();
-    renderChatRoute();
-    renderConversation();
-    renderActions();
-    renderControls();
-    renderStatus();
-    renderSaveStatus();
+  function render(scope = null) {
+    const all = !scope;
+    const wants = key => all || scope?.includes(key);
+    if (wants('top')) renderTop();
+    if (wants('domestic')) renderDomestic();
+    if (wants('history')) renderHistory();
+    if (wants('threads')) renderThreads();
+    if (wants('chat')) { renderChatRoute(); renderConversation(); }
+    if (wants('actions')) renderActions();
+    if (wants('controls')) renderControls();
+    if (wants('status')) renderStatus();
+    if (wants('save')) renderSaveStatus();
     if (campaign && runtime.windows.history.open && !runtime.windows.history.collapsed && runtime.frontPanel === 'history') runtime.historySeen = campaign.articles.length;
-    renderWindows();
-    if (runtime.mapDirty) { updateMapVisuals(); runtime.mapDirty = false; }
+    if (wants('windows')) renderWindows();
+    if (runtime.mapDirty) {
+      if (typeof window.scheduleMapVisuals === 'function') window.scheduleMapVisuals();
+      else if (typeof updateMapVisuals === 'function') updateMapVisuals();
+      runtime.mapDirty = false;
+    }
   }
 
   function openDialog(id) {
@@ -1663,6 +1828,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if ($('ai-status-dot')) $('ai-status-dot').style.background = verified ? '#1f7a4d' : runtime.connection === 'error' ? '#c23b3b' : '#b7791f';
     text('ai-provider-label', verified ? 'AI接続済' : configured ? 'AI設定済' : 'AIを設定');
     text('lobby-api-status-title', verified ? `${PROVIDER_CONFIGS[config.provider].name} · ${config.model} 接続確認済み` : configured ? `${PROVIDER_CONFIGS[config.provider].name} · ${config.model} 設定済み（接続は未確認）` : 'APIキーを設定すると、人物の対話と毎月の歴史をLLMが生成');
+    if ($('ai-session-tokens')) text('ai-session-tokens', `今回のセッション: 入力 ${runtime.sessionTokens.input.toLocaleString()} / 出力 ${runtime.sessionTokens.output.toLocaleString()} トークン`);
   }
 
   function saveNumber(value, name, min, max) {
@@ -1914,7 +2080,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     on('btn-withdraw-action', 'click', withdrawAction);
     on('national-action-input', 'input', () => { if (campaign) campaign.actionDraft = $('national-action-input').value.slice(0, 2400); });
     on('btn-chat-back', 'click', showChatList);
-    on('thread-search', 'input', renderThreads);
+    let threadSearchTimer;
+    on('thread-search', 'input', () => { clearTimeout(threadSearchTimer); threadSearchTimer = setTimeout(() => render(['threads']), 150); });
     let draftTimer;
     on('chat-input-field', 'input', () => { rememberDraft(); clearTimeout(draftTimer); draftTimer = setTimeout(saveCampaign, 700); });
     on('message-visibility', 'change', () => { rememberDraft(); saveCampaign(); });
@@ -1976,6 +2143,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     bindEvents();
     bindDesktop();
     initPanZoom();
+    initMultiTabGuard();
+    if (!window.ORBIS_STATES_DB?.length) {
+      toast('州データ (orbis_states.js) を読み込めません。orbis_simulator.html と同じフォルダに置いてください。');
+    }
     try {
       const saved = localStorage.getItem(SAVE_KEY);
       if (saved) { const parsed = parseJSON(saved); validateSave(parsed); runtime.saved = parsed; }
