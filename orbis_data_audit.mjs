@@ -4,20 +4,33 @@ import vm from 'node:vm';
 import { pathToFileURL } from 'node:url';
 
 export function auditData(context) {
-  const { nations, regions } = vm.runInContext('({ nations: SCENARIOS.era_1932.nations, regions: ORBIS_STATES_DB })', context);
+  const { nations, regions, crises, events } = vm.runInContext('({ nations: SCENARIOS.era_1932.nations, regions: ORBIS_STATES_DB, crises: SCENARIO_CRISES.era_1932, events: HISTORICAL_TIMELINE_EVENTS })', context);
   const ids = Object.keys(nations);
+  const land = regions.filter(region => !region.isSea && !region.isSeaZone && region.type !== 'sea');
   assert.equal(new Set(ids.map(id => nations[id].code)).size, ids.length, '国コードの重複');
   assert.equal(new Set(regions.map(region => region.id)).size, regions.length, '州IDの重複');
-  for (const region of regions.filter(region => !region.isSea && !region.isSeaZone && region.type !== 'sea')) {
+  const composites = ['central_europe', 'nordic', 'benelux', 'andes', 'romania', 'yugoslavia'].slice(0, 4);
+  for (const composite of composites) assert.ok(!ids.includes(composite), `複合国家 ${composite} が残存`);
+  for (const region of land) {
     assert.ok(nations[region.country], `${region.id}: 未知の統治国 ${region.country}`);
     assert.ok(region.rings?.length, `${region.id}: 輪郭なし`);
+    assert.ok(region.svgPath?.length, `${region.id}: svgPathなし`);
   }
   for (const id of ids) {
     assert.equal(nations[id].id, id);
     assert.ok(regions.some(region => region.country === id && !region.isSea), `${id}: 領土なし`);
     assert.equal(nations[id].interestGroups.length, 4, `${id}: 利益集団`);
+    assert.ok(nations[id].cabinet?.length, `${id}: 内閣なし`);
+    assert.ok(nations[id].leader && nations[id].name && nations[id].bloc, `${id}: 基本欄欠損`);
   }
-  return { nations: ids.length, regions: regions.length };
+  for (const crisis of crises) assert.ok(regions.some(region => region.id === crisis.stateId), `${crisis.id}: 危機の州ID不整合`);
+  for (const event of events) {
+    assert.ok(Number.isInteger(event.year) && event.month >= 1 && event.month <= 12, `${event.id}: 歴史イベントにyear/monthなし`);
+    assert.ok(event.choices?.length >= 2, `${event.id}: 選択肢不足`);
+  }
+  assert.equal(ids.length, 66, '国家数 (1932年・66カ国体制)');
+  assert.equal(land.length, 165, '陸上州数');
+  return { nations: ids.length, regions: regions.length, events: events.length };
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {

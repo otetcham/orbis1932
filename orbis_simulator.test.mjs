@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
+import { auditData } from './orbis_data_audit.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), 'utf8');
@@ -592,6 +593,11 @@ try {
     const future = api.snapshot();
     future.nationalAction = { id: 'fake', text: '未来からの行動', turn: 9 };
     await assert.rejects(api.restore(future), /提出行動の月/);
+  });
+
+  await check('史実データ監査 (66カ国・165陸上州・危機・歴史イベントの整合)', async () => {
+    const { context } = harness();
+    assert.deepEqual(auditData(context), { nations: 66, regions: 176, events: 9 });
   });
 
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
