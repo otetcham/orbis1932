@@ -65,6 +65,7 @@ window.ORBIS_PLAYBACK = (() => {
 
   async function runQueue() {
     state.running = true;
+  if (typeof document !== 'undefined') document.body?.classList.add('turn-playback-active');
     const overlay = document.getElementById('turn-playback-overlay');
     if (overlay) overlay.hidden = false;
     while (state.queue.length) {
@@ -79,6 +80,8 @@ window.ORBIS_PLAYBACK = (() => {
     state.running = false;
     state.skip = false;
     if (overlay) overlay.hidden = true;
+    document.body?.classList.remove('turn-playback-active');
+    globalThis.Orbis?.flushDeferredToasts?.();
   }
 
   function setSpeed(mult) { state.speed = Math.min(4, Math.max(1, mult)); }

@@ -716,9 +716,10 @@ html, body {
 #turn-playback-overlay:not([hidden]) ~ .turn-playback-controls { pointer-events: auto; }
 .turn-playback-controls {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 92px;
+  right: 20px;
+  top: 200px;
+  left: auto;
+  transform: none;
   display: flex;
   gap: 10px;
   z-index: 12001;
@@ -727,6 +728,8 @@ html, body {
   background: rgba(12, 20, 34, 0.88);
   box-shadow: 0 6px 20px rgba(0,0,0,0.35);
 }
+body.turn-playback-active .map-dispatch-notice,
+body.turn-playback-active #game-toast { visibility: hidden !important; pointer-events: none !important; }
 .ending-timeline { margin: 12px 0 0; padding-left: 18px; max-height: 200px; overflow: auto; }
 
 /* Ocean Sea Zones */

@@ -838,6 +838,20 @@ try {
     assert.doesNotMatch(api.hudTurnLabel(snap), /\//);
   });
 
+  await check('占領は侵略者支配領に隣接して進む', async () => {
+    const { api, context } = harness();
+    await api.start({ nationId: 'japan', maxTurns: 48, replace: true });
+    assert.equal(api.declareWar('china', '満州国境'), true);
+    const snap = api.snapshot();
+    assert.ok(api.verifyOccupationsAdjacent(snap, 'japan'));
+    const land = id => context.window.ORBIS_STATES_DB.find(r => r.id === id);
+    for (const id of Object.keys(snap.occupations)) {
+      const r = land(id);
+      assert.ok(r, id);
+      assert.ok((r.lon || 0) > 95, `${id} が西方で占領されている (${r.lon})`);
+    }
+  });
+
   await check('戦争・和平APIと紛争一覧', async () => {
     const { api } = harness();
     await api.start({ nationId: 'japan', maxTurns: 48, replace: true });

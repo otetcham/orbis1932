@@ -255,10 +255,157 @@ const Orbis = (() => {
     return game.factions[factionId];
   }
 
+  let landAdjacencyCache = null;
+  const regionById = id => window.ORBIS_STATES_DB.find(r => r.id === id);
+  const isLandRegion = r => r && !r.isSea && !r.isSeaZone && r.type !== 'sea';
+
+  function landAdjacency() {
+    if (landAdjacencyCache) return landAdjacencyCache;
+    const graph = new Map();
+    const vertexOwners = new Map();
+    const vtxKey = (lon, lat) => `${Math.round(lon * 10) / 10},${Math.round(lat * 10) / 10}`;
+    for (const r of window.ORBIS_STATES_DB) {
+      if (!isLandRegion(r) || !r.rings?.length) continue;
+      if (!graph.has(r.id)) graph.set(r.id, new Set());
+      const verts = new Set();
+      for (const ring of r.rings) for (const [lon, lat] of ring) verts.add(vtxKey(lon, lat));
+      for (const k of verts) {
+        if (!vertexOwners.has(k)) vertexOwners.set(k, new Set());
+        vertexOwners.get(k).add(r.id);
+      }
+    }
+    for (const owners of vertexOwners.values()) {
+      if (owners.size < 2) continue;
+      const list = [...owners];
+      for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+        graph.get(list[i]).add(list[j]);
+        graph.get(list[j]).add(list[i]);
+      }
+    }
+    landAdjacencyCache = graph;
+    return graph;
+  }
+
+  function regionHolder(game, region) {
+    return game.territories[region.id] || region.country;
+  }
+
+  function attackerSphereIds(game, attacker) {
+    const ids = new Set([attacker]);
+    for (const [clientId, client] of Object.entries(game.clients || {})) {
+      if (client.sponsorId === attacker) ids.add(clientId);
+    }
+    for (const [stateId, owner] of Object.entries(game.territories || {})) {
+      if (owner === attacker) ids.add(regionById(stateId)?.country);
+    }
+    return ids;
+  }
+
+  function attackerFootprint(game, attacker) {
+    const footprint = new Set();
+    const sphere = attackerSphereIds(game, attacker);
+    for (const r of window.ORBIS_STATES_DB) {
+      if (!isLandRegion(r)) continue;
+      const holder = regionHolder(game, r);
+      if (sphere.has(holder) || game.territories[r.id] === attacker) footprint.add(r.id);
+    }
+    return footprint;
+  }
+
+  function attackOrigin(game, attacker) {
+    const anchors = globalThis.ORBIS_MAP_META?.countryAnchors || {};
+    const sphere = attackerSphereIds(game, attacker);
+    const pts = [...sphere].map(id => anchors[id]).filter(Boolean);
+    if (pts.length) {
+      return { lon: pts.reduce((sum, p) => sum + p.lon, 0) / pts.length, lat: pts.reduce((sum, p) => sum + p.lat, 0) / pts.length };
+    }
+    return anchors[attacker] || { lon: 0, lat: 20 };
+  }
+
+  function rankByFrontline(regions, origin) {
+    return regions.slice().sort((a, b) => {
+      const da = Math.hypot((a.lon || 0) - origin.lon, (a.lat || 0) - origin.lat);
+      const db = Math.hypot((b.lon || 0) - origin.lon, (b.lat || 0) - origin.lat);
+      if (Math.abs(da - db) > 0.01) return da - db;
+      return (b.vp || 0) - (a.vp || 0);
+    });
+  }
+
+  function pickFrontierSeizures(game, attacker, defender, count) {
+    const adj = landAdjacency();
+    const footprint = attackerFootprint(game, attacker);
+    const origin = attackOrigin(game, attacker);
+    const seized = [];
+    const occupiedByAttacker = new Set();
+    let frontier = new Set();
+    const refreshFrontier = () => {
+      frontier = new Set();
+      for (const id of footprint) {
+        for (const n of adj.get(id) || []) {
+          const r = regionById(n);
+          if (!isLandRegion(r)) continue;
+          if (regionHolder(game, r) !== defender) continue;
+          if (game.territories[r.id] === attacker) continue;
+          frontier.add(n);
+        }
+      }
+    };
+    refreshFrontier();
+    while (seized.length < count && frontier.size) {
+      const ranked = rankByFrontline([...frontier].map(id => regionById(id)).filter(Boolean), origin);
+      const target = ranked[0];
+      if (!target) break;
+      frontier.delete(target.id);
+      seized.push(target);
+      footprint.add(target.id);
+      occupiedByAttacker.add(target.id);
+      for (const n of adj.get(target.id) || []) {
+        const r = regionById(n);
+        if (!isLandRegion(r)) continue;
+        if (regionHolder(game, r) !== defender) continue;
+        if (game.territories[r.id] === attacker || occupiedByAttacker.has(n)) continue;
+        frontier.add(n);
+      }
+    }
+    if (seized.length < count) {
+      const heldList = [...footprint].map(id => regionById(id)).filter(Boolean);
+      const pool = window.ORBIS_STATES_DB.filter(r => isLandRegion(r) && regionHolder(game, r) === defender && game.territories[r.id] !== attacker);
+      pool.sort((a, b) => {
+        const distFromHeld = r => Math.min(...heldList.map(h => Math.hypot((h.lon || 0) - (r.lon || 0), (h.lat || 0) - (r.lat || 0))));
+        const da = distFromHeld(a) + Math.hypot((a.lon || 0) - origin.lon, (a.lat || 0) - origin.lat) * 0.35;
+        const db = distFromHeld(b) + Math.hypot((b.lon || 0) - origin.lon, (b.lat || 0) - origin.lat) * 0.35;
+        return da - db || (b.vp || 0) - (a.vp || 0);
+      });
+      for (const r of pool) {
+        if (seized.length >= count) break;
+        if (seized.some(s => s.id === r.id)) continue;
+        seized.push(r);
+      }
+    }
+    return seized;
+  }
+
+  function verifyOccupationsAdjacent(game, attacker) {
+    const adj = landAdjacency();
+    const footprint = attackerFootprint(game, attacker);
+    for (const [id] of Object.entries(game.occupations || {})) {
+      if (game.territories[id] !== attacker) continue;
+      const nbrs = adj.get(id);
+      if (!nbrs?.size) continue;
+      let ok = false;
+      for (const n of nbrs) {
+        if (footprint.has(n)) { ok = true; break; }
+        if (game.territories[n] === attacker) { ok = true; break; }
+      }
+      if (!ok) return false;
+    }
+    return true;
+  }
+
   function seizeProvinces(game, attacker, defender, count = 4, notes = []) {
-    const pool = window.ORBIS_STATES_DB.filter(r => !r.isSea && !r.isSeaZone && r.type !== 'sea' && (game.territories[r.id] || r.country) === defender);
-    for (const r of pool.slice(0, count)) {
-      const sovereign = game.territories[r.id] || r.country;
+    const targets = pickFrontierSeizures(game, attacker, defender, count);
+    for (const r of targets) {
+      const sovereign = regionHolder(game, r);
       game.territories[r.id] = attacker;
       game.occupations[r.id] = sovereign;
       game.conflicts[r.id] = { attacker, defender: sovereign, months: 1, reason: `${shortName(attacker)}の進攻` };
@@ -1806,7 +1953,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     text('dock-history-badge', historyUnread > 9 ? '9+' : historyUnread);
     if ($('dock-history-badge')) $('dock-history-badge').hidden = historyUnread === 0;
     if ($('dock-actions-badge')) $('dock-actions-badge').hidden = !campaign || campaign.phase !== 'playing' || Boolean(campaign.nationalAction);
-    if ($('map-dispatch-notice')) $('map-dispatch-notice').hidden = unread === 0 || runtime.windows.chat.open && !runtime.windows.chat.collapsed;
+    const playbackActive = Boolean(globalThis.ORBIS_PLAYBACK?._state?.running || document.body?.classList?.contains('turn-playback-active'));
+    if ($('map-dispatch-notice')) $('map-dispatch-notice').hidden = playbackActive || unread === 0 || runtime.windows.chat.open && !runtime.windows.chat.collapsed;
     text('map-dispatch-label', `${unread}件の新着メッセージ`);
   }
 
@@ -2252,11 +2400,27 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   }
 
   function toast(message) {
+    if (globalThis.ORBIS_PLAYBACK?._state?.running) {
+      runtime.deferredToasts = runtime.deferredToasts || [];
+      runtime.deferredToasts.push(message);
+      return;
+    }
     if (!$('game-toast')) return;
     clearTimeout(runtime.toastTimer);
     text('game-toast', message);
     $('game-toast').hidden = false;
     runtime.toastTimer = setTimeout(() => { if ($('game-toast')) $('game-toast').hidden = true; }, 4200);
+  }
+
+  function flushDeferredToasts() {
+    const last = runtime.deferredToasts?.at(-1);
+    runtime.deferredToasts = [];
+    if (!last || !$('game-toast')) return;
+    clearTimeout(runtime.toastTimer);
+    text('game-toast', last);
+    $('game-toast').hidden = false;
+    runtime.toastTimer = setTimeout(() => { if ($('game-toast')) $('game-toast').hidden = true; }, 4200);
+    renderDock();
   }
 
   function rememberDraft() {
@@ -2800,5 +2964,5 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       turnsThroughCalendarMonth: (year, month, half = 'second') => core.halfTurnsThrough(year, month, half),
     };
   };
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, prepareRegionalOrder, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, listConflicts, continuePastMilestone, playtestStabilize, hudTurnLabel, ...calendarExport() });
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, prepareRegionalOrder, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, listConflicts, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, ...calendarExport() });
 })();
