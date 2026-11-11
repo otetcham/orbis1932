@@ -1170,7 +1170,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 #map-legend-box { display: none; }
 .desktop-workspace .map-label { fill: #16324f; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; opacity: .92; transition: opacity .18s linear; }
 .desktop-workspace .map-label-country { font-weight: 700; letter-spacing: 0.08em; stroke-width: 4px; opacity: .95; }
-.desktop-workspace .map-label-state { font-weight: 500; font-size: 13px; letter-spacing: 0.02em; stroke-width: 2.5px; opacity: .95; }
+.desktop-workspace .map-label-city { font-weight: 500; font-size: 9px; letter-spacing: 0.02em; stroke-width: 2px; opacity: .78; fill: #35506e; }
 .prov-path.selected { filter: brightness(1.08); stroke: #16283e; stroke-width: 1.5; }
 .prov-path.player-owned { filter: none; }
 .desktop-workspace .state-inspector-card { left: 20px; right: auto; bottom: 106px; width: 310px; max-width: calc(100% - 40px); border-radius: 12px; border-color: #b9cbe0; background: rgba(255, 255, 255, 0.96); box-shadow: 0 4px 16px rgba(23, 42, 68, 0.16); }
@@ -1483,7 +1483,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
-  <script src="orbis_states.js" defer></script>
+  <script src="orbis_states.js" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
 </head>
 <body>
 
@@ -1825,6 +1825,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
       </div>
       <div class="modal-foot">
         <button class="btn" id="btn-test-ai">接続をテスト</button>
+        <p class="small muted" id="ai-session-tokens">今回のセッション: 入力 0 / 出力 0 トークン</p>
         <button class="btn btn-primary" id="btn-save-ai-settings">設定を保存</button>
       </div>
     </div>
@@ -3904,6 +3905,33 @@ const COUNTRY_LABEL_NAMES = {
   nicaragua: 'ニカラグア', costa_rica: 'コスタリカ', panama: 'パナマ', haiti: 'ハイチ', dominican: 'ドミニカ'
 };
 const mapLabelPool = new Map();
+const OCCUPATION_CLIENT_IDS = new Set(['manchukuo', 'mongolia', 'india', 'dutch_indies']);
+const occupationPatternCache = new Set();
+
+function ensureOccupationPattern(country, baseColor) {
+  if (occupationPatternCache.has(country)) return;
+  const defs = document.querySelector('#orbis-world-svg defs');
+  if (!defs) return;
+  const stroke = COUNTRY_MAP_COLORS[country] || '#475569';
+  const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+  pattern.id = `occupy-${country}`;
+  pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+  pattern.setAttribute('width', '7');
+  pattern.setAttribute('height', '7');
+  pattern.setAttribute('patternTransform', 'rotate(45)');
+  pattern.innerHTML = `<rect width="7" height="7" fill="${baseColor}"/><line x1="0" y1="0" x2="0" y2="7" stroke="${stroke}" stroke-width="2.2" stroke-opacity="0.82"/>`;
+  defs.appendChild(pattern);
+  occupationPatternCache.add(country);
+}
+
+let mapVisualsQueued = false;
+window.scheduleMapVisuals = function scheduleMapVisuals() {
+  if (mapVisualsQueued) return;
+  mapVisualsQueued = true;
+  const run = () => { mapVisualsQueued = false; updateMapVisuals(); };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 1800 });
+  else setTimeout(run, 60);
+};
 
 function updateMapVisuals() {
   buildMapGeometryOnce();
@@ -3913,8 +3941,8 @@ function updateMapVisuals() {
   const labelsLayer = document.getElementById('labels-layer');
   const zoomFactor = isGlobe ? state.globe.zoom : state.mapTransform.scale;
   const viewportWidth = document.getElementById('map-viewport')?.clientWidth || 1440;
-  const sizeComp = isGlobe ? 1 : Math.max(1, 1400 / viewportWidth);
-  const showLabels = isGlobe || viewportWidth >= 560 || zoomFactor >= 1.6;
+  const invZoom = 1 / Math.max(0.75, zoomFactor);
+  const showLabels = isGlobe || viewportWidth >= 560 || zoomFactor >= 1.15;
 
   state.states.forEach(s => {
     const el = document.getElementById(`prov-${s.id}`);
@@ -3944,8 +3972,15 @@ function updateMapVisuals() {
     }
 
     const fillColor = getStateColor(s);
-    el.setAttribute('fill', fillColor);
-    el.setAttribute('aria-label', `${s.nameJa || s.name || s.id} · ${state.nations[s.country]?.name || s.country}`);
+    const occupied = s.originalOwner && s.originalOwner !== s.country;
+    const clientOccupied = occupied && OCCUPATION_CLIENT_IDS.has(s.originalOwner);
+    if (occupied && !clientOccupied) {
+      ensureOccupationPattern(s.country, fillColor);
+      el.setAttribute('fill', `url(#occupy-${s.country})`);
+    } else {
+      el.setAttribute('fill', fillColor);
+    }
+    el.setAttribute('aria-label', `${s.nameJa || s.name || s.id} · ${state.nations[s.country]?.name || s.country}${occupied ? '（占領）' : ''}`);
 
     if (s.id === state.selectedStateId) {
       el.classList.add('selected');
@@ -3965,10 +4000,7 @@ function updateMapVisuals() {
       labelsLayer.innerHTML = '';
       mapLabelPool.clear();
     } else {
-      const fadeStart = isGlobe ? 1.3 : 1.15;
-      const fadeEnd = isGlobe ? 2.4 : 1.9;
-      const countryOp = 1 - Math.min(1, Math.max(0, (zoomFactor - fadeStart) / (fadeEnd - fadeStart)));
-      const stateOp = Math.min(1, Math.max(0, (zoomFactor - fadeEnd) / (isGlobe ? 0.6 : 0.5)));
+      const countryOp = Math.min(1, Math.max(0.45, 1.1 - zoomFactor * 0.15));
       const wanted = new Map();
       const placed = [];
       const fits = (x, y, hw, hh) => placed.every(p => Math.abs(x - p.x) >= 0.85 * (hw + p.hw) || Math.abs(y - p.y) >= 0.85 * (hh + p.hh));
@@ -3989,42 +4021,36 @@ function updateMapVisuals() {
           minX = Math.min(minX, m.pt.x); maxX = Math.max(maxX, m.pt.x);
           minY = Math.min(minY, m.pt.y); maxY = Math.max(maxY, m.pt.y);
         }
-        return { country, members, span: Math.max(maxX - minX, maxY - minY) };
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        return { country, cx, cy, span: Math.max(maxX - minX, maxY - minY) };
       }).sort((a, b) => ((state.nations[b.country].isMajor ? 1 : 0) - (state.nations[a.country].isMajor ? 1 : 0)) || (b.span - a.span));
 
       for (const g of entries) {
-        if (countryOp <= 0.02) break;
-        const home = g.members.slice().sort((a, b) => (b.s.vp || 0) - (a.s.vp || 0))[0];
         const label = COUNTRY_LABEL_NAMES[g.country] || (state.nations[g.country].name || g.country).split(/[（(・]/)[0];
-        const font = Math.min(34 * sizeComp, Math.max(12.5 * sizeComp, 0.26 * g.span * sizeComp));
-        const hw = label.length * font * 0.6;
+        const font = Math.min(16, Math.max(10.5, 0.2 * g.span)) * invZoom;
+        const hw = label.length * font * 0.58;
         const hh = font * 0.66;
-        const nudges = [[0, 0], [0, -0.9 * hh], [0, 0.9 * hh], [-0.9 * hw, 0], [0.9 * hw, 0], [0, -1.9 * hh], [0, 1.9 * hh]];
-        let spot = null;
-        for (const [nx, ny] of nudges) {
-          if (fits(home.pt.x + nx, home.pt.y + ny, hw, hh)) {
-            spot = { x: home.pt.x + nx, y: home.pt.y + ny };
-            break;
-          }
-        }
-        if (!spot) continue;
-        placed.push({ x: spot.x, y: spot.y, hw, hh });
-        wanted.set(`c:${g.country}`, { text: label, x: spot.x, y: spot.y, font, op: countryOp, cls: 'map-label-country' });
+        if (!fits(g.cx, g.cy, hw, hh)) continue;
+        placed.push({ x: g.cx, y: g.cy, hw, hh });
+        wanted.set(`c:${g.country}`, { text: label, x: g.cx, y: g.cy, font, op: countryOp, cls: 'map-label-country' });
       }
 
-      if (stateOp > 0.02) {
-        const states = state.states.filter(s => !s.isSea && s.type !== 'sea' && !s.isSeaZone && (s.nameJa || s.name))
-          .sort((a, b) => (b.vp || 0) - (a.vp || 0));
-        for (const s of states) {
+      if (zoomFactor >= 1.35) {
+        const cities = state.states.filter(s => !s.isSea && s.type !== 'sea' && !s.isSeaZone && s.terrain === 'urban' && (s.vp || 0) >= 35)
+          .sort((a, b) => (b.vp || 0) - (a.vp || 0))
+          .slice(0, isGlobe ? 24 : 48);
+        const cityOp = Math.min(1, Math.max(0.35, (zoomFactor - 1.2) * 0.55));
+        for (const s of cities) {
           const pt = getProjectedStatePoint(s);
           if (!pt || !pt.visible) continue;
           const label = s.nameJa || s.name || s.id;
-          const font = 13 * sizeComp;
-          const hw = label.length * font * 0.62;
+          const font = 8.5 * invZoom;
+          const hw = label.length * font * 0.55;
           const hh = font * 0.66;
           if (!fits(pt.x, pt.y, hw, hh)) continue;
           placed.push({ x: pt.x, y: pt.y, hw, hh });
-          wanted.set(`s:${s.id}`, { text: label, x: pt.x, y: pt.y, font, op: stateOp, cls: 'map-label-state' });
+          wanted.set(`city:${s.id}`, { text: label, x: pt.x, y: pt.y, font, op: cityOp, cls: 'map-label-city' });
         }
       }
 
@@ -4214,12 +4240,14 @@ function showStateTooltip(s) {
   const tip = document.getElementById('orbis-cursor-tooltip');
   if (!tip) return;
   const owner = state.nations[s.country] || { name: s.country };
+  const occupied = s.originalOwner && s.originalOwner !== s.country;
+  const clientOccupied = occupied && OCCUPATION_CLIENT_IDS.has(s.originalOwner);
   const flagSvg = getCountryFlagSvg(s.country);
   tip.innerHTML = `
     <div style="display:flex; align-items:center; gap:6px;">
       ${flagSvg}
       <strong>${s.nameJa || s.name || s.id}</strong>
-      <span style="color:var(--text-muted);">(${owner.name})</span>
+      <span style="color:var(--text-muted);">(${owner.name}${occupied ? '・占領' : ''}${clientOccupied ? '（占領）' : ''})</span>
     </div>
   `;
   tip.style.display = 'block';
@@ -4248,27 +4276,60 @@ function initPanZoom() {
   let frame = null;
   let previousX = 0;
   let previousY = 0;
+  const activePointers = new Map();
+  let pinchSnapshot = null;
   const redraw = () => {
     if (frame !== null) return;
     frame = requestAnimationFrame(() => { frame = null; updateMapVisuals(); });
   };
+  const midpoint = () => {
+    const pts = [...activePointers.values()];
+    if (pts.length < 2) return null;
+    return { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2, dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) };
+  };
   viewport.addEventListener('pointerdown', (e) => {
-    if (!e.isPrimary || e.button !== 0) return;
-    state.mapTransform.isDragging = true;
-    mapDragDistance = 0;
-    state.mapTransform.startX = e.clientX;
-    state.mapTransform.startY = e.clientY;
-    state.mapTransform.startLon = state.globe.lon;
-    state.mapTransform.startLat = state.globe.lat;
-    previousX = e.clientX;
-    previousY = e.clientY;
+    if (e.button !== 0) return;
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    viewport.setPointerCapture(e.pointerId);
+    if (activePointers.size === 1) {
+      state.mapTransform.isDragging = true;
+      mapDragDistance = 0;
+      state.mapTransform.startX = e.clientX;
+      state.mapTransform.startY = e.clientY;
+      state.mapTransform.startLon = state.globe.lon;
+      state.mapTransform.startLat = state.globe.lat;
+      previousX = e.clientX;
+      previousY = e.clientY;
+    } else if (activePointers.size === 2) {
+      state.mapTransform.isDragging = false;
+      const mid = midpoint();
+      pinchSnapshot = state.mapProjection === 'globe'
+        ? { dist: mid.dist, zoom: state.globe.zoom }
+        : { dist: mid.dist, scale: state.mapTransform.scale, x: state.mapTransform.x, y: state.mapTransform.y };
+    }
   });
   viewport.addEventListener('pointermove', (e) => {
-    if (!state.mapTransform.isDragging) return;
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activePointers.size >= 2 && pinchSnapshot) {
+      const mid = midpoint();
+      if (!mid || mid.dist < 8) return;
+      const ratio = mid.dist / Math.max(1, pinchSnapshot.dist);
+      if (state.mapProjection === 'globe') {
+        state.globe.zoom = clamp(pinchSnapshot.zoom * ratio, 0.7, 4.2);
+        redraw();
+      } else {
+        state.mapTransform.scale = clamp(pinchSnapshot.scale * ratio, 0.6, 5.0);
+        applyFlatTransform();
+        redraw();
+      }
+      mapDragDistance = 12;
+      return;
+    }
+    if (!state.mapTransform.isDragging || activePointers.size !== 1) return;
     const dx = e.clientX - state.mapTransform.startX;
     const dy = e.clientY - state.mapTransform.startY;
     mapDragDistance = Math.hypot(dx, dy);
-    if (mapDragDistance > 6 && !viewport.hasPointerCapture(e.pointerId)) viewport.setPointerCapture(e.pointerId);
     if (state.mapProjection === 'globe') {
       const rotSpeed = 0.35 / state.globe.zoom;
       state.globe.lon = (state.mapTransform.startLon - dx * rotSpeed + 360) % 360;
@@ -4285,7 +4346,9 @@ function initPanZoom() {
     previousY = e.clientY;
   });
   const release = (e) => {
-    state.mapTransform.isDragging = false;
+    activePointers.delete(e.pointerId);
+    if (activePointers.size < 2) pinchSnapshot = null;
+    if (!activePointers.size) state.mapTransform.isDragging = false;
     if (viewport.hasPointerCapture(e.pointerId)) viewport.releasePointerCapture(e.pointerId);
   };
   window.addEventListener('pointerup', release);
@@ -4366,6 +4429,12 @@ function applyFlatTransform() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (window.__ORBIS_STATES_FAILED || !window.ORBIS_STATES_DB?.length) {
+    const title = document.getElementById('lobby-api-status-title');
+    if (title) title.textContent = 'orbis_states.js を読み込めません。orbis_simulator.html と同じフォルダに置いて、ページを開き直してください。';
+    const start = document.getElementById('btn-start-campaign');
+    if (start) start.disabled = true;
+  }
   if (typeof Orbis === 'undefined') {
     document.getElementById('lobby-api-status-title').textContent = 'orbis_game.jsを読み込めません。同じフォルダに置いて、ページを開き直してください。';
     document.getElementById('btn-start-campaign').disabled = true;
