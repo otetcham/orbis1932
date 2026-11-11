@@ -2066,10 +2066,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     }).join(''));
     const pledgeStatus = { active: '履行待ち', fulfilled: '履行済み', broken: '違反' };
     const promises = [...campaign.commitments].sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') || a.dueTurn - b.dueTurn);
-    const pledgeCard = item => `<details class="compact-disclosure"><summary><span class="badge ${item.status === 'broken' ? 'badge-crimson' : item.status === 'fulfilled' ? 'badge-emerald' : 'badge-brass'}">${pledgeStatus[item.status]}${item.status === 'active' ? ` · あと${Math.max(0, item.dueTurn - campaign.completedTurns)}か月` : ''}</span><br>${escapeHtml(item.title)}</summary><p>${escapeHtml(actors[item.actorId]?.name || '')} · ${escapeHtml(item.detail)}</p></details>`;
+    const pledgeCard = item => `<details class="compact-disclosure"><summary><span class="badge ${item.status === 'broken' ? 'badge-crimson' : item.status === 'fulfilled' ? 'badge-emerald' : 'badge-brass'}">${pledgeStatus[item.status]}${item.status === 'active' ? ` · あと${Math.max(0, item.dueTurn - campaign.completedTurns)}半月` : ''}</span><br>${escapeHtml(item.title)}</summary><p>${escapeHtml(actors[item.actorId]?.name || '')} · ${escapeHtml(item.detail)}</p></details>`;
     const cards = promises.filter(item => item.status === 'active').map(pledgeCard);
     const treatyLabels = { trade: '通商：毎月 経済+1・収入+2（2件まで）', nonaggression: '不可侵：毎月 緊張-1（2件まで）', defense: '安全保障：軍事+1・維持費+2（増強は月+1まで）' };
-    const treatyCard = treaty => `<details class="compact-disclosure"><summary><span class="eyebrow">${treaty.secret ? '非公開合意' : '国家間条約'} · ${treaty.remaining > 0 ? `残り${treaty.remaining}か月` : '満了'}</span><br>${escapeHtml(treaty.title)}</summary><p>${escapeHtml(treaty.terms)}</p><p class="small">${escapeHtml(treatyLabels[treaty.type] || '二国間合意')}</p></details>`;
+    const treatyCard = treaty => `<details class="compact-disclosure"><summary><span class="eyebrow">${treaty.secret ? '非公開合意' : '国家間条約'} · ${treaty.remaining > 0 ? `残り${treaty.remaining}半月` : '満了'}</span><br>${escapeHtml(treaty.title)}</summary><p>${escapeHtml(treaty.terms)}</p><p class="small">${escapeHtml(treatyLabels[treaty.type] || '二国間合意')}</p></details>`;
     for (const treaty of [...campaign.treaties].reverse().filter(item => item.remaining > 0)) cards.push(treatyCard(treaty));
     for (const [id, client] of Object.entries(campaign.clients)) {
       if (client.sponsorId !== campaign.playerNationId && id !== campaign.playerNationId) continue;

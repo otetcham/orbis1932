@@ -670,10 +670,12 @@ html, body {
   stroke: rgba(255, 255, 255, 0.45);
 }
 .prov-path.at-war {
-  stroke: #c23b3b;
-  stroke-width: 1.4;
+  stroke: #dc2626;
+  stroke-width: 2.6;
+  stroke-dasharray: 7 4;
   animation: war-pulse 1.2s ease-in-out infinite;
 }
+.war-glyph { font-size: 16px; fill: #dc2626; font-weight: 700; pointer-events: none; }
 @keyframes war-pulse {
   0%, 100% { stroke-opacity: 0.55; }
   50% { stroke-opacity: 1; }
@@ -684,21 +686,27 @@ html, body {
 .turn-playback-card {
   position: fixed;
   left: 50%;
-  bottom: 120px;
-  transform: translateX(-50%) translateY(12px);
-  max-width: min(420px, 92vw);
-  padding: 14px 16px;
-  border-radius: 12px;
-  background: rgba(18, 28, 44, 0.92);
+  top: 72px;
+  transform: translateX(-50%) translateY(-8px);
+  width: min(560px, 94vw);
+  max-width: 560px;
+  padding: 18px 22px;
+  border-radius: 14px;
+  background: rgba(12, 20, 34, 0.94);
   color: #f4f7fb;
-  box-shadow: 0 10px 32px rgba(0,0,0,0.35);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.45);
   opacity: 0;
   pointer-events: none;
   transition: opacity .25s, transform .25s;
   z-index: 12000;
+  font-size: 15px;
+  line-height: 1.45;
 }
 .turn-playback-card.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
-.turn-playback-card .tp-date { font-size: 11px; opacity: 0.75; margin-bottom: 4px; }
+.turn-playback-card .tp-date { font-size: 13px; opacity: 0.8; margin-bottom: 6px; font-family: var(--font-mono); }
+.turn-playback-card .tp-location { font-size: 12px; color: #94a3b8; margin: 4px 0 8px; }
+.turn-playback-card strong { font-size: 18px; display: block; margin-bottom: 6px; }
+.turn-playback-card p { margin: 0; font-size: 14px; opacity: 0.92; }
 #turn-playback-overlay {
   position: fixed;
   inset: 0;
@@ -708,11 +716,16 @@ html, body {
 #turn-playback-overlay:not([hidden]) ~ .turn-playback-controls { pointer-events: auto; }
 .turn-playback-controls {
   position: fixed;
-  right: 18px;
-  bottom: 118px;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 92px;
   display: flex;
-  gap: 8px;
+  gap: 10px;
   z-index: 12001;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(12, 20, 34, 0.88);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
 }
 .ending-timeline { margin: 12px 0 0; padding-left: 18px; max-height: 200px; overflow: auto; }
 
@@ -1618,7 +1631,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
         </div>
       </div>
 
-      <div class="header-date"><span class="clock-date" id="hud-date">1932年3月</span><span id="hud-turn">TURN 01 / 12</span></div>
+      <div class="header-date"><span class="clock-date" id="hud-date">1932年3月</span><span id="hud-turn">第 1 半月</span></div>
       <div class="topbar-right">
         <button class="btn btn-primary" id="btn-advance-month" title="今月の交渉を確認して、AIによる月次裁定へ">ターンを終える <span aria-hidden="true">→</span></button>
       </div>
@@ -1802,6 +1815,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
           <button class="menu-row" id="btn-export-save"><span class="menu-row-icon" aria-hidden="true">↓</span><span>セーブを書き出す<small>APIキーを含まないJSON</small></span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-menu-import"><span class="menu-row-icon" aria-hidden="true">↑</span><span>セーブを読み込む</span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-help"><span class="menu-row-icon" aria-hidden="true">?</span><span>遊び方</span><span aria-hidden="true">›</span></button>
+          <button class="menu-row" id="btn-open-war-panel"><span class="menu-row-icon" aria-hidden="true">⚔</span><span>戦争・和平・紛争</span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-menu-lobby"><span class="menu-row-icon" aria-hidden="true">↗</span><span>キャンペーンメニュー</span><span aria-hidden="true">›</span></button>
           <div class="menu-save-status" id="save-status">自動保存済み</div>
         </div>
@@ -1879,6 +1893,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   </dialog>
   <dialog class="game-dialog wide-dialog" id="actor-directory" aria-labelledby="directory-title"><div class="modal-head"><strong id="directory-title">交渉先を選ぶ</strong><button class="btn btn-ghost" data-close-dialog="actor-directory">閉じる</button></div><div class="modal-body"><label class="sr-only" for="actor-search">国名・組織・人物を検索</label><input class="form-input" id="actor-search" type="search" placeholder="国名・組織・人物を検索"><div class="directory-filters" id="directory-filters"><button class="filter-btn active" data-actor-kind="all">すべて</button><button class="filter-btn" data-actor-kind="domestic">国内</button><button class="filter-btn" data-actor-kind="ministry">外務省</button><button class="filter-btn" data-actor-kind="embassy">大使館</button><button class="filter-btn" data-actor-kind="client">従属国・自治領</button><button class="filter-btn" data-actor-kind="foreign_group">国外の利益団体</button></div><div id="actor-directory-list"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
+  <dialog class="game-dialog wide-dialog" id="modal-war-panel" aria-labelledby="war-panel-title"><div class="modal-head"><strong id="war-panel-title">戦争・和平・紛争</strong><button class="btn btn-ghost" data-close-dialog="modal-war-panel">閉じる</button></div><div class="modal-body" id="war-panel-body"></div></dialog>
   <div id="turn-playback-overlay" hidden></div>
   <div class="turn-playback-controls" id="turn-playback-controls">
     <button type="button" class="btn btn-ghost" id="btn-playback-skip">スキップ</button>
@@ -3978,20 +3993,22 @@ const mapLabelPool = new Map();
 const OCCUPATION_CLIENT_IDS = new Set(['manchukuo', 'mongolia', 'india', 'dutch_indies']);
 const occupationPatternCache = new Set();
 
-function ensureOccupationPattern(country, baseColor) {
-  if (occupationPatternCache.has(country)) return;
+function ensureOccupationPattern(occupier, victim) {
+  const key = `${occupier}|${victim}`;
+  if (occupationPatternCache.has(key)) return;
   const defs = document.querySelector('#orbis-world-svg defs');
   if (!defs) return;
-  const stroke = COUNTRY_MAP_COLORS[country] || '#475569';
+  const victimFill = COUNTRY_MAP_COLORS[victim] || '#64748b';
+  const occupierStroke = COUNTRY_MAP_COLORS[occupier] || '#dc2626';
   const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
-  pattern.id = `occupy-${country}`;
+  pattern.id = `occupy-${occupier}-${victim}`;
   pattern.setAttribute('patternUnits', 'userSpaceOnUse');
-  pattern.setAttribute('width', '7');
-  pattern.setAttribute('height', '7');
+  pattern.setAttribute('width', '8');
+  pattern.setAttribute('height', '8');
   pattern.setAttribute('patternTransform', 'rotate(45)');
-  pattern.innerHTML = `<rect width="7" height="7" fill="${baseColor}"/><line x1="0" y1="0" x2="0" y2="7" stroke="${stroke}" stroke-width="2.2" stroke-opacity="0.82"/>`;
+  pattern.innerHTML = `<rect width="8" height="8" fill="${victimFill}"/><line x1="0" y1="0" x2="0" y2="8" stroke="${occupierStroke}" stroke-width="3" stroke-opacity="0.92"/>`;
   defs.appendChild(pattern);
-  occupationPatternCache.add(country);
+  occupationPatternCache.add(key);
 }
 
 let mapVisualsQueued = false;
@@ -4133,8 +4150,8 @@ function updateMapVisuals() {
     const clientOccupied = occupied && OCCUPATION_CLIENT_IDS.has(s.originalOwner);
     let finalFill = fillColor;
     if (occupied && !clientOccupied) {
-      ensureOccupationPattern(s.country, fillColor);
-      finalFill = `url(#occupy-${s.country})`;
+      ensureOccupationPattern(s.country, s.originalOwner);
+      finalFill = `url(#occupy-${s.country}-${s.originalOwner})`;
     }
     if (el.getAttribute('fill') !== finalFill) el.setAttribute('fill', finalFill);
     const ariaLabel = `${s.nameJa || s.name || s.id} · ${state.nations[s.country]?.name || s.country}${occupied ? '（占領）' : ''}`;
@@ -4230,7 +4247,34 @@ function updateMapVisuals() {
     }
   }
 
+  renderWarGlyphs();
+
   updateMapLegend();
+}
+
+function renderWarGlyphs() {
+  const layer = document.getElementById('frontlines-layer');
+  if (!layer) return;
+  const wars = Object.values(state.activeWars || {}).filter(w => w.status === 'active');
+  const sig = JSON.stringify(wars.map(w => [w.attacker, w.defender]));
+  if (layer.dataset.sig === sig) return;
+  layer.dataset.sig = sig;
+  layer.innerHTML = '';
+  for (const w of wars) {
+    const anchor = window.ORBIS_MAP_META?.countryAnchors?.[w.defender] || window.ORBIS_MAP_META?.countryAnchors?.[w.attacker];
+    if (!anchor) continue;
+    const pt = projectLonLatPoint(anchor.lon, anchor.lat);
+    if (!pt?.visible && state.mapProjection === 'globe') continue;
+    const x = pt?.x ?? (anchor.lon + 180) * (2000 / 360);
+    const y = pt?.y ?? (90 - anchor.lat) * 9.32 + 60;
+    const text = document.createElementNS(SVG_NS, 'text');
+    text.setAttribute('class', 'war-glyph');
+    text.setAttribute('x', String(x));
+    text.setAttribute('y', String(y - 10));
+    text.setAttribute('text-anchor', 'middle');
+    text.textContent = '⚔';
+    layer.appendChild(text);
+  }
 }
 
 function getProjectedStatePoint(s) {
@@ -4270,6 +4314,7 @@ function getStateColor(s) {
   const owner = state.nations[s.country];
 
   if (mode === 'country') {
+    if (state.factionColors?.[s.country]) return state.factionColors[s.country];
     return COUNTRY_MAP_COLORS[s.country] || '#475569';
   }
 
