@@ -79,6 +79,22 @@ const Orbis = (() => {
   const statLabels = { mil: '軍事', eco: '経済', stb: '安定度', treasury: '財政余力', prestige: '威信', tension: '国際緊張' };
   const PROGRESS_SECONDS = { briefing: 50, chat: 30, resolution: 45, '': 12 };
   const UNBOUNDED_STAT = 100000;
+  /** 1回の月次裁定（delta＋提出行動effects）で動かせる最大幅。詳細は docs/balance_monthly_caps.md */
+  const MONTHLY_RULING_CAPS = {
+    delta: { mil: 4, eco: 4, stb: 4, treasury: 10, prestige: 3, tension: 5 },
+    actionEffect: { mil: 4, eco: 4, stb: 4, treasury: 10, prestige: 3, tension: 5 },
+    combined: { mil: 5, eco: 5, stb: 5, treasury: 12, prestige: 4, tension: 6 },
+    groupDeltaPerMonth: 4,
+    nationMilEcoPerMonth: 4,
+    nationStbPerMonth: 4,
+    monthlyTensionRiseCap: 7,
+    monthlyTreasuryFallCap: 12,
+    monthlyStbFallCap: 6,
+    monthlyEcoFallCap: 5,
+    stressMonthsRequired: 3,
+  };
+  const capRuling = (value, limit) => finite(value, -limit, limit);
+  const capCombinedRuling = (key, value) => capRuling(value, MONTHLY_RULING_CAPS.combined[key] ?? 6);
 
   function createCampaign(nationId, difficulty, mandate, maxTurns) {
     const nations = {};
@@ -267,14 +283,15 @@ const Orbis = (() => {
     const evidence = ids => array(ids, '根拠となる発言ID', 8).filter(id => typeof id === 'string' && validAction(id));
     const delta = requireObject(value.delta, 'delta');
     for (const key of Object.keys(statLabels)) if (typeof delta[key] !== 'number' || !Number.isFinite(delta[key])) throw new Error(`delta.${key}が数値ではありません。`);
+    const capDelta = key => capRuling(delta[key], MONTHLY_RULING_CAPS.delta[key] ?? 6);
     return {
       headline: requiredText(value.headline, '歴史見出し', 100), article: requiredText(value.article, '歴史記事', 2200),
-      delta: Object.fromEntries(Object.keys(statLabels).map(key => [key, finite(delta[key], -100, 100)])),
+      delta: Object.fromEntries(Object.keys(statLabels).map(key => [key, capDelta(key)])),
       reasoning: array(value.reasoning, 'reasoning', 6, 1).map(item => ({ text: requiredText(item.text, '因果の説明', 500), sourceActionIds: evidence(item.sourceActionIds) })),
       developments: array(value.developments, 'developments', 4, 2).map(item => ({ headline: requiredText(item.headline, '国外見出し', 100), body: requiredText(item.body, '国外情勢', 900) })),
       groups: array(value.groups, 'groups', 4).map(item => {
         if (!Object.hasOwn(game.nations[game.playerNationId].groups, item.groupId)) throw new Error('未知の国内勢力IDです。');
-        return { groupId: item.groupId, delta: finite(item.delta, -8, 8), reason: requiredText(item.reason, '勢力の反応', 350), sourceActionIds: evidence(item.sourceActionIds) };
+        return { groupId: item.groupId, delta: capRuling(item.delta, MONTHLY_RULING_CAPS.groupDeltaPerMonth), reason: requiredText(item.reason, '勢力の反応', 350), sourceActionIds: evidence(item.sourceActionIds) };
       }),
       relations: array(value.relations, 'relations', 8).map(item => {
         if (!game.nations[item.a] || !game.nations[item.b] || item.a === item.b) throw new Error('外交関係の国家IDが不正です。');
@@ -329,7 +346,7 @@ const Orbis = (() => {
         if (!proof.includes(item.actionId) || proof.some(id => id !== item.actionId && !validAction(id))) throw new Error('行動結果の根拠IDが不正です。');
         const effects = requireObject(item.effects, '行動の効果');
         for (const key of Object.keys(statLabels)) if (typeof effects[key] !== 'number' || !Number.isFinite(effects[key])) throw new Error(`行動の効果.${key}が数値ではありません。`);
-        return { actionId: item.actionId, text: requiredText(item.text, '行動の結果', 1200), outcome: item.outcome, effects: Object.fromEntries(Object.keys(statLabels).map(key => [key, finite(effects[key], -100, 100)])), evidence: proof,
+        return { actionId: item.actionId, text: requiredText(item.text, '行動の結果', 1200), outcome: item.outcome, effects: Object.fromEntries(Object.keys(statLabels).map(key => [key, capRuling(effects[key], MONTHLY_RULING_CAPS.actionEffect[key] ?? 6)])), evidence: proof,
           relations: array(item.relations || [], '行動による外交変化', 4).map(change => {
             if (!nationId(change.nationId) || change.nationId === game.playerNationId) throw new Error('行動による外交変化の国家IDが不正です。');
             return { nationId: change.nationId, delta: finite(change.delta, -8, 8), reason: requiredText(change.reason, '行動への他国の反応', 350) };
@@ -660,10 +677,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const notes = [];
     const actionResult = evaluation.actionResults[0];
     const combined = key => evaluation.delta[key] + (actionResult?.effects[key] || 0);
-    const delta = {
-      mil: finite(combined('mil'), -6, 6), eco: finite(combined('eco'), -6, 6), stb: finite(combined('stb'), -8, 8),
-      treasury: finite(combined('treasury'), -18, 8), prestige: finite(combined('prestige'), -5, 5), tension: finite(combined('tension'), -8, 10)
-    };
+    const delta = Object.fromEntries(Object.keys(statLabels).map(key => [key, capCombinedRuling(key, combined(key))]));
     const positive = Math.max(0, delta.mil) + Math.max(0, delta.eco) + Math.max(0, delta.stb);
     if (positive > 12) {
       for (const key of ['mil', 'eco', 'stb']) if (delta[key] > 0) delta[key] = Math.floor(delta[key] * 12 / positive);
@@ -682,7 +696,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const grouped = new Map();
     for (const item of evaluation.groups) {
       const current = grouped.get(item.groupId) || { delta: 0, addressed: false, reasons: [] };
-      current.delta = clamp(current.delta + item.delta, -8, 8);
+      current.delta = clamp(current.delta + item.delta, -MONTHLY_RULING_CAPS.groupDeltaPerMonth, MONTHLY_RULING_CAPS.groupDeltaPerMonth);
       current.addressed ||= item.sourceActionIds.length > 0;
       current.reasons.push(item.reason);
       grouped.set(item.groupId, current);
@@ -706,6 +720,24 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     game.treasury = clamp(game.treasury + budget.net + delta.treasury, 0, 100);
     game.prestige = clamp(game.prestige + delta.prestige, 0, 100);
     game.tension = clamp(game.tension + delta.tension + rules.pressure - budget.peace, 0, 100);
+    const treasuryFloor = Math.max(0, before.treasury + budget.net - MONTHLY_RULING_CAPS.monthlyTreasuryFallCap);
+    if (game.treasury < treasuryFloor) {
+      game.treasury = treasuryFloor;
+      notes.push(`財政余力の月次低下を ${MONTHLY_RULING_CAPS.monthlyTreasuryFallCap} 以内に制限。`);
+    }
+    const tensionCeiling = before.tension + MONTHLY_RULING_CAPS.monthlyTensionRiseCap;
+    if (game.tension > tensionCeiling) {
+      game.tension = Math.min(100, tensionCeiling);
+      notes.push(`国際緊張の月次上昇を +${MONTHLY_RULING_CAPS.monthlyTensionRiseCap} 以内に制限。`);
+    }
+    if (nation.stb < before.stb - MONTHLY_RULING_CAPS.monthlyStbFallCap) {
+      nation.stb = Math.max(0, before.stb - MONTHLY_RULING_CAPS.monthlyStbFallCap);
+      notes.push(`安定度の月次低下を ${MONTHLY_RULING_CAPS.monthlyStbFallCap} 以内に制限。`);
+    }
+    if (nation.eco < before.eco - MONTHLY_RULING_CAPS.monthlyEcoFallCap) {
+      nation.eco = Math.max(0, before.eco - MONTHLY_RULING_CAPS.monthlyEcoFallCap);
+      notes.push(`経済の月次低下を ${MONTHLY_RULING_CAPS.monthlyEcoFallCap} 以内に制限。`);
+    }
     notes.push(`財政：税収・通商等 +${budget.income}、維持費 -${budget.upkeep}、今月の施策 ${signed(delta.treasury)}。`);
     if (economyDrift || stabilityDrift) notes.push(`構造要因：恐慌・通商による経済 ${signed(economyDrift)}、支持基盤による安定度 ${signed(stabilityDrift)}。`);
 
@@ -878,9 +910,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     game.stress.collapse = nation.stb <= 8 || nation.eco <= 8 ? game.stress.collapse + 1 : 0;
     game.stress.bankruptcy = game.treasury === 0 ? game.stress.bankruptcy + 1 : 0;
     game.stress.war = game.tension >= 95 ? game.stress.war + 1 : 0;
-    if (game.stress.collapse === 1) notes.push('政権崩壊の猶予はあと1か月。安定度と経済をともに9以上へ戻す必要がある。');
-    if (game.stress.bankruptcy === 1) notes.push('財政破綻の猶予はあと1か月。新規支出を抑え、財政余力を回復する必要がある。');
-    if (game.stress.war === 1) notes.push('世界大戦の危機。次月末までに国際緊張を95未満へ下げる必要がある。');
+    const stressNeed = MONTHLY_RULING_CAPS.stressMonthsRequired;
+    if (game.stress.collapse >= 1 && game.stress.collapse < stressNeed) notes.push(`政権崩壊の危機（${game.stress.collapse}/${stressNeed}か月）。安定度と経済をともに9以上へ戻す必要がある。`);
+    if (game.stress.bankruptcy >= 1 && game.stress.bankruptcy < stressNeed) notes.push(`財政破綻の危機（${game.stress.bankruptcy}/${stressNeed}か月）。財政余力を回復する必要がある。`);
+    if (game.stress.war >= 1 && game.stress.war < stressNeed) notes.push(`世界大戦の危機（${game.stress.war}/${stressNeed}か月）。国際緊張を95未満へ下げる必要がある。`);
     game.ending = determineEnding(game);
     game.phase = game.ending ? 'ended' : 'briefing';
     game.usedActions = 0;
@@ -897,9 +930,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const nation = game.nations[game.playerNationId];
     const score = clamp(Math.round(nation.eco * .28 + nation.stb * .27 + game.prestige * .27 + game.treasury * .18 - Math.max(0, game.tension - 60) * .4 - game.cumulative.broken), 0, 100);
     if (Object.values(game.conflicts).some(conflict => conflict.defender === game.playerNationId && conflict.months >= 6)) return { result: 'defeat', title: '領土の喪失', body: '自国領の紛争を6か月以内に収拾できず、領土保全の責任を果たせなかった。', score };
-    if (game.stress.collapse >= 2) return { result: 'defeat', title: '政権の統治能力が崩壊', body: '経済または国内安定の危機を2か月以内に収拾できず、政権は退陣を余儀なくされた。', score };
-    if (game.stress.bankruptcy >= 2) return { result: 'defeat', title: '国庫の支払いが停止', body: '2か月続いた財源不足が行政と軍の指揮系統を止めた。後継政権が債務整理を引き継ぐ。', score };
-    if (game.stress.war >= 2) return { result: 'defeat', title: '外交秩序が破断、世界大戦へ', body: '国際緊張を抑えられないまま2か月が経過。各国の動員が連鎖し、局地危機は大戦へ転じた。', score };
+    const need = MONTHLY_RULING_CAPS.stressMonthsRequired;
+    if (game.stress.collapse >= need) return { result: 'defeat', title: '政権の統治能力が崩壊', body: `${need}か月続いた経済または国内安定の危機で政権は退陣を余儀なくされた。`, score };
+    if (game.stress.bankruptcy >= need) return { result: 'defeat', title: '国庫の支払いが停止', body: `${need}か月続いた財源不足が行政と軍の指揮系統を止めた。後継政権が債務整理を引き継ぐ。`, score };
+    if (game.stress.war >= need) return { result: 'defeat', title: '外交秩序が破断、世界大戦へ', body: `国際緊張を抑えられないまま${need}か月が経過。各国の動員が連鎖し、局地危機は大戦へ転じた。`, score };
     if (game.completedTurns < game.maxTurns) return null;
     const achieved = mandateInfo(game).conditions.every(condition => condition.met);
     return { result: achieved ? 'victory' : 'survived', title: achieved ? '国家目標を達成、次の時代へ' : '任期を完走、課題は次の世代へ', body: achieved ? '対話と決断を積み重ね、国家に託された目標を達成した。この歴史は、もはや史実とは異なる道を歩んでいる。' : '国家と国際秩序を維持して任期を終えた。一部の目標は未達だが、交わした言葉と決断は、この世界に残る。', score };
@@ -1965,7 +1999,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     });
     game.worldMemory = typeof raw.worldMemory === 'string' && raw.worldMemory.length <= 2400 ? raw.worldMemory : '';
     requireObject(raw.stress, '危機状態');
-    for (const key of ['collapse', 'bankruptcy', 'war']) game.stress[key] = saveNumber(raw.stress[key], '危機の継続月', 0, 2);
+    for (const key of ['collapse', 'bankruptcy', 'war']) game.stress[key] = saveNumber(raw.stress[key], '危機の継続月', 0, MONTHLY_RULING_CAPS.stressMonthsRequired);
     requireObject(raw.cumulative, '通算実績');
     for (const key of ['treaties', 'fulfilled', 'broken']) game.cumulative[key] = saveNumber(raw.cumulative[key], '通算実績', 0, 100);
     if (!['briefing', 'playing', 'ended'].includes(raw.phase)) throw new Error('セーブの進行段階が不正です。');

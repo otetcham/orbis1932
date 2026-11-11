@@ -126,7 +126,7 @@ try {
     assert.equal(next.completedTurns, 1);
     assert.equal(next.phase, 'playing');
     assert.equal(next.usedActions, 0);
-    assert.equal(next.nations.japan.groups.ig_industrialists, 69);
+    assert.equal(next.nations.japan.groups.ig_industrialists, 68);
     assert.equal(next.nations.japan.groups.ig_labor, 49);
     assert.equal(next.relations.japan.usa, -17);
     assert.equal(next.relations.usa.japan, -17);
@@ -440,7 +440,7 @@ try {
     assert.equal(restored.snapshot().phase, 'ended');
   });
 
-  await check('財政危機の猶予・回復・2か月連続時の敗北', async () => {
+  await check('財政危機の猶予・回復・3か月連続時の敗北', async () => {
     const { api } = harness();
     await begin(api);
     const poor = api.snapshot();
@@ -455,16 +455,39 @@ try {
     await api.finishTurn();
     assert.equal(api.snapshot().stress.bankruptcy, 1);
     assert.equal(api.snapshot().ending, null);
+    await api.finishTurn();
+    assert.equal(api.snapshot().stress.bankruptcy, 2);
+    assert.equal(api.snapshot().ending, null);
     const grace = api.snapshot();
     await api.finishTurn();
     assert.equal(api.snapshot().ending.result, 'defeat');
-    assert.equal(api.snapshot().completedTurns, 2);
+    assert.equal(api.snapshot().completedTurns, 3);
     respond = () => null;
     await api.restore(grace);
     await api.finishTurn();
     assert.ok(api.snapshot().treasury > 0);
     assert.equal(api.snapshot().stress.bankruptcy, 0);
     assert.equal(api.snapshot().ending, null);
+  });
+
+  await check('極端な裁定JSONでも単月の財政・緊張スパイクを抑制', async () => {
+    const { api } = harness();
+    await begin(api);
+    const start = api.snapshot();
+    assert.equal(await api.submitAction('財政と外交の極端な圧力テスト。'), true);
+    respond = item => {
+      if (item.operation !== 'RESOLUTION') return null;
+      const data = evaluation();
+      const id = item.context.nationalAction.id;
+      data.delta = { mil: 0, eco: 0, stb: 0, treasury: -40, prestige: 0, tension: 40 };
+      data.actionResults = [{ actionId: id, outcome: 'partial', text: '過大な圧力。', effects: { mil: 0, eco: 0, stb: 0, treasury: -30, prestige: 0, tension: 35 }, evidence: [id], relations: [] }];
+      return { data };
+    };
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    assert.ok(after.treasury >= start.treasury - 13, `treasury ${start.treasury} -> ${after.treasury}`);
+    assert.ok(after.tension <= start.tension + 8, `tension ${start.tension} -> ${after.tension}`);
+    assert.equal(after.ending, null);
   });
 
   await check('破損セーブ・APIキーの混入・プロトタイプ汚染を拒否', async () => {
