@@ -3708,13 +3708,15 @@ function renderGlobeBackdrop() {
 
   const bgRect = document.getElementById('map-background-rect');
   const viewport = document.getElementById('map-viewport');
-  document.getElementById('orbis-world-svg')?.setAttribute('viewBox', state.mapProjection === 'globe' ? '570 30 860 760' : '0 60 2000 1158');
+  const worldSvg = document.getElementById('orbis-world-svg');
+  const viewBox = state.mapProjection === 'globe' ? '570 30 860 760' : '0 60 2000 1158';
+  if (worldSvg && worldSvg.getAttribute('viewBox') !== viewBox) worldSvg.setAttribute('viewBox', viewBox);
 
   if (state.mapProjection === 'flat') {
-    layer.innerHTML = '';
+    if (globeBackdrop.circle) { layer.innerHTML = ''; globeBackdrop.circle = null; globeBackdrop.graticule = null; graticuleCache = { key: '', d: '' }; }
     if (bgRect) {
-      bgRect.setAttribute('display', 'block');
-      bgRect.setAttribute('fill', '#cfe3f4'); // Light ocean for 2D flat map!
+      if (bgRect.getAttribute('display') !== 'block') bgRect.setAttribute('display', 'block');
+      if (bgRect.getAttribute('fill') !== '#cfe3f4') bgRect.setAttribute('fill', '#cfe3f4'); // Light ocean for 2D flat map!
     }
     viewport?.classList.add('flat-mode');
     return;
@@ -3722,101 +3724,112 @@ function renderGlobeBackdrop() {
 
   viewport?.classList.remove('flat-mode');
   if (bgRect) {
-    bgRect.setAttribute('display', 'block');
-    bgRect.setAttribute('fill', '#e3ecf5'); // Bright sky backdrop for 3D Globe
+    if (bgRect.getAttribute('display') !== 'block') bgRect.setAttribute('display', 'block');
+    if (bgRect.getAttribute('fill') !== '#e3ecf5') bgRect.setAttribute('fill', '#e3ecf5'); // Bright sky backdrop for 3D Globe
   }
 
   const { zoom, baseR, cx, cy } = state.globe;
-  const R = baseR * zoom;
-  const grat = buildGlobeGraticulePath();
-
-  layer.innerHTML = `
-    <circle cx="${cx}" cy="${cy}" r="${R.toFixed(1)}" fill="url(#globe-ocean-grad)" stroke="#7fa3c4" stroke-width="1.2" stroke-opacity="0.8"/>
-    <path d="${grat}" fill="none" stroke="rgba(21,52,84,0.28)" stroke-width="0.8" pointer-events="none"/>
-  `;
+  if (!globeBackdrop.circle) {
+    const circle = document.createElementNS(SVG_NS, 'circle');
+    circle.setAttribute('fill', 'url(#globe-ocean-grad)');
+    circle.setAttribute('stroke', '#7fa3c4');
+    circle.setAttribute('stroke-width', '1.2');
+    circle.setAttribute('stroke-opacity', '0.8');
+    const graticule = document.createElementNS(SVG_NS, 'path');
+    graticule.setAttribute('fill', 'none');
+    graticule.setAttribute('stroke', 'rgba(21,52,84,0.28)');
+    graticule.setAttribute('stroke-width', '0.8');
+    graticule.setAttribute('pointer-events', 'none');
+    layer.appendChild(circle);
+    layer.appendChild(graticule);
+    globeBackdrop.circle = circle;
+    globeBackdrop.graticule = graticule;
+  }
+  const radius = (baseR * zoom).toFixed(1);
+  if (globeBackdrop.circle.getAttribute('r') !== radius) globeBackdrop.circle.setAttribute('r', radius);
+  if (globeBackdrop.circle.getAttribute('cx') !== `${cx}`) globeBackdrop.circle.setAttribute('cx', `${cx}`);
+  if (globeBackdrop.circle.getAttribute('cy') !== `${cy}`) globeBackdrop.circle.setAttribute('cy', `${cy}`);
+  const gratPath = buildGlobeGraticulePath();
+  if (globeBackdrop.graticule.getAttribute('d') !== gratPath) globeBackdrop.graticule.setAttribute('d', gratPath);
 }
 
 function buildGlobeGraticulePath() {
   const { zoom, baseR, cx, cy, lon: cLon, lat: cLat } = state.globe;
+  const key = `${cLon.toFixed(2)}_${cLat.toFixed(2)}_${zoom.toFixed(3)}`;
+  if (graticuleCache.key === key) return graticuleCache.d;
   const R = baseR * zoom;
-  const d2r = Math.PI / 180;
-  const phi0 = cLat * d2r;
-  const lam0 = cLon * d2r;
-  const cosPhi0 = Math.cos(phi0);
-  const sinPhi0 = Math.sin(phi0);
-
+  const sinP0 = Math.sin(cLat * GLOBE_D2R);
+  const cosP0 = Math.cos(cLat * GLOBE_D2R);
+  const cosL0 = Math.cos(cLon * GLOBE_D2R);
+  const sinL0 = Math.sin(cLon * GLOBE_D2R);
   const parts = [];
 
-  function projectPoint(lonDeg, latDeg) {
-    const lam = lonDeg * d2r;
-    const phi = latDeg * d2r;
-    const cosPhi = Math.cos(phi);
-    const sinPhi = Math.sin(phi);
-    const cosDlam = Math.cos(lam - lam0);
-    const cosC = sinPhi0 * sinPhi + cosPhi0 * cosPhi * cosDlam;
-    if (cosC < 0.05) return null;
-    const x = cx + R * cosPhi * Math.sin(lam - lam0);
-    const y = cy - R * (cosPhi0 * sinPhi - sinPhi0 * cosPhi * cosDlam);
-    return [x, y];
-  }
-
-  // Parallels every 30 deg
-  for (let lat = -60; lat <= 60; lat += 30) {
+  for (const data of graticuleLines) {
     let active = false;
-    for (let lon = -180; lon <= 180; lon += 6) {
-      const pt = projectPoint(lon, lat);
-      if (pt) {
-        parts.push(active ? `L ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}` : `M ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}`);
-        active = true;
-      } else {
+    for (let i = 0; i < data.length; i += 3) {
+      const px = data[i];
+      const py = data[i + 1];
+      const pz = data[i + 2];
+      const meridian = px * cosL0 + py * sinL0;
+      if (sinP0 * pz + cosP0 * meridian < 0.05) {
         active = false;
+        continue;
       }
+      const x = cx + R * (py * cosL0 - px * sinL0);
+      const y = cy - R * (cosP0 * pz - sinP0 * meridian);
+      parts.push(active ? `L ${x.toFixed(1)} ${y.toFixed(1)}` : `M ${x.toFixed(1)} ${y.toFixed(1)}`);
+      active = true;
     }
   }
 
-  // Meridians every 30 deg
-  for (let lon = -180; lon < 180; lon += 30) {
-    let active = false;
-    for (let lat = -85; lat <= 85; lat += 5) {
-      const pt = projectPoint(lon, lat);
-      if (pt) {
-        parts.push(active ? `L ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}` : `M ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}`);
-        active = true;
-      } else {
-        active = false;
-      }
-    }
-  }
-
-  return parts.join(' ');
+  graticuleCache = { key, d: parts.join(' ') };
+  return graticuleCache.d;
 }
 
-function projectOrthographicPath(rings) {
+function globeUnitRings(id, rings) {
+  let unit = globeUnitCache.get(id);
+  if (unit) return unit;
+  unit = rings.map(ring => {
+    const data = new Float64Array(ring.length * 3);
+    for (let i = 0; i < ring.length; i++) {
+      const lam = ring[i][0] * GLOBE_D2R;
+      const phi = ring[i][1] * GLOBE_D2R;
+      const cosPhi = Math.cos(phi);
+      data[i * 3] = cosPhi * Math.cos(lam);
+      data[i * 3 + 1] = cosPhi * Math.sin(lam);
+      data[i * 3 + 2] = Math.sin(phi);
+    }
+    return data;
+  });
+  globeUnitCache.set(id, unit);
+  return unit;
+}
+
+function projectOrthographicPath(id, rings) {
   if (!rings || !rings.length) return '';
   const { zoom, baseR, cx, cy, lon: cLon, lat: cLat } = state.globe;
+  const key = `${cLon.toFixed(2)}_${cLat.toFixed(2)}_${zoom.toFixed(3)}`;
+  const cached = globePathCache.get(id);
+  if (cached && cached.key === key) return cached.d;
   const R = baseR * zoom;
-  const d2r = Math.PI / 180;
-  const phi0 = cLat * d2r;
-  const lam0 = cLon * d2r;
-  const cosPhi0 = Math.cos(phi0);
-  const sinPhi0 = Math.sin(phi0);
-
+  const sinP0 = Math.sin(cLat * GLOBE_D2R);
+  const cosP0 = Math.cos(cLat * GLOBE_D2R);
+  const cosL0 = Math.cos(cLon * GLOBE_D2R);
+  const sinL0 = Math.sin(cLon * GLOBE_D2R);
   const pathParts = [];
-  for (const ring of rings) {
+  for (const data of globeUnitRings(id, rings)) {
+    const count = data.length / 3;
     let visiblePoints = 0;
     let ringPath = '';
     let penDown = false;
-    for (let i = 0; i < ring.length; i++) {
-      const [lonDeg, latDeg] = ring[i];
-      const lam = lonDeg * d2r;
-      const phi = latDeg * d2r;
-      const cosPhi = Math.cos(phi);
-      const sinPhi = Math.sin(phi);
-      const cosDlam = Math.cos(lam - lam0);
-      const cosC = sinPhi0 * sinPhi + cosPhi0 * cosPhi * cosDlam;
-      if (cosC > 0) {
-        const x = cx + R * cosPhi * Math.sin(lam - lam0);
-        const y = cy - R * (cosPhi0 * sinPhi - sinPhi0 * cosPhi * cosDlam);
+    for (let i = 0; i < count; i++) {
+      const px = data[i * 3];
+      const py = data[i * 3 + 1];
+      const pz = data[i * 3 + 2];
+      const meridian = px * cosL0 + py * sinL0;
+      if (sinP0 * pz + cosP0 * meridian > 0) {
+        const x = cx + R * (py * cosL0 - px * sinL0);
+        const y = cy - R * (cosP0 * pz - sinP0 * meridian);
         ringPath += (penDown ? ` L ${x.toFixed(1)} ${y.toFixed(1)}` : `M ${x.toFixed(1)} ${y.toFixed(1)}`);
         penDown = true;
         visiblePoints++;
@@ -3824,11 +3837,11 @@ function projectOrthographicPath(rings) {
         penDown = false;
       }
     }
-    if (visiblePoints >= 3) {
-      pathParts.push(ringPath + (penDown ? ' Z' : ''));
-    }
+    if (visiblePoints >= 3) pathParts.push(ringPath + (penDown ? ' Z' : ''));
   }
-  return pathParts.join(' ');
+  const d = pathParts.join(' ');
+  globePathCache.set(id, { key, d });
+  return d;
 }
 
 function buildMapGeometryOnce() {
@@ -3933,6 +3946,42 @@ window.scheduleMapVisuals = function scheduleMapVisuals() {
   else setTimeout(run, 60);
 };
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const GLOBE_D2R = Math.PI / 180;
+const globeUnitCache = new Map();
+const globePathCache = new Map();
+const globePointCache = new Map();
+const globeBackdrop = { circle: null, graticule: null };
+let mapGeometryKey = '';
+let graticuleCache = { key: '', d: '' };
+const graticuleLines = (() => {
+  const lines = [];
+  for (let lat = -60; lat <= 60; lat += 30) {
+    const cosPhi = Math.cos(lat * GLOBE_D2R);
+    const sinPhi = Math.sin(lat * GLOBE_D2R);
+    const data = new Float64Array(61 * 3);
+    for (let i = 0; i < 61; i++) {
+      const lon = (-180 + i * 6) * GLOBE_D2R;
+      data[i * 3] = cosPhi * Math.cos(lon);
+      data[i * 3 + 1] = cosPhi * Math.sin(lon);
+      data[i * 3 + 2] = sinPhi;
+    }
+    lines.push(data);
+  }
+  for (let lon = -180; lon < 180; lon += 30) {
+    const data = new Float64Array(35 * 3);
+    for (let i = 0; i < 35; i++) {
+      const lat = (-85 + i * 5) * GLOBE_D2R;
+      const cosPhi = Math.cos(lat);
+      data[i * 3] = cosPhi * Math.cos(lon * GLOBE_D2R);
+      data[i * 3 + 1] = cosPhi * Math.sin(lon * GLOBE_D2R);
+      data[i * 3 + 2] = Math.sin(lat);
+    }
+    lines.push(data);
+  }
+  return lines;
+})();
+
 function updateMapVisuals() {
   buildMapGeometryOnce();
   renderGlobeBackdrop();
@@ -3944,55 +3993,56 @@ function updateMapVisuals() {
   const invZoom = 1 / Math.max(0.75, zoomFactor);
   const showLabels = isGlobe || viewportWidth >= 560 || zoomFactor >= 1.15;
 
+  const geometryKey = isGlobe ? `${state.globe.lon.toFixed(2)}|${state.globe.lat.toFixed(2)}|${state.globe.zoom.toFixed(3)}` : 'flat';
+  const geometryChanged = geometryKey !== mapGeometryKey;
+  mapGeometryKey = geometryKey;
+
   state.states.forEach(s => {
     const el = document.getElementById(`prov-${s.id}`);
     if (!el) return;
 
     const isSea = Boolean(s.isSea || s.type === 'sea' || s.isSeaZone);
 
-    // Update Geometry (3D Globe vs 2D Flat)
-    if (isGlobe && s.rings && s.rings.length) {
-      const globeD = projectOrthographicPath(s.rings);
-      el.setAttribute('d', globeD);
-      el.style.display = globeD ? 'inline' : 'none';
-    } else if (isGlobe) {
-      el.style.display = 'none';
-    } else {
-      const cached = svgPathCache.get(s.id);
-      if (cached) el.setAttribute('d', cached);
-      el.style.display = 'inline';
+    if (geometryChanged) {
+      if (isGlobe && s.rings && s.rings.length) {
+        const globeD = projectOrthographicPath(s.id, s.rings);
+        if (el.getAttribute('d') !== globeD) el.setAttribute('d', globeD);
+        const display = globeD ? 'inline' : 'none';
+        if (el.style.display !== display) el.style.display = display;
+      } else if (isGlobe) {
+        if (el.style.display !== 'none') el.style.display = 'none';
+      } else {
+        const cached = svgPathCache.get(s.id);
+        if (cached && el.getAttribute('d') !== cached) el.setAttribute('d', cached);
+        if (el.style.display !== 'inline') el.style.display = 'inline';
+      }
     }
 
-    // Coloring
     if (isSea) {
-      el.setAttribute('fill', 'rgba(56, 189, 248, 0.08)');
-      el.setAttribute('stroke', 'rgba(56, 189, 248, 0.2)');
-      el.setAttribute('stroke-width', '0.6');
+      const seaFill = 'rgba(56, 189, 248, 0.08)';
+      if (el.getAttribute('fill') !== seaFill) el.setAttribute('fill', seaFill);
+      const seaStroke = 'rgba(56, 189, 248, 0.2)';
+      if (el.getAttribute('stroke') !== seaStroke) {
+        el.setAttribute('stroke', seaStroke);
+        el.setAttribute('stroke-width', '0.6');
+      }
       return;
     }
 
     const fillColor = getStateColor(s);
     const occupied = s.originalOwner && s.originalOwner !== s.country;
     const clientOccupied = occupied && OCCUPATION_CLIENT_IDS.has(s.originalOwner);
+    let finalFill = fillColor;
     if (occupied && !clientOccupied) {
       ensureOccupationPattern(s.country, fillColor);
-      el.setAttribute('fill', `url(#occupy-${s.country})`);
-    } else {
-      el.setAttribute('fill', fillColor);
+      finalFill = `url(#occupy-${s.country})`;
     }
-    el.setAttribute('aria-label', `${s.nameJa || s.name || s.id} · ${state.nations[s.country]?.name || s.country}${occupied ? '（占領）' : ''}`);
+    if (el.getAttribute('fill') !== finalFill) el.setAttribute('fill', finalFill);
+    const ariaLabel = `${s.nameJa || s.name || s.id} · ${state.nations[s.country]?.name || s.country}${occupied ? '（占領）' : ''}`;
+    if (el.getAttribute('aria-label') !== ariaLabel) el.setAttribute('aria-label', ariaLabel);
 
-    if (s.id === state.selectedStateId) {
-      el.classList.add('selected');
-    } else {
-      el.classList.remove('selected');
-    }
-
-    if (s.country === state.playerNationId) {
-      el.classList.add('player-owned');
-    } else {
-      el.classList.remove('player-owned');
-    }
+    el.classList.toggle('selected', s.id === state.selectedStateId);
+    el.classList.toggle('player-owned', s.country === state.playerNationId);
   });
 
   if (labelsLayer) {
@@ -4092,24 +4142,25 @@ function getProjectedStatePoint(s) {
 
   // Globe Orthographic Projection
   const { zoom, baseR, cx, cy, lon: cLon, lat: cLat } = state.globe;
+  let unit = globePointCache.get(s.id);
+  if (!unit) {
+    const lam = (s.lon || 0) * GLOBE_D2R;
+    const phi = (s.lat || 0) * GLOBE_D2R;
+    const cosPhi = Math.cos(phi);
+    unit = [cosPhi * Math.cos(lam), cosPhi * Math.sin(lam), Math.sin(phi)];
+    globePointCache.set(s.id, unit);
+  }
   const R = baseR * zoom;
-  const d2r = Math.PI / 180;
-  const phi0 = cLat * d2r;
-  const lam0 = cLon * d2r;
-  const cosPhi0 = Math.cos(phi0);
-  const sinPhi0 = Math.sin(phi0);
+  const sinP0 = Math.sin(cLat * GLOBE_D2R);
+  const cosP0 = Math.cos(cLat * GLOBE_D2R);
+  const cosL0 = Math.cos(cLon * GLOBE_D2R);
+  const sinL0 = Math.sin(cLon * GLOBE_D2R);
+  const meridian = unit[0] * cosL0 + unit[1] * sinL0;
 
-  const lam = (s.lon || 0) * d2r;
-  const phi = (s.lat || 0) * d2r;
-  const cosPhi = Math.cos(phi);
-  const sinPhi = Math.sin(phi);
-  const cosDlam = Math.cos(lam - lam0);
-  const cosC = sinPhi0 * sinPhi + cosPhi0 * cosPhi * cosDlam;
+  if (sinP0 * unit[2] + cosP0 * meridian < 0.35) return { visible: false };
 
-  if (cosC < 0.35) return { visible: false };
-
-  const x = cx + R * cosPhi * Math.sin(lam - lam0);
-  const y = cy - R * (cosPhi0 * sinPhi - sinPhi0 * cosPhi * cosDlam);
+  const x = cx + R * (unit[1] * cosL0 - unit[0] * sinL0);
+  const y = cy - R * (cosP0 * unit[2] - sinP0 * meridian);
   return { x, y, visible: true };
 }
 
@@ -4147,13 +4198,15 @@ function getStateColor(s) {
   return COUNTRY_MAP_COLORS[s.country] || '#475569';
 }
 
+let mapLegendMode = '';
 function updateMapLegend() {
   const box = document.getElementById('map-legend-box');
-  if (!box) return;
+  if (!box || mapLegendMode === state.mapMode) return;
+  mapLegendMode = state.mapMode;
   const mode = state.mapMode;
 
   if (mode === 'country') {
-    box.innerHTML = `<span>1932年 史実国別領土（全32カ国・植民地分割対応）</span>`;
+    box.innerHTML = `<span>1932年 史実国別領土（全66カ国・植民地分割対応）</span>`;
   } else if (mode === 'faction') {
     box.innerHTML = `
       <span class="legend-dot" style="background:#6285a3;"></span>既存秩序・協調
