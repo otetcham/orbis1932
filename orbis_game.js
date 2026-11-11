@@ -2177,7 +2177,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if (!campaign) return;
     const labels = { success: '成功', partial: '部分成功', fail: '失敗' };
     const submitted = campaign.nationalAction;
-    text('national-action-status', `${dateOf(campaign)} · ${submitted ? '提出済み' : '未提出'} · 月1件`);
+    text('national-action-status', `${dateOf(campaign)} · ${submitted ? '提出済み' : '未提出'} · 半月1件`);
     text('btn-submit-action', submitted ? '提出を更新' : '行動を提出');
     if ($('btn-withdraw-action')) $('btn-withdraw-action').hidden = !submitted;
     if ($('national-action-input') && document.activeElement !== $('national-action-input')) $('national-action-input').value = campaign.actionDraft;
@@ -2199,7 +2199,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     for (const id of ['btn-test-ai', 'btn-save-ai-settings', 'select-ai-provider', 'input-api-endpoint', 'input-api-key', 'select-model-preset', 'input-custom-model', 'remember-api-key']) if ($(id)) $(id).disabled = runtime.busy;
     text('btn-send-label', runtime.busy && runtime.pending ? '返電待ち' : '電報を送る');
     text('composer-cost', campaign ? `残り${RULES[campaign.difficulty].actions - campaign.usedActions}交渉` : '送信 1交渉枠');
-    text('composer-hint', full ? '今月の交渉は終了。月次裁定へ進む。' : 'Enterで改行 · Ctrl / ⌘＋Enterで送信');
+    text('composer-hint', full ? '今半月の交渉は終了。半月裁定へ進む。' : 'Enterで改行 · Ctrl / ⌘＋Enterで送信');
   }
 
   function renderSaveStatus() {
