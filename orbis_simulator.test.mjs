@@ -7,6 +7,7 @@ import { auditData } from './orbis_data_audit.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
+const mapMetaSource = await readFile(new URL('./orbis_map_meta.js', import.meta.url), 'utf8');
 const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), 'utf8');
 const eventsSource = await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8');
 const inlineScripts = [...htmlSource.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
@@ -74,6 +75,7 @@ function harness(provider = 'custom') {
   const context = vm.createContext({ console, document, fetch, URL, Blob, AbortController, AbortSignal, setTimeout, clearTimeout, crypto: webcrypto, localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) }, addEventListener() {}, confirm: () => true });
   context.window = context;
   vm.runInContext(statesSource, context, { timeout: 4000 });
+  vm.runInContext(mapMetaSource, context, { timeout: 4000 });
   for (const script of inlineScripts) if (script.trim()) vm.runInContext(script, context, { timeout: 4000 });
   vm.runInContext(eventsSource, context, { timeout: 4000 });
   vm.runInContext(gameSource, context, { timeout: 4000 });
@@ -133,7 +135,7 @@ try {
     assert.equal(requests.at(-1).context.date, '1932年4月');
     assert.equal(requests.at(-1).context.worldMemory, next.worldMemory);
     assert.ok(next.articles.some(article => article.kind === 'resolution' && article.changes.eco === 2));
-    const serialized = storage.get('orbis_campaign_v4');
+    const serialized = storage.get('orbis_campaign_v5') || storage.get('orbis_campaign_v4');
     assert.ok(serialized);
     assert.ok(!serialized.includes('TEST_ONLY_NOT_A_REAL_KEY'));
     const { api: restored } = harness();
@@ -654,9 +656,38 @@ try {
     assert.equal(api.snapshot().turnActions[0].actorId, 'client:manchukuo');
   });
 
-  await check('史実データ監査 (66カ国・165陸上州・危機・歴史イベントの整合)', async () => {
+  await check('史実データ監査 (66カ国・Admin-1州・危機・歴史イベントの整合)', async () => {
     const { context } = harness();
-    assert.deepEqual(auditData(context), { nations: 66, regions: 176, events: 9, history: 272 });
+    const audit = auditData(context);
+    assert.equal(audit.nations, 66);
+    assert.ok(audit.land >= 3500, `陸上州数 ${audit.land}`);
+    assert.equal(audit.events, 9);
+    assert.equal(audit.history, 272);
+    assert.ok(audit.regions >= audit.land);
+  });
+
+  await check('国名ラベル錨が首都本土付近に置かれる（海外領土に引っ張られない）', async () => {
+    const { context } = harness();
+    const capitals = vm.runInContext('ORBIS_MAP_META.capitals', context);
+    const anchors = vm.runInContext('ORBIS_MAP_META.countryAnchors', context);
+    const homeRules = vm.runInContext('ORBIS_MAP_META.homeTerritoryRules', context);
+    for (const [country, cap] of Object.entries(capitals)) {
+      const anchor = anchors[country];
+      assert.ok(anchor, `${country} のラベル錨なし`);
+      const dLon = anchor.lon - cap[0];
+      const dLat = anchor.lat - cap[1];
+      const approxKm = Math.hypot(dLon * 85, dLat * 111);
+      assert.ok(approxKm < 650, `${country} ラベルが首都から遠すぎる (${approxKm.toFixed(0)}km)`);
+      if (homeRules[country]) {
+        const rule = homeRules[country];
+        assert.ok(anchor.lon >= rule.minLon && anchor.lon <= rule.maxLon && anchor.lat >= rule.minLat && anchor.lat <= rule.maxLat,
+          `${country} ラベルが本土bbox外 (${anchor.lon},${anchor.lat})`);
+      }
+    }
+    const uk = anchors.uk;
+    assert.ok(uk.lon > -8 && uk.lon < 3 && uk.lat > 49 && uk.lat < 60, '英国ラベルが本土外');
+    const fr = anchors.france;
+    assert.ok(fr.lon > -5 && fr.lon < 8 && fr.lat > 42 && fr.lat < 51, 'フランスラベルが本土外');
   });
 
   await check('史実DB連携: 電報文脈に当月・年内の史実ノートが入る', async () => {

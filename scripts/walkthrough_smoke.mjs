@@ -81,5 +81,70 @@ await page.click('#btn-confirm-end-turn');
 await page.waitForFunction(() => (Orbis.snapshot()?.completedTurns ?? 0) >= 1, { timeout: 180000 });
 await page.screenshot({ path: `${artifactDir}/walkthrough-04-april-1932.png`, fullPage: true });
 
+await page.evaluate(() => {
+  state.mapProjection = 'flat';
+  state.mapTransform.scale = 1;
+  state.mapTransform.x = 0;
+  state.mapTransform.y = 0;
+  applyFlatTransform();
+  updateMapVisuals();
+});
+await page.screenshot({ path: `${artifactDir}/walkthrough-05-flat-map.png`, fullPage: true });
+
+await page.evaluate(() => {
+  state.mapProjection = 'globe';
+  state.globe.lon = 10;
+  state.globe.lat = 48;
+  state.globe.zoom = 1.2;
+  updateMapVisuals();
+});
+await page.screenshot({ path: `${artifactDir}/walkthrough-06-globe.png`, fullPage: true });
+
+await page.evaluate(() => {
+  state.mapProjection = 'flat';
+  state.mapTransform.scale = 7.5;
+  state.mapTransform.x = -480;
+  state.mapTransform.y = 140;
+  applyFlatTransform();
+  updateMapVisuals();
+});
+await page.screenshot({ path: `${artifactDir}/walkthrough-07-europe-max-zoom.png`, fullPage: true });
+
+await page.evaluate(() => {
+  state.mapTransform.scale = 9;
+  state.mapTransform.x = -1120;
+  state.mapTransform.y = 60;
+  applyFlatTransform();
+  updateMapVisuals();
+});
+await page.screenshot({ path: `${artifactDir}/walkthrough-08-east-asia-max-zoom.png`, fullPage: true });
+
+await page.evaluate(() => {
+  state.mapTransform.scale = 4.5;
+  state.mapTransform.x = -320;
+  state.mapTransform.y = -520;
+  applyFlatTransform();
+  updateMapVisuals();
+});
+await page.screenshot({ path: `${artifactDir}/walkthrough-09-brazil-provinces.png`, fullPage: true });
+
+await page.evaluate(() => {
+  state.mapTransform.scale = 4;
+  state.mapTransform.x = -180;
+  state.mapTransform.y = 60;
+  applyFlatTransform();
+  updateMapVisuals();
+});
+await page.screenshot({ path: `${artifactDir}/walkthrough-10-canada-provinces.png`, fullPage: true });
+
+await page.evaluate(() => {
+  state.mapTransform.scale = 5.5;
+  state.mapTransform.x = -420;
+  state.mapTransform.y = 120;
+  applyFlatTransform();
+  updateMapVisuals();
+});
+await page.screenshot({ path: `${artifactDir}/walkthrough-11-country-labels-europe.png`, fullPage: true });
+
 await browser.close();
 console.log('Walkthrough screenshots saved under', artifactDir);

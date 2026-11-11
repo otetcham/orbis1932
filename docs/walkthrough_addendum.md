@@ -6,23 +6,66 @@
 - headless スモーク: `node scripts/walkthrough_smoke.mjs`（Playwright・`file://`・AIは `127.0.0.1` モック）。
 - スクリーンショット（エージェント成果物）: `walkthrough-01-lobby.png` 〜 `walkthrough-04-april-1932.png`。
 
-## データ監査（再実行ログ）
+## データ監査（Phase M 再実行）
 
 ```
-史実データ監査: { nations: 66, regions: 176, events: 9, history: 272 }
+史実データ監査: { nations: 66, regions: 4071, land: 4060, events: 9, history: 272 }
 ```
 
 | 区分 | 件数 | ソース |
 |------|------|--------|
 | 国家 | 66 | `SCENARIOS.era_1932.nations` |
-| 陸上州 | 176 | `orbis_states.js` (`ORBIS_STATES_DB`) |
+| 陸上州 | 4060 | `orbis_states.js`（NE Admin-1 + 1930統治割当） |
+| 海域ゾーン | 11 | 従来の `sea_*` |
 | シナリオ危機 | 9 | `CRISIS_EVENTS` |
-| 史実タイムライン | 272 | `orbis_events.js` |
+| 史実タイムライン | 272 | `orbis_events.js`（**オーナーC・未改変**） |
+
+### 地域別州数（プレイ可能国のゲーム地域グループ）
+
+| 地域グループ | 州数 |
+|-------------|------|
+| ヨーロッパ | 2866 |
+| 南北アメリカ | 532 |
+| 東アジア・太平洋 | 249 |
+| アジア・オセアニア | 210 |
+| 中東・アフリカ | 203 |
+
+### 国別州数（上位）
+
+ブラジル 27、カナダ 13、米国 109、日本 83、中国 128、ソ連相当（russia）186、インド 129、フランス 84（植民地含む）、英国 178、イタリア 105、ドイツ 115 など。**全66カ国が1州以上**（ルクセンブルク 2）。
+
+### 初回ロードサイズ
+
+| ファイル | おおよそのサイズ |
+|---------|-----------------|
+| `orbis_states.js` | 約 2.3 MB |
+| `orbis_map_meta.js` | 約 10 KB |
+
+### データ出典・ライセンス
+
+詳細はリポジトリ直下 [`CREDITS`](../../CREDITS) を参照。
+
+- Natural Earth Admin-1 — パブリックドメイン  
+- aourednik `world_1930` — **GPL-3.0（統治割当のみ。注意書きあり）**
+
+### 国名ラベル（本土・首都基準）
+
+`ORBIS_MAP_META.countryAnchors` を `data/orbis_capitals.json` と `data/orbis_home_territory.json` から生成。英仏日米伊荷などは **海外領土・植民地を本土bboxから除外**し、首都を含む州の内側に配置。テスト: `国名ラベル錨が首都本土付近に置かれる`。
+
+### 球体パフォーマンス（Chromium headless・4060州・2026-11-11計測）
+
+| モード | p50 フレーム時間 | 換算FPS |
+|--------|-----------------|--------|
+| 平面 `updateMapVisuals` | 39.4 ms | 25.4 |
+| 球体 フル描画 | 25.1 ms | 39.8 |
+| 球体 ドラッグ時ライト（`updateMapVisualsLite`） | 10 ms | 100 |
+
+ズーム上限: 平面 **20×**、球体 **8.4×**（従来比約4倍）。
 
 ## ハーネステスト（再実行ログ）
 
 ```
-26 checks passed. Live provider credentials were not used.
+27 checks passed. Live provider credentials were not used.
 ```
 
 主な追加・更新観点:

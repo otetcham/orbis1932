@@ -18,7 +18,9 @@ export function auditData(context) {
   }
   for (const id of ids) {
     assert.equal(nations[id].id, id);
-    assert.ok(regions.some(region => region.country === id && !region.isSea), `${id}: 領土なし`);
+    const owned = regions.filter(region => region.country === id && !region.isSea);
+    assert.ok(owned.length, `${id}: 領土なし`);
+    if (id !== 'luxembourg') assert.ok(owned.length >= 2, `${id}: 州数が少なすぎる (${owned.length})`);
     assert.equal(nations[id].interestGroups.length, 4, `${id}: 利益集団`);
     assert.ok(nations[id].cabinet?.length, `${id}: 内閣なし`);
     assert.ok(nations[id].leader && nations[id].name && nations[id].bloc, `${id}: 基本欄欠損`);
@@ -37,16 +39,22 @@ export function auditData(context) {
   assert.equal(Math.min(...history.map(event => event.year)), 1932, '史実DBの開始年');
   assert.equal(Math.max(...history.map(event => event.year)), 1972, '史実DBの終了年');
   assert.equal(ids.length, 66, '国家数 (1932年・66カ国体制)');
-  assert.equal(land.length, 165, '陸上州数');
-  return { nations: ids.length, regions: regions.length, events: events.length, history: history.length };
+  assert.ok(land.length >= 800, `陸上州数が少なすぎます (${land.length})`);
+  assert.ok(land.length <= 6000, `陸上州数が多すぎます (${land.length})`);
+  assert.ok((regions.filter(r => r.country === 'brazil').length) >= 20, 'ブラジルの州分割');
+  assert.ok((regions.filter(r => r.country === 'canada').length) >= 10, 'カナダの州分割');
+  assert.ok((regions.filter(r => r.country === 'usa').length) >= 45, '米国の州分割');
+  return { nations: ids.length, regions: regions.length, land: land.length, events: events.length, history: history.length };
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   const source = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
   const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
+  const mapMetaSource = await readFile(new URL('./orbis_map_meta.js', import.meta.url), 'utf8');
   const context = vm.createContext({ document: { addEventListener() {} } });
   context.window = context;
   vm.runInContext(statesSource, context);
+  vm.runInContext(mapMetaSource, context);
   for (const [, script] of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) if (script.trim()) vm.runInContext(script, context);
   vm.runInContext(await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8'), context);
   if (process.argv.includes('--inspect')) {
