@@ -829,6 +829,58 @@ try {
     assert.ok(fr.lon > -5 && fr.lon < 8 && fr.lat > 42 && fr.lat < 51, 'フランスラベルが本土外');
   });
 
+  await check('既定キャンペーンは無制限（HUDに / 上限なし）', async () => {
+    const { api } = harness();
+    await api.start({ nationId: 'japan', replace: true });
+    const snap = api.snapshot();
+    assert.equal(snap.maxTurns, 0);
+    assert.match(api.hudTurnLabel(snap), /^第 \d+ 半月$/);
+    assert.doesNotMatch(api.hudTurnLabel(snap), /\//);
+  });
+
+  await check('戦争・和平APIと紛争一覧', async () => {
+    const { api } = harness();
+    await api.start({ nationId: 'japan', maxTurns: 48, replace: true });
+    assert.equal(api.declareWar('china', '満州情勢'), true);
+    const conflicts = api.listConflicts();
+    assert.ok(conflicts.wars.length >= 1);
+    assert.ok(Object.keys(api.snapshot().occupations).length >= 3);
+    const warId = conflicts.wars[0].id;
+    const warm = api.snapshot();
+    warm.relations.japan.china = 30;
+    warm.relations.china.japan = 30;
+    await api.restore(warm);
+    assert.equal(api.proposePeace(warId, { returnStateIds: Object.keys(api.snapshot().occupations) }), true);
+    assert.equal(api.listConflicts().wars.filter(w => w.status === 'active').length, 0);
+  });
+
+  await check('低安定度で内戦が発生し紛争一覧に載る', async () => {
+    const { api } = harness();
+    await begin(api);
+    const snap = api.snapshot();
+    snap.nations[snap.playerNationId].stb = 14;
+    snap.nations[snap.playerNationId].eco = 40;
+    await api.restore(snap);
+    respond = item => (item.operation === 'RESOLUTION' ? { data: evaluation() } : null);
+    await api.finishTurn();
+    const after = api.snapshot();
+    const civil = after.civilWars?.[after.playerNationId];
+    assert.ok(civil?.status === 'active', '内戦開始');
+    assert.ok(api.listConflicts().civil.length >= 1);
+    assert.ok(api.negotiateCivilWar(after.playerNationId, 'amnesty'));
+  });
+
+  await check('WORLD_EVENT_DB: 満州国建国が正しい半月に発火', async () => {
+    const { api, context } = harness();
+    await api.start({ nationId: 'japan', maxTurns: 24, replace: true });
+    respond = item => (item.operation === 'RESOLUTION' ? { data: evaluation() } : null);
+    await api.finishTurn();
+    const fired = api.snapshot().timelineFired || {};
+    assert.ok(fired['1932-manchukuo_founding'] != null, '1932-manchukuo_founding');
+    const dbCount = vm.runInContext('ORBIS_TIMELINE.dbEvents().length', context);
+    assert.ok(dbCount >= 40, `scripted DB events ${dbCount}`);
+  });
+
   await check('史実DB連携: 電報文脈に当月・年内の史実ノートが入る', async () => {
     const { api, context } = harness();
     await begin(api);
