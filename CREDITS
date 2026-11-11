@@ -1,0 +1,23 @@
+# ORBIS//1932 — 地図データクレジット
+
+## 行政区分（州・省）
+
+- **Natural Earth 10m Admin-1 States & Provinces**  
+  - 出典: [Natural Earth](https://www.naturalearthdata.com/)  
+  - ライセンス: **パブリックドメイン**  
+  - 利用: `scripts/build_orbis_states.mjs` が簡略化し `orbis_states.js` を生成
+
+## 1930年頃の国家領有（ソvereignty）
+
+- **aourednik/historical-basemaps** — `world_1930.geojson`  
+  - 出典: [GitHub — historical-basemaps](https://github.com/aourednik/historical-basemaps)  
+  - ライセンス: **GNU GPL v3**  
+  - **注意（GPL）**: このベクター集合はコピーレフトです。ソースの配布義務・同一ライセンスでの再配布要件がゲーム全体の配布形態に影響し得ます。採用前にプロジェクト方針を確認してください。本作では点-in-多角形による **1932年当時の統治国割当** にのみ使用し、境界形状そのものは Natural Earth Admin-1 を主データとしています。
+
+## 首都座標（ラベル用）
+
+- 手作り一覧 `data/orbis_capitals.json`（1932年当時の政府所在地を想定した近似座標）
+
+## 史実タイムライン（フェーズC — 変更禁止）
+
+- `orbis_events.js` / `WORLD_EVENT_DB` — オーナー提供（272件）
