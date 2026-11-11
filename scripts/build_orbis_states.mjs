@@ -115,8 +115,135 @@ function legacyIdFor(country, nameEn) {
   return null;
 }
 
+function bucketMergeKey(country, adm0, props, nameEn, agg, lon, lat) {
+  const region = props.region || '';
+  let label = nameEn;
+  const rename = agg.anachronismRename?.[country];
+  if (rename && rename[nameEn]) label = rename[nameEn];
+  if (country === 'canada') return slugify(label);
+  if (country === 'ireland' && adm0 === 'IRL') {
+    if (lon < -7.2 && lat > 53.8) return 'ulster';
+    if (lon < -8.8) return 'connacht';
+    if (lat < 52.35) return 'munster';
+    return 'leinster';
+  }
+  if (country === 'uk' && adm0 === 'GBR') {
+    const home = agg.ukHomeFromRegion?.[region] || agg.ukHomeFromRegion?.default || 'England';
+    return slugify(home);
+  }
+  if (country === 'france' && adm0 === 'FRA') {
+    const mapped = agg.franceMetroRegionRemap?.[region] || region || label;
+    return slugify(mapped);
+  }
+  if ((agg.mergeByNeRegionAdm0 || []).includes(adm0) && region) return slugify(`${adm0}_${region}`);
+  if ((agg.prefectureAdm0 || []).includes(adm0)) return slugify(props.iso_3166_2 || label);
+  if (country === 'japan' && adm0 !== 'JPN') {
+    return slugify(`empire_${adm0 || 'pacific'}_${Math.floor(lon / 12)}_${Math.floor(lat / 8)}`);
+  }
+  const isColonial = adm0 && ISO_TO_ORBIS[adm0] && ISO_TO_ORBIS[adm0] !== country;
+  if (isColonial || (adm0 !== countryToAdm0(country) && country !== ISO_TO_ORBIS[adm0])) {
+    const gw = agg.colonialGridDegrees?.lon || 18;
+    const gh = agg.colonialGridDegrees?.lat || 12;
+    return slugify(`col_${Math.floor(lon / gw)}_${Math.floor(lat / gh)}`);
+  }
+  return slugify(props.iso_3166_2 || props.postal || label);
+}
+
+function countryToAdm0(country) {
+  const flip = Object.entries(ISO_TO_ORBIS).find(([, v]) => v === country);
+  return flip?.[0] || null;
+}
+
+function bucketsToRegions(buckets, usedIds, agg, legacyIdFor) {
+  const regions = [];
+  const legacyUsed = new Set();
+  for (const bucket of buckets.values()) {
+    const { country, mergeKey, parts } = bucket;
+    const rings = [];
+    let areaM2 = 0;
+    for (const part of parts) {
+      rings.push(...part.rings);
+      areaM2 += part.areaM2;
+    }
+    const primaryName = bucket.label || mergeKey;
+    const display = primaryName.replace(/_/g, ' ');
+    let id = legacyIdFor(country, parts.map(p => p.nameEn).join(' '));
+    if (id && (legacyUsed.has(id) || usedIds.has(id))) id = null;
+    if (id) legacyUsed.add(id);
+    if (!id) {
+      const base = `${country}_${mergeKey}`;
+      id = base;
+      let n = 2;
+      while (usedIds.has(id)) id = `${base}_${n++}`;
+    }
+    usedIds.add(id);
+    const [lon, lat] = polylabelLonLat(rings);
+    const terrain = inferTerrain(display, areaM2);
+    const vp = terrain === 'urban' ? 42 : terrain === 'coastal' ? 28 : 18;
+    regions.push({
+      id,
+      name: display,
+      nameJa: display,
+      country,
+      terrain,
+      vp,
+      infra: 4,
+      mic: terrain === 'urban' ? 14 : 8,
+      cic: terrain === 'urban' ? 18 : 10,
+      nic: 8,
+      air: terrain === 'urban' ? 3 : 1,
+      fort: terrain === 'urban' ? 4 : 2,
+      garrison: [],
+      frontline: null,
+      isSea: false,
+      svgPath: ringsToSvg(rings),
+      rings,
+      lon: Math.round(lon * 100) / 100,
+      lat: Math.round(lat * 100) / 100,
+      cx: Math.round(PROJ_X(lon) * 10) / 10,
+      cy: Math.round(PROJ_Y(lat) * 10) / 10,
+    });
+  }
+  return regions;
+}
+
+function enforceCountryCaps(regions, caps, usedIds) {
+  const byCountry = new Map();
+  for (const r of regions) {
+    if (!byCountry.has(r.country)) byCountry.set(r.country, []);
+    byCountry.get(r.country).push(r);
+  }
+  const out = [];
+  for (const [country, list] of byCountry) {
+    const cap = caps[country];
+    if (!cap || list.length <= cap) {
+      out.push(...list);
+      continue;
+    }
+    const sorted = [...list].sort((a, b) => turfArea(ringsToGeo(b)) - turfArea(ringsToGeo(a)));
+    const keep = sorted.slice(0, cap);
+    const drop = sorted.slice(cap);
+    for (const piece of drop) {
+      const target = keep.reduce((best, k) => {
+        const d = (k.lon - piece.lon) ** 2 + (k.lat - piece.lat) ** 2;
+        return d < best.d ? { k, d } : best;
+      }, { k: keep[0], d: 1e18 }).k;
+      target.rings.push(...piece.rings);
+      target.svgPath = ringsToSvg(target.rings);
+      const [lon, lat] = polylabelLonLat(target.rings);
+      target.lon = Math.round(lon * 100) / 100;
+      target.lat = Math.round(lat * 100) / 100;
+      target.cx = Math.round(PROJ_X(lon) * 10) / 10;
+      target.cy = Math.round(PROJ_Y(lat) * 10) / 10;
+    }
+    out.push(...keep);
+  }
+  return out;
+}
+
 async function main() {
   const histMap = JSON.parse(await readFile(new URL('../data/orbis_hist_name_map.json', import.meta.url), 'utf8'));
+  const agg = JSON.parse(await readFile(new URL('../data/orbis_aggregation.json', import.meta.url), 'utf8'));
   const admin = JSON.parse(await readFile(new URL('../data/raw/ne_admin1_build.geojson', import.meta.url), 'utf8'));
   const hist = JSON.parse(await readFile(new URL('../data/raw/hist_world_1930.geojson', import.meta.url), 'utf8'));
   const oldSource = await readFile(new URL('../orbis_states.js', import.meta.url), 'utf8');
@@ -124,7 +251,7 @@ async function main() {
   const seaZones = oldDb.filter(s => s.isSea || s.isSeaZone || s.type === 'sea');
 
   const histFeatures = hist.features.filter(f => f.geometry);
-  const regions = [];
+  const buckets = new Map();
   const usedIds = new Set();
   const orphans = [];
 
@@ -147,59 +274,20 @@ async function main() {
     else country = assignHistCountry([centLon, centLat], histFeatures, histMap);
     if (!country) country = ISO_TO_ORBIS[adm0] || null;
     if (!country) {
-      const cont = props.continent || props.region_un || '';
-      country = ISO_TO_ORBIS[props.sov_a3] || ISO_TO_ORBIS[adm0]
-        || (cont === 'Africa' ? 'south_africa' : null)
-        || (cont === 'Oceania' ? 'australia' : null)
-        || (cont === 'Asia' ? 'china' : null)
-        || (cont === 'Europe' ? 'germany' : null)
-        || (cont === 'South America' ? 'brazil' : null)
-        || (cont === 'North America' ? 'mexico' : null)
-        || 'uk';
-      orphans.push({ nameEn, adm0, centLon, centLat, assigned: country });
+      orphans.push({ nameEn, adm0, centLon, centLat });
+      continue;
     }
-    let id = legacyIdFor(country, nameEn);
-    if (!id) {
-      const base = `${country}_${slugify(props.iso_3166_2 || props.postal || nameEn)}`;
-      id = base;
-      let n = 2;
-      while (usedIds.has(id)) { id = `${base}_${n++}`; }
-    }
-    if (usedIds.has(id)) {
-      let n = 2;
-      let alt = `${id}_${n}`;
-      while (usedIds.has(alt)) { alt = `${id}_${++n}`;
-      }
-      id = alt;
-    }
-    usedIds.add(id);
-    const [lon, lat] = polylabelLonLat(rings);
-    const terrain = inferTerrain(nameEn, areaM2);
-    const vp = terrain === 'urban' ? 42 : terrain === 'coastal' ? 28 : 18;
-    regions.push({
-      id,
-      name: nameEn,
-      nameJa: nameJa.length > 48 ? nameEn : nameJa,
-      country,
-      terrain,
-      vp,
-      infra: 4,
-      mic: terrain === 'urban' ? 14 : 8,
-      cic: terrain === 'urban' ? 18 : 10,
-      nic: 8,
-      air: terrain === 'urban' ? 3 : 1,
-      fort: terrain === 'urban' ? 4 : 2,
-      garrison: [],
-      frontline: null,
-      isSea: false,
-      svgPath: ringsToSvg(rings),
-      rings,
-      lon: Math.round(lon * 100) / 100,
-      lat: Math.round(lat * 100) / 100,
-      cx: Math.round(PROJ_X(lon) * 10) / 10,
-      cy: Math.round(PROJ_Y(lat) * 10) / 10,
-    });
+    const mergeKey = bucketMergeKey(country, adm0, props, nameEn, agg, centLon, centLat);
+    const bucketId = `${country}|${mergeKey}`;
+    if (!buckets.has(bucketId)) buckets.set(bucketId, { country, mergeKey, label: mergeKey, parts: [], areaM2: 0, names: [] });
+    const bucket = buckets.get(bucketId);
+    bucket.parts.push({ rings, areaM2, nameEn, nameJa, props });
+    bucket.areaM2 += areaM2;
+    bucket.names.push(nameEn);
   }
+
+  let regions = bucketsToRegions(buckets, usedIds, agg, legacyIdFor);
+  regions = enforceCountryCaps(regions, agg.countryCaps || {}, usedIds);
 
   const out = [...regions, ...seaZones];
   const countryAreas = new Map();

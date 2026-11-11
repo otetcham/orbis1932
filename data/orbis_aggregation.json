@@ -1,0 +1,69 @@
+{
+  "anachronismRename": {
+    "canada": {
+      "Nunavut": "Northwest Territories",
+      "Newfoundland and Labrador": "Newfoundland"
+    }
+  },
+  "ukHomeFromRegion": {
+    "Scotland": "Scotland",
+    "Wales": "Wales",
+    "Northern Ireland": "Northern Ireland",
+    "default": "England"
+  },
+  "irelandProvinceFromRegion": {
+    "Connacht": "Connacht",
+    "Connaught": "Connacht",
+    "Leinster": "Leinster",
+    "Munster": "Munster",
+    "Ulster": "Ulster",
+    "default": "Leinster"
+  },
+  "franceMetroRegionRemap": {
+    "Guyane française": "French Guiana",
+    "Martinique": "French West Indies",
+    "Guadeloupe": "French West Indies",
+    "Réunion": "French Indian Ocean",
+    "Mayotte": "French Indian Ocean",
+    "Corse": "Corsica"
+  },
+  "mergeByNeRegionAdm0": ["DEU", "ITA", "ESP", "POL", "SWE", "NOR", "FIN", "DNK", "GRC", "ROU", "BGR", "HUN", "CZE", "SVK", "AUT", "CHE", "NLD", "BEL", "PRT", "YUG"],
+  "prefectureAdm0": ["JPN"],
+  "countryCaps": {
+    "uk": 20,
+    "france": 24,
+    "germany": 16,
+    "italy": 16,
+    "spain": 14,
+    "russia": 38,
+    "india": 24,
+    "china": 32,
+    "usa": 52,
+    "brazil": 27,
+    "canada": 12,
+    "australia": 12,
+    "japan": 52,
+    "ireland": 4,
+    "dutch_indies": 18,
+    "south_africa": 12,
+    "mexico": 20,
+    "argentina": 14,
+    "turkey": 12,
+    "iran": 12,
+    "siam": 10,
+    "poland": 12,
+    "yugoslavia": 10,
+    "czechoslovakia": 10,
+    "romania": 10,
+    "hungary": 8,
+    "egypt": 8,
+    "ethiopia": 8,
+    "colombia": 12,
+    "peru": 12,
+    "venezuela": 10
+  },
+  "colonialGridDegrees": {
+    "lon": 18,
+    "lat": 12
+  }
+}
