@@ -1,7 +1,8 @@
 'use strict';
 
 const Orbis = (() => {
-  const SAVE_KEY = 'orbis_campaign_v4';
+  const SAVE_KEY = 'orbis_campaign_v5';
+  const SAVE_KEY_PREVIOUS = 'orbis_campaign_v4';
   const CONFIG_KEY = 'orbis_ai_config';
   const DESKTOP_KEY = 'orbis_desktop_v1';
   const PANELS = {
@@ -1916,20 +1917,29 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     });
     const regionIds = new Set(window.ORBIS_STATES_DB.filter(item => !item.isSea && !item.isSeaZone && item.type !== 'sea').map(item => item.id));
     requireObject(raw.territories, '統治地域');
+    const mapRegionId = id => {
+      if (regionIds.has(id)) return id;
+      const mapped = window.ORBIS_MAP_META?.migration?.[id];
+      if (mapped && regionIds.has(mapped)) return mapped;
+      return id;
+    };
     for (const [id, owner] of Object.entries(raw.territories)) {
-      if (!regionIds.has(id) || !game.nations[owner]) throw new Error('統治地域のIDが不正です。');
-      game.territories[id] = owner;
+      const rid = mapRegionId(id);
+      if (!regionIds.has(rid) || !game.nations[owner]) throw new Error('統治地域のIDが不正です。');
+      game.territories[rid] = owner;
     }
     requireObject(raw.occupations, '占領地域');
     for (const [id, owner] of Object.entries(raw.occupations)) {
-      if (!regionIds.has(id) || !Object.hasOwn(game.nations, owner) || !game.territories[id] || game.territories[id] === owner) throw new Error('セーブの占領地域が不正です。');
-      game.occupations[id] = owner;
+      const rid = mapRegionId(id);
+      if (!regionIds.has(rid) || !Object.hasOwn(game.nations, owner) || !game.territories[rid] || game.territories[rid] === owner) throw new Error('セーブの占領地域が不正です。');
+      game.occupations[rid] = owner;
     }
     requireObject(raw.conflicts, '紛争');
     for (const [id, item] of Object.entries(raw.conflicts)) {
-      const region = window.ORBIS_STATES_DB.find(region => region.id === id);
-      if (!regionIds.has(id) || !Object.hasOwn(game.nations, item.attacker) || !Object.hasOwn(game.nations, item.defender) || item.attacker === item.defender || item.defender !== (game.territories[id] || region.country)) throw new Error('セーブの紛争当事国・地域が不正です。');
-      game.conflicts[id] = { attacker: item.attacker, defender: item.defender, months: saveNumber(item.months, '紛争の継続月', 1, game.maxTurns), reason: requiredText(item.reason, '紛争の理由', 450) };
+      const rid = mapRegionId(id);
+      const region = window.ORBIS_STATES_DB.find(region => region.id === rid);
+      if (!regionIds.has(rid) || !Object.hasOwn(game.nations, item.attacker) || !Object.hasOwn(game.nations, item.defender) || item.attacker === item.defender || item.defender !== (game.territories[rid] || region.country)) throw new Error('セーブの紛争当事国・地域が不正です。');
+      game.conflicts[rid] = { attacker: item.attacker, defender: item.defender, months: saveNumber(item.months, '紛争の継続月', 1, game.maxTurns), reason: requiredText(item.reason, '紛争の理由', 450) };
     }
     const validNation = id => typeof id === 'string' && Object.hasOwn(game.nations, id);
     game.npcAgreements = array(raw.npcAgreements, 'NPC間合意', 108).map(item => {
@@ -2148,7 +2158,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       toast('州データ (orbis_states.js) を読み込めません。orbis_simulator.html と同じフォルダに置いてください。');
     }
     try {
-      const saved = localStorage.getItem(SAVE_KEY);
+      let saved = localStorage.getItem(SAVE_KEY);
+      if (!saved) saved = localStorage.getItem(SAVE_KEY_PREVIOUS);
       if (saved) { const parsed = parseJSON(saved); validateSave(parsed); runtime.saved = parsed; }
       else if (localStorage.getItem('orbis_campaign_v3')) toast('この版以前のセーブとは形式が異なります。新しい歴史を始めてください。');
     } catch (error) { toast(`自動保存を読み込めません。「セーブを読み込む」からJSONを選べます。${error.message}`); }

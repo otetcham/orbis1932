@@ -1484,6 +1484,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
   <script src="orbis_states.js" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
+  <script src="orbis_map_meta.js" defer></script>
 </head>
 <body>
 
@@ -3576,8 +3577,13 @@ const state = {
 };
 
 const svgPathCache = new Map();
+const MAP_ZOOM_FLAT_MIN = 0.55;
+const MAP_ZOOM_FLAT_MAX = 20;
+const MAP_ZOOM_GLOBE_MIN = 0.7;
+const MAP_ZOOM_GLOBE_MAX = 8.4;
 let mapGeometryBuilt = false;
 let mapDragDistance = 0;
+let mapLabelsDirty = true;
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -3982,6 +3988,45 @@ const graticuleLines = (() => {
   return lines;
 })();
 
+function projectLonLatPoint(lon, lat) {
+  if (state.mapProjection === 'flat') {
+    return { x: (lon + 180) * (2000 / 360), y: (90 - lat) * 9.32 + 60, visible: true };
+  }
+  const { zoom, baseR, cx, cy, lon: cLon, lat: cLat } = state.globe;
+  const R = baseR * zoom;
+  const d2r = Math.PI / 180;
+  const phi0 = cLat * d2r;
+  const lam0 = cLon * d2r;
+  const cosPhi0 = Math.cos(phi0);
+  const sinPhi0 = Math.sin(phi0);
+  const lam = lon * d2r;
+  const phi = lat * d2r;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+  const cosDlam = Math.cos(lam - lam0);
+  const cosC = sinPhi0 * sinPhi + cosPhi0 * cosPhi * cosDlam;
+  if (cosC < 0.35) return { visible: false };
+  const x = cx + R * cosPhi * Math.sin(lam - lam0);
+  const y = cy - R * (cosPhi0 * sinPhi - sinPhi0 * cosPhi * cosDlam);
+  return { x, y, visible: true };
+}
+
+function updateMapVisualsLite() {
+  if (state.mapProjection !== 'globe') return;
+  const geometryKey = `${state.globe.lon.toFixed(2)}|${state.globe.lat.toFixed(2)}|${state.globe.zoom.toFixed(3)}`;
+  if (geometryKey === mapGeometryKey) return;
+  mapGeometryKey = geometryKey;
+  for (const s of state.states) {
+    const el = document.getElementById(`prov-${s.id}`);
+    if (!el || !s.rings?.length) continue;
+    const globeD = projectOrthographicPath(s.id, s.rings);
+    if (el.getAttribute('d') !== globeD) el.setAttribute('d', globeD);
+    const display = globeD ? 'inline' : 'none';
+    if (el.style.display !== display) el.style.display = display;
+  }
+  renderGlobeBackdrop();
+}
+
 function updateMapVisuals() {
   buildMapGeometryOnce();
   renderGlobeBackdrop();
@@ -3989,6 +4034,7 @@ function updateMapVisuals() {
   const isGlobe = (state.mapProjection === 'globe');
   const labelsLayer = document.getElementById('labels-layer');
   const zoomFactor = isGlobe ? state.globe.zoom : state.mapTransform.scale;
+  const strokeScale = Math.min(2.2, Math.max(0.35, 1 / Math.sqrt(Math.max(0.75, zoomFactor))));
   const viewportWidth = document.getElementById('map-viewport')?.clientWidth || 1440;
   const invZoom = 1 / Math.max(0.75, zoomFactor);
   const showLabels = isGlobe || viewportWidth >= 560 || zoomFactor >= 1.15;
@@ -4024,10 +4070,12 @@ function updateMapVisuals() {
       const seaStroke = 'rgba(56, 189, 248, 0.2)';
       if (el.getAttribute('stroke') !== seaStroke) {
         el.setAttribute('stroke', seaStroke);
-        el.setAttribute('stroke-width', '0.6');
+        el.setAttribute('stroke-width', (0.6 * strokeScale).toFixed(2));
       }
       return;
     }
+    const landStroke = (0.55 * strokeScale).toFixed(2);
+    if (el.getAttribute('stroke-width') !== landStroke) el.setAttribute('stroke-width', landStroke);
 
     const fillColor = getStateColor(s);
     const occupied = s.originalOwner && s.originalOwner !== s.country;
@@ -4054,26 +4102,27 @@ function updateMapVisuals() {
       const wanted = new Map();
       const placed = [];
       const fits = (x, y, hw, hh) => placed.every(p => Math.abs(x - p.x) >= 0.85 * (hw + p.hw) || Math.abs(y - p.y) >= 0.85 * (hh + p.hh));
-      const groups = new Map();
-
+      const anchors = window.ORBIS_MAP_META?.countryAnchors || {};
+      const spanByCountry = new Map();
       state.states.forEach(s => {
-        if (s.isSea || s.type === 'sea' || s.isSeaZone) return;
-        if (!state.nations[s.country]) return;
+        if (s.isSea || s.type === 'sea' || s.isSeaZone || !state.nations[s.country]) return;
         const pt = getProjectedStatePoint(s);
-        if (!pt || !pt.visible) return;
-        if (!groups.has(s.country)) groups.set(s.country, []);
-        groups.get(s.country).push({ s, pt });
+        if (!pt?.visible) return;
+        let box = spanByCountry.get(s.country);
+        if (!box) { box = { minX: pt.x, maxX: pt.x, minY: pt.y, maxY: pt.y }; spanByCountry.set(s.country, box); }
+        else {
+          box.minX = Math.min(box.minX, pt.x); box.maxX = Math.max(box.maxX, pt.x);
+          box.minY = Math.min(box.minY, pt.y); box.maxY = Math.max(box.maxY, pt.y);
+        }
       });
 
-      const entries = [...groups.entries()].map(([country, members]) => {
-        let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
-        for (const m of members) {
-          minX = Math.min(minX, m.pt.x); maxX = Math.max(maxX, m.pt.x);
-          minY = Math.min(minY, m.pt.y); maxY = Math.max(maxY, m.pt.y);
-        }
-        const cx = (minX + maxX) / 2;
-        const cy = (minY + maxY) / 2;
-        return { country, cx, cy, span: Math.max(maxX - minX, maxY - minY) };
+      const entries = [...spanByCountry.entries()].map(([country, box]) => {
+        const anchor = anchors[country];
+        const pt = anchor ? projectLonLatPoint(anchor.lon, anchor.lat) : null;
+        const cx = pt?.visible ? pt.x : (box.minX + box.maxX) / 2;
+        const cy = pt?.visible ? pt.y : (box.minY + box.maxY) / 2;
+        const span = Math.max(box.maxX - box.minX, box.maxY - box.minY);
+        return { country, cx, cy, span };
       }).sort((a, b) => ((state.nations[b.country].isMajor ? 1 : 0) - (state.nations[a.country].isMajor ? 1 : 0)) || (b.span - a.span));
 
       for (const g of entries) {
@@ -4333,7 +4382,11 @@ function initPanZoom() {
   let pinchSnapshot = null;
   const redraw = () => {
     if (frame !== null) return;
-    frame = requestAnimationFrame(() => { frame = null; updateMapVisuals(); });
+    frame = requestAnimationFrame(() => {
+      frame = null;
+      if (state.mapProjection === 'globe' && state.mapTransform.isDragging) updateMapVisualsLite();
+      else updateMapVisuals();
+    });
   };
   const midpoint = () => {
     const pts = [...activePointers.values()];
@@ -4369,10 +4422,10 @@ function initPanZoom() {
       if (!mid || mid.dist < 8) return;
       const ratio = mid.dist / Math.max(1, pinchSnapshot.dist);
       if (state.mapProjection === 'globe') {
-        state.globe.zoom = clamp(pinchSnapshot.zoom * ratio, 0.7, 4.2);
+        state.globe.zoom = clamp(pinchSnapshot.zoom * ratio, MAP_ZOOM_GLOBE_MIN, MAP_ZOOM_GLOBE_MAX);
         redraw();
       } else {
-        state.mapTransform.scale = clamp(pinchSnapshot.scale * ratio, 0.6, 5.0);
+        state.mapTransform.scale = clamp(pinchSnapshot.scale * ratio, MAP_ZOOM_FLAT_MIN, MAP_ZOOM_FLAT_MAX);
         applyFlatTransform();
         redraw();
       }
@@ -4410,10 +4463,10 @@ function initPanZoom() {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.15 : 0.88;
     if (state.mapProjection === 'globe') {
-      state.globe.zoom = clamp(state.globe.zoom * factor, 0.7, 4.2);
+      state.globe.zoom = clamp(state.globe.zoom * factor, MAP_ZOOM_GLOBE_MIN, MAP_ZOOM_GLOBE_MAX);
       redraw();
     } else {
-      state.mapTransform.scale = clamp(state.mapTransform.scale * factor, 0.6, 5.0);
+      state.mapTransform.scale = clamp(state.mapTransform.scale * factor, MAP_ZOOM_FLAT_MIN, MAP_ZOOM_FLAT_MAX);
       applyFlatTransform();
       redraw();
     }
@@ -4421,9 +4474,9 @@ function initPanZoom() {
 
   document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
     if (state.mapProjection === 'globe') {
-      state.globe.zoom = clamp(state.globe.zoom * 1.25, 0.7, 4.2);
+      state.globe.zoom = clamp(state.globe.zoom * 1.25, MAP_ZOOM_GLOBE_MIN, MAP_ZOOM_GLOBE_MAX);
     } else {
-      state.mapTransform.scale = clamp(state.mapTransform.scale * 1.25, 0.6, 5.0);
+      state.mapTransform.scale = clamp(state.mapTransform.scale * 1.25, MAP_ZOOM_FLAT_MIN, MAP_ZOOM_FLAT_MAX);
       applyFlatTransform();
     }
     updateMapVisuals();
@@ -4431,9 +4484,9 @@ function initPanZoom() {
 
   document.getElementById('btn-zoom-out')?.addEventListener('click', () => {
     if (state.mapProjection === 'globe') {
-      state.globe.zoom = clamp(state.globe.zoom * 0.8, 0.7, 4.2);
+      state.globe.zoom = clamp(state.globe.zoom * 0.8, MAP_ZOOM_GLOBE_MIN, MAP_ZOOM_GLOBE_MAX);
     } else {
-      state.mapTransform.scale = clamp(state.mapTransform.scale * 0.8, 0.6, 5.0);
+      state.mapTransform.scale = clamp(state.mapTransform.scale * 0.8, MAP_ZOOM_FLAT_MIN, MAP_ZOOM_FLAT_MAX);
       applyFlatTransform();
     }
     updateMapVisuals();
