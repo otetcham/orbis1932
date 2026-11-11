@@ -1435,6 +1435,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .empty-state { color: #6c829c; font-size: 12px; line-height: 1.9; padding: 16px 0; }
 .game-dialog { border: 1px solid #d5e0ec; padding: 0; border-radius: 9px; background: #ffffff; color: #16283e; width: min(520px, calc(100vw - 28px)); max-height: 88dvh; margin: auto; box-shadow: 0 22px 70px rgba(23, 42, 68, 0.22); }
 .game-dialog::backdrop { background: rgba(227, 236, 247, 0.85); }
+.ending-dialog { margin: auto 20px 24px auto; max-height: 72dvh; }
+.ending-dialog::backdrop { background: rgba(18, 28, 44, 0.28); pointer-events: none; }
+.ending-dialog .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ending-dialog .modal-head-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .game-dialog .modal-window { width: auto; max-height: none; max-width: none; border: 0; border-radius: 0; box-shadow: none; background: none; }
 .wide-dialog { width: min(700px, calc(100vw - 28px)); }
 .modal-window { background: var(--bg-panel-solid); }
@@ -1902,7 +1906,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
     <button type="button" class="btn btn-ghost" id="btn-playback-skip">スキップ</button>
     <button type="button" class="btn" id="btn-playback-speed">×2</button>
   </div>
-  <dialog class="game-dialog" id="game-ending" aria-labelledby="ending-title"><div class="modal-head"><strong id="ending-title">任期の結末</strong><button class="btn btn-ghost" data-close-dialog="game-ending">閉じる</button></div><div class="modal-body" id="ending-body"></div><div class="modal-foot"><button class="btn" id="btn-ending-export">歴史を保存</button><button class="btn btn-primary" id="btn-ending-lobby">新たな歴史へ</button></div></dialog>
+  <dialog class="game-dialog ending-dialog" id="game-ending" aria-labelledby="ending-title"><div class="modal-head"><strong id="ending-title">任期の結末</strong><div class="modal-head-actions"><button class="btn btn-ghost" type="button" id="btn-ending-minimize">地図を見る</button><button class="btn btn-ghost" data-close-dialog="game-ending">閉じる</button></div></div><div class="modal-body" id="ending-body"></div><div class="modal-foot"><button class="btn" id="btn-ending-export">歴史を保存</button><button class="btn btn-primary" id="btn-ending-lobby">新たな歴史へ</button></div></dialog>
   <dialog class="game-dialog" id="game-help" aria-labelledby="help-title">
     <div class="modal-head"><strong id="help-title">一か月の動かし方</strong><button class="btn btn-ghost" data-close-dialog="game-help">閉じる</button></div>
     <div class="modal-body help-content">
@@ -4157,7 +4161,8 @@ function updateMapVisuals() {
       finalFill = `url(#occupy-${s.country}-${s.originalOwner})`;
     }
     if (el.getAttribute('fill') !== finalFill) el.setAttribute('fill', finalFill);
-    const ariaLabel = `${s.nameJa || s.name || s.id} · ${state.nations[s.country]?.name || s.country}${occupied ? '（占領）' : ''}`;
+    const regionTitle = (window.ORBIS_REGION_LABELS?.displayName(s) || s.nameJa || s.name || s.id);
+    const ariaLabel = `${regionTitle} · ${state.nations[s.country]?.name || s.country}${occupied ? '（占領）' : ''}`;
     if (el.getAttribute('aria-label') !== ariaLabel) el.setAttribute('aria-label', ariaLabel);
 
     el.classList.toggle('selected', s.id === state.selectedStateId);
@@ -4400,7 +4405,7 @@ function renderStateInspector(s) {
   if (flagEl) flagEl.innerHTML = flagSvg;
 
   const nameEl = document.getElementById('insp-state-name');
-  if (nameEl) nameEl.textContent = s.nameJa || s.name || s.id;
+  if (nameEl) nameEl.textContent = window.ORBIS_REGION_LABELS?.displayName(s) || s.nameJa || s.name || s.id;
 
   const ownerEl = document.getElementById('insp-owner-badge');
   if (ownerEl) ownerEl.textContent = owner.name;
@@ -4652,6 +4657,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <script src="orbis_events.js"></script>
+<script src="orbis_region_labels.js"></script>
 <script src="orbis_campaign_core.js"></script>
 <script src="orbis_timeline_engine.js"></script>
 <script src="orbis_turn_playback.js"></script>

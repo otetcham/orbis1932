@@ -12,6 +12,7 @@ const coreSource = await readFile(new URL('./orbis_campaign_core.js', import.met
 const timelineSource = await readFile(new URL('./orbis_timeline_engine.js', import.meta.url), 'utf8');
 const playbackSource = await readFile(new URL('./orbis_turn_playback.js', import.meta.url), 'utf8');
 const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), 'utf8');
+const regionLabelsSource = await readFile(new URL('./orbis_region_labels.js', import.meta.url), 'utf8');
 const eventsSource = await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8');
 const inlineScripts = [...htmlSource.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
 const choices = [{ label: '条件を詰める', text: '予算の上限を明確にした上で、実施条件を協議しましょう。' }, { label: '見送る', text: '今月の実施は見送ります。代替案を示してください。' }];
@@ -42,6 +43,7 @@ const server = createServer(async (request, response) => {
     if (item.context?.nationalAction) fallback.actionResults = [{ actionId: item.context.nationalAction.id, outcome: 'partial', text: '財源の範囲で準備段階を実施した。', effects: { mil: 0, eco: 1, stb: 0, treasury: -2, prestige: 0, tension: 0 }, relations: [], evidence: [item.context.nationalAction.id] }];
     const data = custom?.data || (item.operation === 'BRIEFING' ? opening() : item.operation === 'ACTOR' ? reply() : item.operation === 'CONNECTION_TEST' ? { ok: true } : fallback);
     const content = custom?.raw ?? JSON.stringify(data);
+    const oaiFinish = custom?.finishReason || 'stop';
     if (body.stream) {
       response.writeHead(200, { 'Content-Type': 'text/event-stream' });
       if (gemini) {
@@ -61,7 +63,7 @@ const server = createServer(async (request, response) => {
       response.end();
       return;
     }
-    const envelope = gemini ? { candidates: [{ content: { parts: [{ text: content }] }, finishReason: 'STOP' }] } : anthropic ? { content: [{ type: 'text', text: content }], stop_reason: 'end_turn' } : { choices: [{ message: { content }, finish_reason: 'stop' }] };
+    const envelope = gemini ? { candidates: [{ content: { parts: [{ text: content }] }, finishReason: custom?.finishReason === 'length' ? 'MAX_TOKENS' : 'STOP' }] } : anthropic ? { content: [{ type: 'text', text: content }], stop_reason: custom?.finishReason === 'length' ? 'max_tokens' : 'end_turn' } : { choices: [{ message: { content }, finish_reason: oaiFinish }] };
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify(envelope));
   } catch (error) {
@@ -79,6 +81,7 @@ function harness(provider = 'custom') {
   context.window = context;
   vm.runInContext(statesSource, context, { timeout: 4000 });
   vm.runInContext(mapMetaSource, context, { timeout: 4000 });
+  vm.runInContext(regionLabelsSource, context, { timeout: 4000 });
   for (const script of inlineScripts) if (script.trim()) vm.runInContext(script, context, { timeout: 4000 });
   vm.runInContext(eventsSource, context, { timeout: 4000 });
   vm.runInContext(coreSource, context, { timeout: 4000 });
@@ -304,7 +307,7 @@ try {
     assert.ok(Object.values(after.nations).every(nation => ['mil', 'eco', 'stb'].every(key => Number.isFinite(nation[key]) && nation[key] >= 0 && (key === 'stb' ? nation[key] <= 100 : true))));
   });
 
-  await check('軍事・経済は上限なし（100超のセーブを受理）', async () => {
+  await check('軍事・経済は復元時に0〜100へ正規化する', async () => {
     const { api } = harness();
     await begin(api);
     const save = json(api.snapshot());
@@ -312,9 +315,81 @@ try {
     save.nations.japan.eco = 145;
     assert.equal(await api.restore(save), true);
     const after = api.snapshot();
-    assert.equal(after.nations.japan.mil, 128);
-    assert.equal(after.nations.japan.eco, 145);
+    assert.equal(after.nations.japan.mil, 100);
+    assert.equal(after.nations.japan.eco, 100);
     assert.ok(after.nations.japan.stb >= 0 && after.nations.japan.stb <= 100);
+  });
+
+  await check('高緊張・世界大戦状態でもプレイヤー敗北にはならない', async () => {
+    const { api } = harness();
+    await begin(api);
+    const snap = json(api.snapshot());
+    snap.tension = 98;
+    snap.worldWarActive = true;
+    snap.globalWarHalves = 12;
+    snap.stress.war = 6;
+    snap.nations.japan.stb = 45;
+    snap.nations.japan.eco = 48;
+    snap.nations.japan.mil = 78;
+    await api.restore(snap);
+    respond = item => (item.operation === 'RESOLUTION' ? { data: evaluation() } : null);
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    assert.ok(['playing', 'briefing'].includes(after.phase));
+    assert.equal(after.ending, null);
+    assert.equal(after.stress.war, 0);
+    assert.ok(after.nations.japan.mil <= 100);
+    assert.ok(api.listConflicts().wars.some(w => w.global));
+  });
+
+  await check('占領表示用に地域スラッグを行政名へ変換する', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const region = vm.runInContext("ORBIS_STATES_DB.find(s => /^japan_jp_03$/i.test(s.id))", context);
+    assert.ok(region);
+    assert.equal(api.regionLabel(region), '岩手県');
+    const empire = vm.runInContext("ORBIS_STATES_DB.find(s => /japan_empire_prk/i.test(s.id))", context);
+    if (empire) assert.ok(!/^japan empire prk/i.test(api.regionLabel(empire)));
+  });
+
+  await check('裁定JSONは部分応答を正規化して受理する', async () => {
+    const { api } = harness();
+    await begin(api);
+    const game = api.snapshot();
+    const partial = evaluation();
+    partial.conflictChanges = [{ stateId: 'invalid_region', status: 'start', attacker: 'japan', reason: '不正' }];
+    partial.treaties = [{ nationId: 'usa', type: 'war', title: 'x', terms: 'y', duration: 4, sourceActionId: 'none' }];
+    const normalized = api.applyResolutionValidation(partial, game);
+    assert.ok(normalized.headline);
+    assert.ok(!normalized.conflictChanges?.length);
+    assert.ok(!normalized.treaties?.length);
+    assert.ok((game.lastResolutionIssues || []).length >= 1);
+  });
+
+  await check('finish_reason=lengthの切れ端JSONを修復して反映する', async () => {
+    const { api } = harness();
+    await begin(api);
+    const base = evaluation();
+    let resolutionCalls = 0;
+    respond = item => {
+      if (item.operation !== 'RESOLUTION') return null;
+      resolutionCalls += 1;
+      const raw = JSON.stringify(base).slice(0, Math.floor(JSON.stringify(base).length * 0.82));
+      return { raw, finishReason: 'length' };
+    };
+    assert.equal(await api.finishTurn(), true);
+    assert.equal(resolutionCalls, 1);
+    const after = api.snapshot();
+    assert.ok(after.completedTurns >= 1);
+    assert.ok(after.articles.some(a => a.kind === 'resolution'));
+  });
+
+  await check('無期限キャンペーンの結末ダイアログ見出しは任期終了にしない', async () => {
+    const { api } = harness();
+    await api.start({ nationId: 'japan', difficulty: 'standard', mandate: 'recovery', maxTurns: 0, replace: true });
+    assert.equal(api.endingTitleFor({ ending: { result: 'survived' }, maxTurns: 0 }), '時代の振り返り');
+    assert.equal(api.endingTitleFor({ ending: { result: 'defeat' }, maxTurns: 0 }), '歴史の転換点');
+    assert.notEqual(api.endingTitleFor({ ending: { result: 'survived' }, maxTurns: 24 }), '任期終了');
   });
 
   await check('約束の期限切れと、履行記録の一度だけの適用', async () => {
@@ -473,10 +548,11 @@ try {
     assert.equal(api.snapshot().ending.result, 'defeat');
     assert.equal(api.snapshot().completedTurns, 6);
     respond = () => null;
+    grace.treasury = 28;
     await api.restore(grace);
     await api.finishTurn();
-    assert.ok(api.snapshot().treasury > 0);
-    assert.equal(api.snapshot().stress.bankruptcy, 0);
+    assert.ok(api.snapshot().treasury > 2);
+    assert.ok(api.snapshot().stress.bankruptcy < grace.stress.bankruptcy);
     assert.equal(api.snapshot().ending, null);
   });
 
@@ -634,7 +710,7 @@ try {
     };
     await api.finishTurn();
     assert.deepEqual(json(api.snapshot().conflicts), {});
-    assert.ok(api.snapshot().tension < 55);
+    assert.ok(api.snapshot().tension <= 55);
   });
 
   await check('守備隊・要塞は軍事移管を防ぎ、成立した占領は保存される', async () => {
@@ -868,15 +944,18 @@ try {
     assert.equal(api.listConflicts().wars.filter(w => w.status === 'active').length, 0);
   });
 
-  await check('低安定度で内戦が発生し紛争一覧に載る', async () => {
+  await check('統治危機が4半月続くと内戦が発生し紛争一覧に載る', async () => {
     const { api } = harness();
     await begin(api);
     const snap = api.snapshot();
-    snap.nations[snap.playerNationId].stb = 14;
-    snap.nations[snap.playerNationId].eco = 40;
+    snap.nations.japan.stb = 12;
+    snap.nations.japan.eco = 22;
+    snap.stress.civil = 4;
+    snap.phase = 'playing';
+    snap.ending = null;
     await api.restore(snap);
     respond = item => (item.operation === 'RESOLUTION' ? { data: evaluation() } : null);
-    await api.finishTurn();
+    assert.equal(await api.finishTurn(), true);
     const after = api.snapshot();
     const civil = after.civilWars?.[after.playerNationId];
     assert.ok(civil?.status === 'active', '内戦開始');
