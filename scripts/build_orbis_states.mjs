@@ -32,7 +32,7 @@ const r2 = v => Math.round(v * 100) / 100;
 // Per-unit: each admin-1 unit becomes its own province candidate (caps merge them later).
 const UNIT_ADM0 = {
   argentina: 'ARG', uruguay: 'URY', dutch_indies: 'IDN', chile: 'CHL', bolivia: 'BOL', peru: 'PER',
-  india: 'IND PAK BGD MMR NPL BTN KAS KAB', china: 'CHN', ethiopia: 'ETH', france: 'FRA', brazil: 'BRA',
+  india: 'IND PAK BGD MMR KAS KAB', china: 'CHN', ethiopia: 'ETH', france: 'FRA', brazil: 'BRA',
   mongolia: 'MNG', russia: 'RUS UKR BLR KAZ', czechoslovakia: 'CZE SVK', germany: 'DEU', estonia: 'EST',
   latvia: 'LVA', lithuania: 'LTU', norway: 'NOR', sweden: 'SWE', finland: 'FIN ALD', luxembourg: 'LUX',
   belgium: 'BEL', albania: 'ALB', turkey: 'TUR', spain: 'ESP', denmark: 'DNK', romania: 'ROU MDA',
@@ -45,6 +45,7 @@ const UNIT_ADM0 = {
   nicaragua: 'NIC',
 };
 // Blocs: whole ADM0 groups become one province each.
+// Note: KOR + PRK are unified under empire_kor so the post-1945 38th parallel / DMZ is dissolved.
 const BLOCS = {
   uk: {
     gulf: 'KWT QAT BHR ARE OMN', iraq: 'IRQ', palestine_jordan: 'ISR PSX JOR WSB', mediterranean: 'CYP MLT GIB ESB CYN',
@@ -66,11 +67,11 @@ const BLOCS = {
   netherlands: { suriname: 'SUR', antilles: 'CUW ABW SXM' },
   denmark: { greenland: 'GRL', iceland: 'ISL', faroe: 'FRO' },
   usa: { caribbean: 'PRI VIR USG', pacific: 'GUM ASM UMI', liberia: 'LBR' },
-  japan: { empire_kor: 'KOR', empire_prk: 'PRK', empire_twn: 'TWN', empire_pacific: 'FSM MHL MNP PLW' },
+  japan: { empire_kor: 'KOR PRK', empire_twn: 'TWN', empire_pacific: 'FSM MHL MNP PLW' },
   australia: { png: 'PNG', pacific: 'NRU NFK HMD IOA CCK CXR' },
   new_zealand: { pacific: 'WSM COK NIU' },
   south_africa: { swa: 'NAM' },
-  saudi_arabia: { yemen: 'YEM' },
+  india: { nepal: 'NPL', bhutan: 'BTN' },
   russia: { uzbekistan: 'UZB', turkmenistan: 'TKM', tajikistan: 'TJK', kyrgyzstan: 'KGZ', georgia: 'GEO', armenia: 'ARM', azerbaijan: 'AZE' },
   yugoslavia: { serbia: 'SRB KOS', croatia: 'HRV', bosnia: 'BIH', slovenia: 'SVN', macedonia: 'MKD', montenegro: 'MNE' },
 };
@@ -80,10 +81,11 @@ for (const [c, list] of Object.entries(UNIT_ADM0)) for (const a of list.split(' 
 for (const [c, blocs] of Object.entries(BLOCS)) for (const [k, list] of Object.entries(blocs)) for (const a of list.split(' ')) ADM0_BLOC.set(a, [c, k]);
 
 // Units whose 1932 sovereign differs from today's: iso_3166_2 -> [country, key|null(unit key)]
+// Note: BY-HM (Gomel) is removed so it remains Soviet (Byelorussian SSR).
 const ISO_OVERRIDE = {
   'PL-DS': ['germany', 'silesia'], 'PL-OP': ['germany', 'silesia'], 'PL-LB': ['germany', 'pomerania'],
   'PL-ZP': ['germany', 'pomerania'], 'PL-WN': ['germany', 'east_prussia'], 'RU-KGD': ['germany', 'east_prussia'],
-  'LT-VL': ['poland', null], 'BY-BR': ['poland', null], 'BY-HM': ['poland', null], 'BY-HR': ['poland', null],
+  'LT-VL': ['poland', null], 'BY-BR': ['poland', null], 'BY-HR': ['poland', null],
   'UA-07': ['poland', null], 'UA-56': ['poland', null], 'UA-46': ['poland', null], 'UA-61': ['poland', null],
   'UA-26': ['poland', null], 'UA-21': ['czechoslovakia', 'ruthenia'], 'UA-77': ['romania', 'bukovina'],
   'BG-08': ['romania', 'dobruja'], 'BG-19': ['romania', 'dobruja'], 'HR-18': ['italy', 'istria'],
@@ -408,13 +410,22 @@ async function main() {
 
   const caps = agg.countryCaps || {};
   const defaultCap = agg.defaultCap || 30;
+  const PROTECTED_KEYS = new Set([
+    'hongkong', 'macau', 'timor', 'djibouti', 'dodecanese', 'somaliland', 'karafuto',
+    'empire_twn', 'empire_kor', 'empire_pacific', 'ruthenia', 'bukovina', 'dobruja', 'istria',
+    'levant', 'kwantung', 'jehol', 'chahar', 'suiyuan', 'nepal', 'bhutan', 'gibraltar', 'malta'
+  ]);
   const byCountry = new Map();
   for (const pr of provs.values()) { if (!byCountry.has(pr.country)) byCountry.set(pr.country, new Set()); byCountry.get(pr.country).add(pr.id); }
   for (const [country, ids] of byCountry) {
     const cap = caps[country] || defaultCap;
     while (ids.size > cap) {
       let src = null;
-      for (const id of ids) if (!src || provs.get(id).area < provs.get(src).area) src = id;
+      for (const id of ids) {
+        if (PROTECTED_KEYS.has(provs.get(id).key)) continue;
+        if (!src || provs.get(id).area < provs.get(src).area) src = id;
+      }
+      if (!src) break;
       const s = provs.get(src);
       let cands = [...adj.get(src)].filter(id => ids.has(id));
       if (!cands.length) {

@@ -2652,13 +2652,13 @@ const SCENARIOS = {
       ecuador: {
         id: 'ecuador', code: 'ECU', region: '南北アメリカ', isMajor: false,
         name: 'エクアドル共和国', bloc: 'neutral', blocName: 'ガラパゴス・アマゾン上流国',
-        leader: 'フアン・デ・ディオス・マルティネス 大統領', ministry: 'キト外務省',
+        leader: 'アルフレド・バケリソ・モレノ 臨時大統領', ministry: 'キト外務省',
         mil: 52, eco: 50, stb: 46, tech: 50, gdpText: '$0.3B',
         aiAgenda: '頻発するクーデタの収拾とペルー・コロンビア両国との国境問題の管理',
         summary: '1931年以来政変が相次ぐ政治的動乱国。カカオ輸出の低迷と国境未画定問題を抱え、列強の介入を警戒しながら生き延びる。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
-          { role: '大統領', name: 'J.デ・ディオス・マルティネス', trait: '政局収拾・周辺国均衡外交' }
+          { role: '臨時大統領', name: 'アルフレド・バケリソ・モレノ', trait: '暫定政権維持・国境紛争管理' }
         ]
       },
       peru: {
@@ -2796,13 +2796,13 @@ const SCENARIOS = {
       panama: {
         id: 'panama', code: 'PAN', region: '南北アメリカ', isMajor: false,
         name: 'パナマ共和国', bloc: 'neutral', blocName: '世界の運河・中立化条約国',
-        leader: 'フロレンシオ・アロセメナ 大統領', ministry: 'パナマシティ外務省',
+        leader: 'リカルド・J・アルファロ 大統領', ministry: 'パナマシティ外務省',
         mil: 46, eco: 52, stb: 58, tech: 50, gdpText: '$0.15B',
         aiAgenda: 'パナマ運河中立化条約の維持と米国領運河地帯との共存',
         summary: '世界貿易の大動脈「パナマ運河」の主権国。米国との条約体制下で運河の永久中立化が確定しており、米国艦隊と共生する世界戦略の要衝。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
-          { role: '大統領', name: 'F.アロセメナ', trait: '運河通商収入・対米和睦' }
+          { role: '大統領', name: 'リカルド・J・アルファロ', trait: '運河権益交渉・対米協調 (+外交)' }
         ]
       },
       haiti: {
@@ -2819,14 +2819,14 @@ const SCENARIOS = {
       },
       dominican: {
         id: 'dominican', code: 'DOM', region: '南北アメリカ', isMajor: false,
-        name: 'ドミニカ共和国', bloc: 'neutral', blocName: '砂糖王国・トゥルヒーヨ台頭',
-        leader: 'ホラシオ・バスケス 大統領', ministry: 'サントドミンゴ外務省',
+        name: 'ドミニカ共和国', bloc: 'neutral', blocName: '砂糖王国・トゥルヒーヨ独裁体制',
+        leader: 'ラファエル・トルヒーヨ 大統領', ministry: 'サントドミンゴ外務省',
         mil: 50, eco: 46, stb: 54, tech: 44, gdpText: '$0.15B',
-        aiAgenda: '砂糖輸出経済の維持と陸軍司令官トゥルヒーヨの台頭への対処',
-        summary: '世界最大級の砂糖輸出国。1924年の米占領終結後も財政監督が続く中、軍部で頭角を現すラファエル・トゥルヒーヨが1930年代の独裁体制への道を歩み始める。',
+        aiAgenda: '砂糖輸出経済の維持と国内治安の完全掌握・対米協調体制の強化',
+        summary: '世界最大級の砂糖輸出国。1930年のクーデター以来、陸軍を掌握したラファエル・トゥルヒーヨが大統領として独裁権力を確立し、近代化と強権統治を進める。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
-          { role: '大統領', name: 'H.バスケス', trait: '砂糖経済・軍部抑止 (+安定)' }
+          { role: '大統領', name: 'ラファエル・トルヒーヨ', trait: '軍事掌握・国家近代化 (+軍事・安定)' }
         ]
       },
 
@@ -2854,7 +2854,7 @@ const SCENARIOS = {
       france: {
         id: 'france', code: 'FRA', region: 'ヨーロッパ', isMajor: true,
         name: 'フランス第三共和政', bloc: 'versailles', blocName: 'ヴェルサイユ体制・小協商盟主',
-        leader: 'アンドレ・タルデュー / エドゥアール・エリオ 首相', ministry: 'フランス外務省 (ケ・ドルセー)',
+        leader: 'アンドレ・タルデュー 首相', ministry: 'フランス外務省 (ケ・ドルセー)',
         mil: 85, eco: 80, stb: 62, tech: 86, gdpText: '$14.8B',
         aiAgenda: 'マジノ線の完成・東欧同盟網（ポーランド・小協商）の維持・ドイツ再軍備の阻止',
         summary: '世界最強の陸軍と豊富な金準備を誇るヴェルサイユ体制の守護者。しかし政権交代が激しく、右派連盟と左派（後の人民戦線）の分断が外交の足かせとなっている。',
@@ -2865,7 +2865,7 @@ const SCENARIOS = {
           { id: 'ig_labor', name: 'CGT労働総同盟・左派戦線', influence: 18, approval: 50, demand: '労働時間短縮とファシズム運動の取り締まり', bonusText: '支持70%+: 安定度+7%' }
         ],
         cabinet: [
-          { role: '首相・外相', name: 'アンドレ・タルデュー / E.エリオ', trait: 'ヴェルサイユ条約擁護・対ソ接近模索' },
+          { role: '首相・外相', name: 'アンドレ・タルデュー', trait: 'ヴェルサイユ条約擁護・対ソ接近模索' },
           { role: '陸軍参謀総長', name: 'モーリス・ガムラン', trait: 'マジノ線縦深防衛ドクトリン (+要塞)' }
         ]
       },
@@ -3229,13 +3229,13 @@ const SCENARIOS = {
       turkey: {
         id: 'turkey', code: 'TUR', region: '中東・アフリカ', isMajor: false,
         name: 'トルコ共和国', bloc: 'neutral', blocName: 'ケマル主義・海峡中立圏',
-        leader: 'ムスタファ・ケマル・アタテュルク 大統領', ministry: 'アンカラ外務省 (アラス外相)',
+        leader: 'ガジ・ムスタファ・ケマル 大統領', ministry: 'アンカラ外務省 (アラス外相)',
         mil: 72, eco: 66, stb: 80, tech: 68, gdpText: '$2.1B',
         aiAgenda: '世俗化・工業化五ヶ年計画の推進、1932年国際連盟加盟、ローザンヌ条約による海峡主権の完全回復',
-        summary: '建国の父アタテュルクのもとで急速な近代化を成し遂げ、1932年7月に国際連盟へ加盟。黒海と地中海を結ぶボスポラス海峡を握る地政学上の要衝。',
+        summary: '建国の父ガジ・ムスタファ・ケマルのもとで急速な近代化を成し遂げ、1932年7月に国際連盟へ加盟。黒海と地中海を結ぶボスポラス海峡を握る地政学上の要衝。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
-          { role: '初代大統領', name: 'ケマル・アタテュルク', trait: '六本の矢（近代化改革）・国家威信+15%' },
+          { role: '初代大統領', name: 'ガジ・ムスタファ・ケマル', trait: '六本の矢（近代化改革）・国家威信+15%' },
           { role: '首相', name: 'イスメト・イノニュ', trait: '武装中立・海峡主権外交' }
         ]
       },
@@ -3265,11 +3265,11 @@ const SCENARIOS = {
       },
       saudi_arabia: {
         id: 'saudi_arabia', code: 'SAU', region: '中東・アフリカ', isMajor: false,
-        name: 'サウジアラビア王国 (ネジュド・ヒジャーズ)', bloc: 'neutral', blocName: 'アラビア半島独立王国',
+        name: 'ヒジャーズ・ネジュド王国', bloc: 'neutral', blocName: 'アラビア半島独立王国',
         leader: 'アブドゥルアズィーズ・イブン・サウード 国王', ministry: 'リヤド・ジェッダ外務省',
         mil: 60, eco: 60, stb: 76, tech: 55, gdpText: '$0.8B',
         aiAgenda: '1932年9月の「サウジアラビア王国」建国統一と米国石油資本（SOCAL）への石油採掘権付与',
-        summary: 'まさに1932年に半島統一を完了し「サウジアラビア王国」を建国。翌年の米国企業への石油採掘権付与により、世界最大のエネルギー大国へと飛躍する前夜にある。',
+        summary: 'まさに1932年9月に半島統一を完了し「サウジアラビア王国」を改号建国。翌年の米国企業への石油採掘権付与により、世界最大のエネルギー大国へと飛躍する前夜にある。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
           { role: '初代国王', name: 'イブン・サウード', trait: '砂漠王国統一・石油開発コンセッション' }
@@ -4611,7 +4611,7 @@ const HISTORICAL_CITIES = [
   { name: 'ミンスク', lon: 27.56, lat: 53.90, tier: 3 },
   { name: 'バクー', lon: 49.86, lat: 40.40, tier: 3 },
   { name: 'スヴェルドロフスク', lon: 60.60, lat: 56.84, tier: 3 },
-  { name: 'クイビシェフ', lon: 50.10, lat: 53.19, tier: 3 },
+  { name: 'サマーラ', lon: 50.10, lat: 53.19, tier: 3 },
   { name: 'オムスク', lon: 73.37, lat: 54.99, tier: 3 },
   { name: 'イルクーツク', lon: 104.30, lat: 52.29, tier: 3 },
   { name: 'ハバロフスク', lon: 135.07, lat: 48.48, tier: 3 },
@@ -4691,7 +4691,7 @@ const HISTORICAL_CITIES = [
   { name: '重慶', lon: 106.55, lat: 29.56, tier: 2 },
   { name: '成都', lon: 104.07, lat: 30.66, tier: 2 },
   { name: '西安', lon: 108.94, lat: 34.26, tier: 3 },
-  { name: '瀋陽', lon: 123.43, lat: 41.81, tier: 3 },
+  { name: '奉天', lon: 123.43, lat: 41.81, tier: 3 },
   { name: 'ハルビン', lon: 126.63, lat: 45.75, tier: 3 },
   { name: '青島', lon: 120.38, lat: 36.07, tier: 3 },
   { name: '昆明', lon: 102.71, lat: 25.04, tier: 3 },
