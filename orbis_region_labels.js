@@ -21,10 +21,11 @@ window.ORBIS_REGION_LABELS = (() => {
     if (!id || typeof id !== 'string') return '';
     let m = id.match(/^japan_jp_(\d{1,2})$/i);
     if (m) return JP[m[1].padStart(2, '0')] || `日本・地域${m[1]}`;
-    m = id.match(/^japan_empire_(?:kor|prk|twn|taiwan)_(.+)$/i);
-    if (m) return `日本領満鮮台（${m[1].replace(/_/g, '・')}）`;
-    m = id.match(/^japan_empire_rus_(.+)$/i);
-    if (m) return `日本領樺太・千島（${m[1].replace(/_/g, '・')}）`;
+    if (/^japan_empire_kor/i.test(id)) return '朝鮮（南部）';
+    if (/^japan_empire_prk/i.test(id)) return '朝鮮（北部）';
+    if (/^japan_empire_twn/i.test(id)) return '台湾';
+    if (/^japan_empire_rus/i.test(id)) return '樺太・千島';
+    if (/^japan_empire_pacific/i.test(id)) return '南洋群島';
     m = id.match(/^china_cn_([a-z]{2})$/i);
     if (m) return CN[m[1].toLowerCase()] || `中国・${m[1].toUpperCase()}`;
     if (id.startsWith('manchukuo') || id === 'cn_dongbei') return '満洲国';

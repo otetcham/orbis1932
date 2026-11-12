@@ -3900,23 +3900,22 @@ function projectOrthographicPath(id, rings) {
     const count = data.length / 3;
     let visiblePoints = 0;
     let ringPath = '';
-    let penDown = false;
     for (let i = 0; i < count; i++) {
       const px = data[i * 3];
       const py = data[i * 3 + 1];
       const pz = data[i * 3 + 2];
       const meridian = px * cosL0 + py * sinL0;
-      if (sinP0 * pz + cosP0 * meridian > 0) {
-        const x = cx + R * (py * cosL0 - px * sinL0);
-        const y = cy - R * (cosP0 * pz - sinP0 * meridian);
-        ringPath += (penDown ? ` L ${x.toFixed(1)} ${y.toFixed(1)}` : `M ${x.toFixed(1)} ${y.toFixed(1)}`);
-        penDown = true;
-        visiblePoints++;
-      } else {
-        penDown = false;
+      let sx = py * cosL0 - px * sinL0;
+      let sy = cosP0 * pz - sinP0 * meridian;
+      if (sinP0 * pz + cosP0 * meridian > 0) visiblePoints++;
+      else {
+        // hidden vertex: slide onto the limb so the outline hugs the horizon
+        const len = Math.hypot(sx, sy) || 1;
+        sx /= len; sy /= len;
       }
+      ringPath += `${i ? ' L' : 'M'} ${(cx + R * sx).toFixed(1)} ${(cy - R * sy).toFixed(1)}`;
     }
-    if (visiblePoints >= 3) pathParts.push(ringPath + (penDown ? ' Z' : ''));
+    if (visiblePoints >= 2) pathParts.push(`${ringPath} Z`);
   }
   const d = pathParts.join(' ');
   globePathCache.set(id, { key, d });
