@@ -66,6 +66,7 @@ const Orbis = (() => {
     if (element && htmlCache.get(element) !== value) { element.innerHTML = value; htmlCache.set(element, value); }
   };
   const text = (id, value) => { if ($(id)) $(id).textContent = value; };
+  const decorate = value => globalThis.OrbisText?.decorate ? globalThis.OrbisText.decorate(value) : escapeHtml(value);
   const uid = prefix => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   const copy = value => JSON.parse(JSON.stringify(value));
   const shortName = id => SHORT_NAMES[id] || SCENARIOS.era_1932.nations[id]?.name.split(/[（(・]/)[0] || id;
@@ -2356,10 +2357,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     }).join(''));
     const pledgeStatus = { active: '履行待ち', fulfilled: '履行済み', broken: '違反' };
     const promises = [...campaign.commitments].sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') || a.dueTurn - b.dueTurn);
-    const pledgeCard = item => `<details class="compact-disclosure"><summary><span class="badge ${item.status === 'broken' ? 'badge-crimson' : item.status === 'fulfilled' ? 'badge-emerald' : 'badge-brass'}">${pledgeStatus[item.status]}${item.status === 'active' ? ` · あと${Math.max(0, item.dueTurn - campaign.completedTurns)}半月` : ''}</span><br>${escapeHtml(item.title)}</summary><p>${escapeHtml(actors[item.actorId]?.name || '')} · ${escapeHtml(item.detail)}</p></details>`;
+    const pledgeCard = item => `<details class="compact-disclosure"><summary><span class="badge ${item.status === 'broken' ? 'badge-crimson' : item.status === 'fulfilled' ? 'badge-emerald' : 'badge-brass'}">${pledgeStatus[item.status]}${item.status === 'active' ? ` · あと${Math.max(0, item.dueTurn - campaign.completedTurns)}半月` : ''}</span><br>${decorate(item.title)}</summary><p>${escapeHtml(actors[item.actorId]?.name || '')} · ${decorate(item.detail)}</p></details>`;
     const cards = promises.filter(item => item.status === 'active').map(pledgeCard);
     const treatyLabels = { trade: '通商：毎月 経済+1・収入+2（2件まで）', nonaggression: '不可侵：毎月 緊張-1（2件まで）', defense: '安全保障：軍事+1・維持費+2（増強は月+1まで）' };
-    const treatyCard = treaty => `<details class="compact-disclosure"><summary><span class="eyebrow">${treaty.secret ? '非公開合意' : '国家間条約'} · ${treaty.remaining > 0 ? `残り${treaty.remaining}半月` : '満了'}</span><br>${escapeHtml(treaty.title)}</summary><p>${escapeHtml(treaty.terms)}</p><p class="small">${escapeHtml(treatyLabels[treaty.type] || '二国間合意')}</p></details>`;
+    const treatyCard = treaty => `<details class="compact-disclosure"><summary><span class="eyebrow">${treaty.secret ? '非公開合意' : '国家間条約'} · ${treaty.remaining > 0 ? `残り${treaty.remaining}半月` : '満了'}</span><br>${decorate(treaty.title)}</summary><p>${decorate(treaty.terms)}</p><p class="small">${escapeHtml(treatyLabels[treaty.type] || '二国間合意')}</p></details>`;
     for (const treaty of [...campaign.treaties].reverse().filter(item => item.remaining > 0)) cards.push(treatyCard(treaty));
     for (const [id, client] of Object.entries(campaign.clients)) {
       if (client.sponsorId !== campaign.playerNationId && id !== campaign.playerNationId) continue;
@@ -2375,11 +2376,11 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if (!campaign) return;
     const remaining = RULES[campaign.difficulty].actions - campaign.usedActions;
     if (campaign.ending) {
-      html('turn-briefing', `<div class="brief-kicker">CAMPAIGN COMPLETE · ${campaign.completedTurns} MONTHS</div><h1>${escapeHtml(campaign.ending.title)}</h1><p>${escapeHtml(campaign.ending.body)}</p><div class="brief-footer"><span>国家運営評価 ${campaign.ending.score} / 100</span><button class="text-button" data-show-ending>結末を見る ↗</button></div>`);
+      html('turn-briefing', `<div class="brief-kicker">CAMPAIGN COMPLETE · ${campaign.completedTurns} MONTHS</div><h1>${decorate(campaign.ending.title)}</h1><p>${decorate(campaign.ending.body)}</p><div class="brief-footer"><span>国家運営評価 ${campaign.ending.score} / 100</span><button class="text-button" data-show-ending>結末を見る ↗</button></div>`);
     } else if (campaign.briefing) {
       const body = campaign.briefing.briefing;
       const excerpt = body.length > 140 ? `${body.slice(0, 136)}…` : body;
-      html('turn-briefing', `<div class="brief-kicker">${escapeHtml(dateOf(campaign))} · 今月の情勢</div><h1>${escapeHtml(campaign.briefing.headline)}</h1><p>${escapeHtml(excerpt)}</p>${body.length > 140 ? `<details class="brief-full-text"><summary>概況の全文を読む</summary><p>${escapeHtml(body)}</p></details>` : ''}<div class="brief-footer"><span>新着 ${campaign.briefing.telegrams.length}件 · 残り${remaining}交渉</span><button class="text-button" data-open-inbox>メッセージ一覧 ↗</button></div>`);
+      html('turn-briefing', `<div class="brief-kicker">${escapeHtml(dateOf(campaign))} · 今月の情勢</div><h1>${decorate(campaign.briefing.headline)}</h1><p>${decorate(excerpt)}</p>${body.length > 140 ? `<details class="brief-full-text"><summary>概況の全文を読む</summary><p>${decorate(body)}</p></details>` : ''}<div class="brief-footer"><span>新着 ${campaign.briefing.telegrams.length}件 · 残り${remaining}交渉</span><button class="text-button" data-open-inbox>メッセージ一覧 ↗</button></div>`);
     } else {
       html('turn-briefing', `<div class="brief-kicker">${escapeHtml(dateOf(campaign))} · 受信準備</div><h1>今月の情勢を確認中</h1><p>GMが世界の状態と、これまでの交渉を読み込んでいます。</p><div class="brief-footer"><span>${campaign.completedTurns ? '前月の裁定は保存済み' : '最初の情勢を生成'}</span><button class="text-button" data-retry-briefing ${runtime.busy ? 'disabled' : ''}>受信する ↗</button></div>`);
     }
@@ -2388,8 +2389,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     html('history-stream', articles.slice(0, runtime.historyLimit).map(article => {
       const deltas = article.changes ? `<div class="stat-deltas-container">${Object.entries(article.changes).filter(([, value]) => value !== 0).map(([key, value]) => `<span class="stat-delta-chip ${(key === 'tension' ? value < 0 : value > 0) ? 'pos' : 'neg'}">${statLabels[key]} ${signed(value)}</span>`).join('')}</div>` : '';
       const reasons = [...(article.reasoning || []).map(item => item.text), ...(article.reactions || []), ...(article.notes || [])];
-      const explanation = reasons.length ? `<details><summary>交渉の因果・月次の収支</summary><ul>${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join('')}</ul></details>` : '';
-      return `<details class="dispatch-entry" data-article-id="${escapeHtml(article.id)}"><summary><div class="dispatch-meta"><span>${escapeHtml(article.date)}</span><span>／</span><span>${article.kind === 'resolution' ? '月次裁定' : article.kind === 'world' ? '世界の動き' : '出発点'}</span></div><h2>${escapeHtml(article.headline)}</h2></summary><div class="dispatch-content"><p>${escapeHtml(article.body)}</p>${deltas}${explanation}</div></details>`;
+      const explanation = reasons.length ? `<details><summary>交渉の因果・月次の収支</summary><ul>${reasons.map(reason => `<li>${decorate(reason)}</li>`).join('')}</ul></details>` : '';
+      return `<details class="dispatch-entry" data-article-id="${escapeHtml(article.id)}"><summary><div class="dispatch-meta"><span>${escapeHtml(article.date)}</span><span>／</span><span>${article.kind === 'resolution' ? '月次裁定' : article.kind === 'world' ? '世界の動き' : '出発点'}</span></div><h2>${decorate(article.headline)}</h2></summary><div class="dispatch-content"><p>${decorate(article.body)}</p>${deltas}${explanation}</div></details>`;
     }).join('') + (articles.length > runtime.historyLimit ? `<button class="history-load-more" data-load-history>過去の記事を表示 · 残り${articles.length - runtime.historyLimit}件</button>` : ''));
   }
 
@@ -2446,7 +2447,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         const divider = message.date !== lastDate ? `<div class="chat-date-divider">${escapeHtml(message.date)}</div>` : '';
         lastDate = message.date;
         const pendingHint = message.pending && message.role === 'player' ? '返電を待っています…' : message.pending ? '受信中…' : '';
-        return `${divider}<article class="telegram ${message.role === 'player' ? 'player' : ''} ${message.pending ? 'pending' : ''}"><div class="telegram-meta"><span>${message.visibility === 'official' ? '公式声明' : '非公開'}</span>${message.urgency === 'urgent' ? '<span class="urgent-label">今月中の回答を要請</span>' : ''}</div><div class="telegram-body">${message.subject ? `<div class="telegram-subject">${escapeHtml(message.subject)}</div>` : ''}${escapeHtml(message.text)}</div>${message.stance ? `<div class="telegram-stance">${STANCES[message.stance]}</div>` : ''}${pendingHint ? `<div class="telegram-stance">${pendingHint}</div>` : ''}</article>`;
+        return `${divider}<article class="telegram ${message.role === 'player' ? 'player' : ''} ${message.pending ? 'pending' : ''}"><div class="telegram-meta"><span>${message.visibility === 'official' ? '公式声明' : '非公開'}</span>${message.urgency === 'urgent' ? '<span class="urgent-label">今月中の回答を要請</span>' : ''}</div><div class="telegram-body">${message.subject ? `<div class="telegram-subject">${decorate(message.subject)}</div>` : ''}${decorate(message.text)}</div>${message.stance ? `<div class="telegram-stance">${STANCES[message.stance]}</div>` : ''}${pendingHint ? `<div class="telegram-stance">${pendingHint}</div>` : ''}</article>`;
       }).join('') || `<p class="empty-state">${escapeHtml(actor.name)}との回線が開きました。最初のメッセージを送ってください。</p>`);
       if (atBottom) container.scrollTop = container.scrollHeight;
     }
@@ -2602,6 +2603,100 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     renderControls();
   }
 
+  function provincePanelData(stateId) {
+    const region = state.states?.find(item => item.id === stateId) || window.ORBIS_STATES_DB?.find(item => item.id === stateId);
+    if (!region) return null;
+    const isSea = Boolean(region.isSea || region.type === 'sea' || region.isSeaZone);
+    const terrainLabels = {
+      urban: '都市', plains: '平原', mountains: '山岳', forest: '森林',
+      hills: '丘陵', desert: '砂漠', marsh: '湿地', jungle: '密林', strait: '国際海峡', ocean: '海洋'
+    };
+    const terrainLabel = terrainLabels[region.terrain] || region.terrain || '平原';
+    const displayRegion = regionLabel(region);
+    const playerId = campaign?.playerNationId || state.playerNationId;
+    const ownerId = region.country;
+    const base = SCENARIOS.era_1932.nations[ownerId] || {};
+    const ownerFaction = campaign?.factions?.[ownerId];
+    const ownerFormalName = isSea ? '海洋プロビンス' : (ownerFaction?.label || globalThis.OrbisText?.countryName(ownerId, base.name) || base.name || ownerId || '不明');
+    const ownerLeader = isSea ? '—' : (campaign?.leaders?.[ownerId] || base.leader || ownerFaction?.label || '不明');
+    const ownerRegime = isSea ? '—' : (ownerFaction ? '反乱勢力' : (base.blocName || base.regime || '体制'));
+    const relationScore = playerId === ownerId ? 100 : Number(campaign?.relations?.[playerId]?.[ownerId] ?? state.relations?.[playerId]?.[ownerId] ?? 0);
+    const relationLabel = playerId === ownerId ? '自国' : getRelationLabel(relationScore).label;
+    const occupiedBy = region.originalOwner && region.originalOwner !== ownerId
+      ? region.originalOwner
+      : (campaign?.occupations?.[stateId] && campaign.occupations[stateId] !== ownerId ? campaign.occupations[stateId] : null);
+    const originalOwnerName = occupiedBy
+      ? (globalThis.OrbisText?.countryName(occupiedBy, SCENARIOS.era_1932.nations[occupiedBy]?.name) || SCENARIOS.era_1932.nations[occupiedBy]?.name || occupiedBy)
+      : '';
+    const conflict = campaign?.conflicts?.[stateId] || null;
+    const warEntries = Object.entries(campaign?.wars || {}).filter(([, war]) => war.status === 'active' && (
+      war.attacker === playerId || war.defender === playerId || war.attacker === ownerId || war.defender === ownerId
+    ));
+    const warIds = warEntries.map(([id]) => id);
+    const warActive = warIds.length > 0 || Boolean(campaign?.worldWarActive);
+    const actions = [];
+    if (!isSea) {
+      if (ownerId === playerId) {
+        actions.push({ id: 'policy', label: '施策を相談', kind: 'policy', enabled: true });
+        actions.push({ id: 'defense', label: '防備・部隊展開', kind: 'defense', enabled: true });
+      } else if (ownerId && SCENARIOS.era_1932.nations[ownerId]) {
+        actions.push({ id: 'diplomacy', label: '統治国と外交交渉', kind: 'diplomacy', enabled: true });
+      }
+      if (warActive) actions.push({ id: 'war', label: '戦争・和平を開く', kind: 'war', enabled: true });
+    }
+
+    const statusParts = [];
+    if (isSea) statusParts.push('海洋プロビンスは領有できません。陸上の施策・部隊展開は行えません。');
+    if (occupiedBy) statusParts.push(`占領中：元の領有国は${originalOwnerName}。`);
+    if (conflict) statusParts.push(`係争中：${shortName(conflict.attacker)}と${shortName(conflict.defender)}の戦線。`);
+    if (warActive) statusParts.push(`戦争中：関連する戦争・和平の導線を開けます。`);
+    if (!statusParts.length) statusParts.push(`平穏：${state.date || '1932年3月'}時点の統治情報。`);
+
+    const descriptionParts = [];
+    if (isSea) {
+      descriptionParts.push(`${displayRegion}は${state.date || '1932年3月'}時点の海洋プロビンスです。領有できず、通商路・海軍行動の舞台として扱われます。`);
+    } else {
+      descriptionParts.push(`${displayRegion}は${ownerFormalName}が統治する${terrainLabel}の州です。`);
+      if (occupiedBy) descriptionParts.push(`元の領有国は${originalOwnerName}で、現在は占領下にあります。`);
+      if (conflict) descriptionParts.push(`${shortName(conflict.attacker)}と${shortName(conflict.defender)}の間で係争中です。`);
+      descriptionParts.push(`拠点価値 ${region.vp ?? 0}、インフラ ${region.infra ?? 0}、要塞 ${region.fort ?? 0}。`);
+    }
+
+    return {
+      id: region.id,
+      name: displayRegion,
+      regionLabel: displayRegion,
+      regionGroup: base.region || base.regionGroup || '',
+      terrain: region.terrain,
+      terrainLabel,
+      isSea,
+      canOwn: !isSea,
+      ownerId,
+      ownerFormalName,
+      ownerFlagHtml: isSea || !SCENARIOS.era_1932.nations[ownerId] ? '' : getCountryFlagSvg(ownerId),
+      ownerLeader,
+      ownerRegime,
+      relationScore,
+      relationLabel,
+      occupied: Boolean(occupiedBy),
+      originalOwnerId: occupiedBy,
+      originalOwnerName,
+      conflict,
+      warActive,
+      warIds,
+      vp: region.vp ?? 0,
+      infra: region.infra ?? 0,
+      fort: region.fort ?? 0,
+      description: descriptionParts.join(' '),
+      statusNote: statusParts.join(' '),
+      actions,
+      canPolicy: actions.some(action => action.id === 'policy'),
+      canDefense: actions.some(action => action.id === 'defense'),
+      canDiplomacy: actions.some(action => action.id === 'diplomacy'),
+      canWar: actions.some(action => action.id === 'war')
+    };
+  }
+
   function openForeign(nationId) {
     openActor(nationId === campaign?.playerNationId ? 'adviser' : `ministry:${nationId}`);
   }
@@ -2642,8 +2737,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const unanswered = campaign.briefing.telegrams.filter(item => !campaign.turnActions.some(action => action.actorId === item.actorId));
     const budget = monthlyBudget(campaign);
     text('review-title', `${dateOf(campaign)} · ${campaign.usedActions}件の交渉`);
-    const actions = campaign.turnActions.map(action => `<article class="review-item"><strong>${escapeHtml(actors[action.actorId].name)} · ${action.visibility === 'official' ? '公式声明' : '非公開電報'}</strong><p>あなた：${escapeHtml(action.text)}</p><p>${escapeHtml(actors[action.actorId].person)}：${escapeHtml(action.reply.text)}</p><span class="small muted">${STANCES[action.reply.stance]}</span></article>`).join('');
-    const order = campaign.nationalAction ? `<article class="review-item"><strong>国家の行動</strong><p>${escapeHtml(campaign.nationalAction.text)}</p></article>` : '<p class="review-note">国家の行動は未提出です。</p>';
+    const actions = campaign.turnActions.map(action => `<article class="review-item"><strong>${escapeHtml(actors[action.actorId].name)} · ${action.visibility === 'official' ? '公式声明' : '非公開電報'}</strong><p>あなた：${decorate(action.text)}</p><p>${escapeHtml(actors[action.actorId].person)}：${decorate(action.reply.text)}</p><span class="small muted">${STANCES[action.reply.stance]}</span></article>`).join('');
+    const order = campaign.nationalAction ? `<article class="review-item"><strong>国家の行動</strong><p>${decorate(campaign.nationalAction.text)}</p></article>` : '<p class="review-note">国家の行動は未提出です。</p>';
     html('turn-review-body', `<p class="muted small">税収等 +${budget.income} / 維持費 -${budget.upkeep}。各施策の支出と成果は、AIの裁定後に確定。</p>${order}${actions || '<p class="review-note">今月はまだ交渉していません。進めると、各勢力はあなたの沈黙に基づいて行動します。</p>'}${unanswered.length ? `<div class="review-note">未返信：${unanswered.map(item => escapeHtml(actors[item.actorId].name)).join('、')}<br>緊急要請への無回答は信頼や支持を損ないます。</div>` : ''}<p class="muted small">下書きは未送信です。月末の裁定には含まれません。</p>`);
     openDialog('turn-review');
   }
@@ -2659,9 +2754,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
             : campaign.ending.result === 'victory' ? '国家目標達成'
               : campaign.ending.result === 'survived' ? '任期完走' : '任期終了';
     text('ending-title', title);
-    const timeline = campaign.articles.filter(a => a.kind === 'resolution' || a.kind === 'opening').slice(-24).map(a => `<li><span class="muted small">${escapeHtml(a.date)}</span> · ${escapeHtml(a.headline)}</li>`).join('');
+    const timeline = campaign.articles.filter(a => a.kind === 'resolution' || a.kind === 'opening').slice(-24).map(a => `<li><span class="muted small">${escapeHtml(a.date)}</span> · ${decorate(a.headline)}</li>`).join('');
     const continueBtn = milestone ? '<button class="btn btn-primary" id="btn-continue-milestone">歴史を続ける</button>' : '';
-    html('ending-body', `<div class="eyebrow">${escapeHtml(shortName(campaign.playerNationId))} · ${campaign.completedTurns} 半月</div><h2>${escapeHtml(campaign.ending.title)}</h2><p class="muted">${escapeHtml(campaign.ending.body)}</p><div class="ending-score">${campaign.ending.score}<span class="small muted"> / 100</span></div><p class="small muted">通算条約 ${campaign.cumulative.treaties}件 · 約束の履行 ${campaign.cumulative.fulfilled}件 · 違反 ${campaign.cumulative.broken}件</p><div class="goal-box">${mandateInfo(campaign).conditions.map(condition => `<p>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</p>`).join('')}</div>${timeline ? `<ul class="ending-timeline">${timeline}</ul>` : ''}`);
+    html('ending-body', `<div class="eyebrow">${escapeHtml(shortName(campaign.playerNationId))} · ${campaign.completedTurns} 半月</div><h2>${decorate(campaign.ending.title)}</h2><p class="muted">${decorate(campaign.ending.body)}</p><div class="ending-score">${campaign.ending.score}<span class="small muted"> / 100</span></div><p class="small muted">通算条約 ${campaign.cumulative.treaties}件 · 約束の履行 ${campaign.cumulative.fulfilled}件 · 違反 ${campaign.cumulative.broken}件</p><div class="goal-box">${mandateInfo(campaign).conditions.map(condition => `<p>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</p>`).join('')}</div>${timeline ? `<ul class="ending-timeline">${timeline}</ul>` : ''}`);
     const foot = $('game-ending')?.querySelector('.modal-foot');
     if (foot && !document.getElementById('btn-continue-milestone') && milestone) {
       const wrap = document.createElement('div');
@@ -3130,5 +3225,5 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       turnsThroughCalendarMonth: (year, month, half = 'second') => core.halfTurnsThrough(year, month, half),
     };
   };
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, prepareRegionalOrder, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, listConflicts, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, listConflicts, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();
