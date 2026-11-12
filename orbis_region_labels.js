@@ -69,6 +69,7 @@ window.ORBIS_REGION_LABELS = (() => {
     'japan_empire_pacific': '南洋群島（委任統治領）',
     'cn_dongbei': '吉林省（新京）',
     'manchukuo_xingan': '興安省（ホロンバイル）',
+    'manchukuo_jehol': '熱河省',
     'china_jehol': '熱河省（東北軍・湯玉麟）',
     'china_chahar': '察哈爾省（宋哲元・第29軍）',
     'china_suiyuan': '綏遠省（傅作義）',

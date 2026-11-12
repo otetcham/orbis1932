@@ -1396,9 +1396,9 @@ svg path:focus-visible,
 .map-zoom-controls { position: absolute; right: 20px; top: 18px; display: flex; flex-direction: column; gap: 1px; z-index: 3; padding: 3px; border: 1px solid rgba(255, 255, 255, 0.75); border-radius: 11px; background: rgba(255, 255, 255, 0.78); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
 .map-zoom-controls .filter-btn { width: 36px; height: 36px; padding: 0; font-size: 19px; }
 .desktop-workspace #btn-zoom-reset { display: block; font-size: 9px; }
-#map-legend-box { display: none; }
 .desktop-workspace .map-label-country { font-weight: 700; letter-spacing: 0.08em; stroke-width: 4px; opacity: .95; }
-.desktop-workspace .map-label-city { font-weight: 500; font-size: 9px; letter-spacing: 0.02em; stroke-width: 2px; opacity: .78; fill: #35506e; }
+.desktop-workspace .map-label-city,
+.map-label-city { font-weight: 700; font-size: 11px; letter-spacing: 0.02em; stroke: rgba(7, 13, 24, 0.9); stroke-width: 2.8px; opacity: 0.95; fill: #ffffff !important; paint-order: stroke fill; }
 .prov-path.player-owned { filter: none; }
 .desktop-workspace .state-inspector-card { left: 20px; right: auto; bottom: 106px; width: 310px; max-width: calc(100% - 40px); border-radius: 12px; border-color: #b9cbe0; background: rgba(255, 255, 255, 0.96); box-shadow: 0 4px 16px rgba(23, 42, 68, 0.16); }
 .desktop-workspace .insp-head { padding: 10px 12px; background: #f2f6fb; }
@@ -1714,8 +1714,8 @@ svg path:focus-visible,
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
-  <script src="orbis_states.js?v=1932.4" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
-  <script src="orbis_map_meta.js?v=1932.4" defer></script>
+  <script src="orbis_states.js?v=1932.5" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
+  <script src="orbis_map_meta.js?v=1932.5" defer></script>
 </head>
 <body>
 
@@ -1748,7 +1748,7 @@ svg path:focus-visible,
           <div class="lobby-section-label">
             <span class="lobby-step-num">1932年3月1日</span>
             <span>担当する国家を選ぶ</span>
-            <span id="orbis-build-version" style="font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:var(--cyan-bright); margin-left:6px; letter-spacing:0.5px;">Rev 1932.4</span>
+            <span id="orbis-build-version" style="font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:var(--cyan-bright); margin-left:6px; letter-spacing:0.5px;">Rev 1932.5</span>
           </div>
           <div class="filter-group-box">
             <button class="filter-btn active" data-lobby-region="all">全32カ国</button>
@@ -4700,6 +4700,9 @@ const HISTORICAL_CITIES = [
   { name: 'ハルビン', lon: 126.63, lat: 45.75, tier: 3 },
   { name: '青島', lon: 120.38, lat: 36.07, tier: 3 },
   { name: '昆明', lon: 102.71, lat: 25.04, tier: 3 },
+  { name: '帰綏', lon: 111.75, lat: 40.84, tier: 3 },
+  { name: '張家口', lon: 114.88, lat: 40.77, tier: 3 },
+  { name: '承徳', lon: 117.96, lat: 40.97, tier: 3 },
 
   // カナダ自治領
   { name: 'オタワ', lon: -75.70, lat: 45.42, tier: 1 },
@@ -5128,7 +5131,7 @@ function updateMapVisuals() {
           if (c.tier === 3 && zoomFactor < 2.15) continue;
           const pt = projectLonLatPoint(c.lon, c.lat);
           if (!pt || !pt.visible) continue;
-          const font = (c.tier === 1 ? 9.2 : 8.0) * invZoom;
+          const font = (c.tier === 1 ? 11.5 : 10.0) * invZoom;
           const hw = c.name.length * font * 0.55;
           const hh = font * 0.65;
           if (!fits(pt.x, pt.y, hw, hh)) continue;
@@ -5613,12 +5616,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
-<script src="orbis_events.js?v=1932.4"></script>
-<script src="orbis_region_labels.js?v=1932.4"></script>
-<script src="orbis_campaign_core.js?v=1932.4"></script>
-<script src="orbis_timeline_engine.js?v=1932.4"></script>
-<script src="orbis_turn_playback.js?v=1932.4"></script>
-<script src="orbis_game.js?v=1932.4"></script>
+<script src="orbis_events.js?v=1932.5"></script>
+<script src="orbis_region_labels.js?v=1932.5"></script>
+<script src="orbis_campaign_core.js?v=1932.5"></script>
+<script src="orbis_timeline_engine.js?v=1932.5"></script>
+<script src="orbis_turn_playback.js?v=1932.5"></script>
+<script src="orbis_game.js?v=1932.5"></script>
 
 </body>
 </html>

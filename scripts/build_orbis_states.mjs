@@ -26,6 +26,8 @@ import { presimplify, simplify } from 'topojson-simplify';
 const SIMPLIFY_DEG2 = Number(process.env.SIMPLIFY || 0.02);
 const QUANT = 1e5;
 
+const IM_PREFS = JSON.parse(await readFile(new URL('../data/inner_mongolia_prefectures.json', import.meta.url), 'utf8'));
+
 const PROJ_X = lon => (lon + 180) * (2000 / 360);
 const PROJ_Y = lat => (90 - lat) * 9.32 + 60;
 const r2 = v => Math.round(v * 100) / 100;
@@ -359,17 +361,33 @@ function classifyFeature(f, stats) {
     return out;
   }
 
-  // China: Inner Mongolia (CN-NM) 1932 split (Suiyuan, Chahar, Jehol, Hsingan)
+  // China / Manchukuo: Inner Mongolia (CN-NM) 1932 split by historical prefecture boundaries:
+  // - 興安省 (Hsingan) -> Manchukuo: 呼伦贝尔市, 兴安盟, 通辽市
+  // - 熱河省 (Jehol) -> Manchukuo: 赤峰市
+  // - 察哈爾省 (Chahar) -> China: 锡林郭勒盟
+  // - 綏遠省 (Suiyuan) -> China: 乌兰察布市, 呼和浩特市, 包头市, 鄂尔多斯市, 巴彦淖尔市, 乌海市, 阿拉善盟
   if (iso === 'CN-NM') {
-    const { west: w116, east: e116 } = splitPolysLon(polys, 116.8);
-    const { south: jeholPolys, north: xinganPolys } = splitPolysLat(e116, 44.5);
-    const { west: suiyuanPolys, east: chaharPolys } = splitPolysLon(w116, 112.5);
     const out = [];
-    if (suiyuanPolys.length) out.push({ country: 'china', key: 'suiyuan', polys: suiyuanPolys });
-    if (chaharPolys.length) out.push({ country: 'china', key: 'chahar', polys: chaharPolys });
-    if (jeholPolys.length) out.push({ country: 'china', key: 'jehol', polys: jeholPolys });
-    if (xinganPolys.length) out.push({ country: 'manchukuo', key: 'xingan', polys: xinganPolys });
-    hit('CN-NM-split');
+    for (const pref of IM_PREFS.features) {
+      const name = pref.properties.name;
+      let country = 'china';
+      let key = 'suiyuan';
+      if (name === '呼伦贝尔市' || name === '兴安盟' || name === '通辽市') {
+        country = 'manchukuo';
+        key = 'xingan';
+      } else if (name === '赤峰市') {
+        country = 'manchukuo';
+        key = 'jehol';
+      } else if (name === '锡林郭勒盟') {
+        country = 'china';
+        key = 'chahar';
+      } else {
+        country = 'china';
+        key = 'suiyuan';
+      }
+      out.push({ country, key, polys: toPolys(pref.geometry) });
+    }
+    hit('CN-NM-prefectures');
     return out;
   }
 
