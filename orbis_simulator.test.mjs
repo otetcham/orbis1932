@@ -14,6 +14,7 @@ const playbackSource = await readFile(new URL('./orbis_turn_playback.js', import
 const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), 'utf8');
 const regionLabelsSource = await readFile(new URL('./orbis_region_labels.js', import.meta.url), 'utf8');
 const eventsSource = await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8');
+const textSource = await readFile(new URL('./orbis_text.js', import.meta.url), 'utf8');
 const inlineScripts = [...htmlSource.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
 const choices = [{ label: '条件を詰める', text: '予算の上限を明確にした上で、実施条件を協議しましょう。' }, { label: '見送る', text: '今月の実施は見送ります。代替案を示してください。' }];
 const opening = () => ({ headline: '軍縮と復興のあいだ', briefing: '大恐慌が続くなか、外務省と国内勢力が相反する条件を提示した。財政の範囲で決断が求められる。', telegrams: [{ actorId: 'domestic:ig_military', subject: '防衛費の折衝', text: '防衛を維持するための予算を協議したい。軍縮を進める場合も、指揮権の保障を求める。', urgency: 'urgent', choices }, { actorId: 'ministry:usa', subject: '通商の予備協議', text: '資源通商と極東の安定について協議する用意があります。条件をご提示ください。', urgency: 'important', choices }, { actorId: 'client:manchukuo', subject: '自治と開発', text: '開発資金の援助と、現地政府の裁量を確保したい。', urgency: 'important', choices }] });
@@ -84,6 +85,7 @@ function harness(provider = 'custom') {
   vm.runInContext(regionLabelsSource, context, { timeout: 4000 });
   for (const script of inlineScripts) if (script.trim()) vm.runInContext(script, context, { timeout: 4000 });
   vm.runInContext(eventsSource, context, { timeout: 4000 });
+  vm.runInContext(textSource, context, { timeout: 4000 });
   vm.runInContext(coreSource, context, { timeout: 4000 });
   vm.runInContext(timelineSource, context, { timeout: 4000 });
   vm.runInContext(playbackSource, context, { timeout: 4000 });
@@ -986,6 +988,124 @@ try {
     assert.ok(calendar.includes('年内の注目事件'), '年内注目節');
     assert.ok(calendar.includes('年内テスト事件'), 'YYYY精度の年内注目');
     assert.ok(calendar.includes('自動発生させない'), '分岐指示文');
+  });
+
+  await check('Wikipediaリンクは実在辞書だけを対象にし、新規タブで開く', async () => {
+    const { context } = harness();
+    const decorate = vm.runInContext('OrbisText.decorate', context);
+    const linked = decorate('ルーズベルトは満州事変の東京で演説し、蒋介石と会談した。');
+    assert.match(linked, /https:\/\/ja\.wikipedia\.org\/wiki\//);
+    assert.match(linked, /target="_blank"/);
+    assert.match(linked, /rel="noopener noreferrer"/);
+    assert.ok(linked.includes('>ルーズベルト</a>'));
+    assert.ok(linked.includes('>満州事変</a>'));
+    assert.ok(linked.includes('>東京</a>'));
+    assert.ok(linked.includes('>蒋介石</a>'));
+    const fictional = decorate('佐伯 修一は架空事件ゼータを起こした。');
+    assert.ok(!fictional.includes('wikipedia.org'));
+    assert.ok(fictional.includes('佐伯 修一'));
+    assert.ok(fictional.includes('架空事件ゼータ'));
+  });
+
+  await check('文章装飾はHTMLを先にエスケープし、スクリプトを挿入しない', async () => {
+    const { context } = harness();
+    const decorate = vm.runInContext('OrbisText.decorate', context);
+    const decorated = decorate('<script>alert(1)</script><img src=x onerror=alert(2)> ルーズベルト');
+    assert.ok(!decorated.includes('<script'));
+    assert.ok(!decorated.includes('<img'));
+    assert.ok(decorated.includes('&lt;script&gt;'));
+    assert.ok(decorated.includes('&lt;img'));
+    assert.ok(decorated.includes('&lt;/script&gt;'));
+    assert.match(decorated, /target="_blank"/);
+  });
+
+  await check('国名は国旗画像＋1932年正式名に正規化し、絵文字を使わない', async () => {
+    const { context } = harness();
+    const decorate = vm.runInContext('OrbisText.decorate', context);
+    const decorated = decorate('アメリカ合衆国と米国、ソ連、日本、満洲国、アトランティス。');
+    assert.ok(decorated.includes('./flags/USA.webp'));
+    assert.ok(decorated.includes('./flags/SOV.webp'));
+    assert.ok(decorated.includes('./flags/JAP.webp'));
+    assert.ok(decorated.includes('./flags/MAN.webp'));
+    assert.ok(decorated.includes('アメリカ合衆国'));
+    assert.ok(decorated.includes('ソビエト連邦'));
+    assert.ok(decorated.includes('大日本帝国'));
+    assert.ok(decorated.includes('満洲国'));
+    assert.ok(!/[\u{1F1E6}-\u{1F1FF}]/u.test(decorated));
+    assert.ok(!decorated.includes('🇺'));
+    const flagless = vm.runInContext("OrbisText.countryMention('atlantis', 'アトランティス')", context);
+    assert.equal(flagless, 'アトランティス');
+    assert.ok(!flagless.includes('<span'));
+  });
+
+  await check('プロビンス情報は自国・他国・海洋で行動を出し分ける', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const own = api.provincePanelData('jp_kanto');
+    assert.ok(own);
+    assert.equal(own.isSea, false);
+    assert.equal(own.ownerId, 'japan');
+    assert.equal(own.ownerFormalName, '大日本帝国');
+    assert.ok(own.ownerLeader && own.ownerRegime);
+    assert.ok(own.canPolicy && own.canDefense);
+    assert.equal(own.canDiplomacy, false);
+    assert.ok(own.actions.some(action => action.id === 'policy'));
+
+    const foreign = api.provincePanelData('cn_beijing');
+    assert.ok(foreign);
+    assert.equal(foreign.ownerId, 'china');
+    assert.equal(foreign.ownerFormalName, '中華民国');
+    assert.ok(foreign.canDiplomacy);
+    assert.equal(foreign.canPolicy, false);
+    assert.equal(foreign.canDefense, false);
+    assert.ok(Number.isFinite(foreign.relationScore));
+    assert.ok(foreign.actions.some(action => action.id === 'diplomacy'));
+
+    const seaId = vm.runInContext("ORBIS_STATES_DB.find(region => region.isSea || region.type === 'sea' || region.isSeaZone)?.id", context);
+    assert.ok(seaId);
+    const sea = api.provincePanelData(seaId);
+    assert.ok(sea.isSea);
+    assert.equal(sea.canOwn, false);
+    assert.equal(sea.actions.length, 0);
+    assert.equal(sea.canPolicy, false);
+    assert.equal(sea.canDefense, false);
+    assert.ok(sea.description.includes('領有でき'));
+    assert.ok(sea.statusNote.includes('領有できません'));
+  });
+
+  await check('占領中プロビンスは元の領有国と戦争・和平の導線を返す', async () => {
+    const { api } = harness();
+    await begin(api);
+    const occupied = api.snapshot();
+    occupied.territories.cn_beijing = 'japan';
+    occupied.occupations.cn_beijing = 'china';
+    await api.restore(occupied);
+    let panel = api.provincePanelData('cn_beijing');
+    assert.equal(panel.occupied, true);
+    assert.equal(panel.originalOwnerId, 'china');
+    assert.equal(panel.originalOwnerName, '中華民国');
+    assert.ok(panel.statusNote.includes('占領中'));
+    assert.equal(api.declareWar('china', '満州情勢'), true);
+    panel = api.provincePanelData('cn_beijing');
+    assert.equal(panel.warActive, true);
+    assert.ok(panel.actions.some(action => action.id === 'war'));
+    assert.ok(panel.canWar);
+  });
+
+  await check('ロビーの球体ヒットテストは可視面の国だけを返し、海を選ばない', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(vm.runInContext("OrbisMapHit.lobbyNationForProvince('jp_kanto')", context), 'japan');
+    const tokyo = vm.runInContext('OrbisMapHit.lobbyNationAtLonLat(139.7, 35.7, state.states)', context);
+    assert.ok(tokyo);
+    assert.equal(tokyo.country, 'japan');
+    assert.equal(tokyo.stateId, 'jp_kanto');
+    assert.equal(vm.runInContext('OrbisMapHit.lobbyNationAtLonLat(-140, 0, state.states)', context), null);
+    assert.equal(vm.runInContext('OrbisMapHit.lobbyNationAtLonLat(0, 0, state.states)', context), null);
+    assert.equal(vm.runInContext('OrbisMapHit.isLonLatVisibleOnGlobe(0, 0, { lon: 0, lat: 0 })', context), true);
+    assert.equal(vm.runInContext('OrbisMapHit.isLonLatVisibleOnGlobe(180, 0, { lon: 0, lat: 0 })', context), false);
+    vm.runInContext("selectLobbyNation(OrbisMapHit.lobbyNationForProvince('jp_kanto'))", context);
+    assert.equal(vm.runInContext('state.lobbyNationId', context), 'japan');
   });
 
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
