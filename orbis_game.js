@@ -1056,7 +1056,7 @@ const Orbis = (() => {
       else if (stream) url = url.replace(':generateContent', ':streamGenerateContent?alt=sse');
       headers['x-goog-api-key'] = chosen.apiKey;
       body = { systemInstruction: { parts: [{ text: system }] }, contents: conversation.map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] })), generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens, responseMimeType: 'application/json' } };
-      if (chosen.model.startsWith('gemini-2.5-flash')) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      if (/gemini-2\.[05]|thinking/i.test(chosen.model)) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     } else if (chosen.provider === 'anthropic') {
       headers['x-api-key'] = chosen.apiKey;
       headers['anthropic-version'] = '2023-06-01';
@@ -1065,8 +1065,12 @@ const Orbis = (() => {
     } else {
       if (chosen.apiKey) headers.Authorization = `Bearer ${chosen.apiKey}`;
       body = { model: chosen.model, messages, stream: Boolean(stream) };
-      if (chosen.provider === 'openai') body.max_completion_tokens = maxTokens;
-      else body.max_tokens = maxTokens;
+      if (chosen.provider === 'openai') {
+        body.max_completion_tokens = maxTokens;
+        if (/^(o[134]|gpt-5)/.test(chosen.model)) body.reasoning_effort = 'low';
+      } else {
+        body.max_tokens = maxTokens;
+      }
       if (!/^(o[134]|gpt-5)/.test(chosen.model)) body.temperature = 0.7;
     }
     return { url, headers, body };
@@ -1309,6 +1313,48 @@ agenda、privateAgenda、style、redLine、現実の権限と自国の能力を�
 形式: {"reply":"本人の返電","stance":"agree|counter|refuse|consider","memory":"過去を引き継ぐ累積記憶","choices":[{"label":"返答案","text":"次に返せる具体的な文章"},{"label":"別案","text":"別の返答案"}]}`, context, validateReply, 2800);
   }
 
+  function filterRelevantLandStates(game, simState, conversations) {
+    const statesPool = simState?.states || [];
+    if (!statesPool.length) return [];
+    const conflictsList = Array.isArray(game.conflicts) ? game.conflicts : Object.values(game.conflicts || {});
+    const activeNations = new Set([
+      game.playerNationId,
+      ...conflictsList.map(c => c.attacker),
+      ...conflictsList.map(c => c.defender),
+      ...game.treaties.map(t => t.nationId),
+      ...(game.npcAgreements || []).flatMap(a => [a.a, a.b]),
+      ...Object.keys(game.territories || {}).map(id => statesPool.find(s => s.id === Number(id))?.country).filter(Boolean)
+    ]);
+    if (conversations) {
+      for (const act of conversations) {
+        if (!act?.actorId) continue;
+        const parts = act.actorId.split(':');
+        if (parts[0] === 'ministry' && parts[1]) activeNations.add(parts[1]);
+        if (act.actor?.nationId) activeNations.add(act.actor.nationId);
+      }
+    }
+    if (activeNations.size < 4 && game.relations?.[game.playerNationId]) {
+      const sorted = Object.entries(game.relations[game.playerNationId])
+        .filter(([id]) => id !== game.playerNationId)
+        .sort((a, b) => a[1] - b[1]);
+      for (const [nid] of sorted.slice(0, 2)) activeNations.add(nid);
+    }
+    const conflictStateIds = new Set(conflictsList.map(c => c.stateId));
+    const occupiedStateIds = new Set(Object.keys(game.territories || {}).map(Number));
+
+    return statesPool.filter(item => {
+      if (item.isSea || item.isSeaZone || item.type === 'sea') return false;
+      if (conflictStateIds.has(item.id) || occupiedStateIds.has(item.id) || item.fort >= 4 || (item.garrison && item.garrison.length > 0)) return true;
+      return activeNations.has(item.country);
+    }).map(item => ({
+      id: item.id,
+      owner: item.country,
+      name: regionLabel(item),
+      fort: item.fort || 0,
+      garrison: item.garrison?.length || 0
+    }));
+  }
+
   async function generateEvaluation(game) {
     const conversations = game.turnActions.map(action => ({ ...action, actor: actors[action.actorId], actorMemory: actorState(game, action.actorId).memory }));
     const unanswered = game.briefing.telegrams.filter(item => !game.turnActions.some(action => action.actorId === item.actorId));
@@ -1349,7 +1395,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
 "leadershipChanges":[{"nationId":"国家ID","leader":"実際に交代した新指導者"}],"memory":"世界の累積記憶"}
 例示した各配列は対象がなければ空配列。developmentsは最低2件、reasoningは最低1件必要。`;
     try {
-      return await structuredAI('RESOLUTION', `${prompt}\n出力はコンパクトなJSONのみ。空配列は[]、説明文は短文。トークン上限に収める。`, { ...worldContext(game), conversations, unanswered, actors: availableActors(game), landStates: state.states.filter(item => !item.isSea && !item.isSeaZone && item.type !== 'sea').map(item => ({ id: item.id, owner: item.country, name: regionLabel(item), fort: item.fort || 0, garrison: item.garrison?.length || 0 })) }, value => applyResolutionValidation(value, game), 10240, {
+      const landStates = filterRelevantLandStates(game, state, conversations);
+      return await structuredAI('RESOLUTION', `${prompt}\n出力はコンパクトなJSONのみ。空配列は[]、説明文は短文。トークン上限に収める。`, { ...worldContext(game), conversations, unanswered, actors: availableActors(game), landStates }, value => applyResolutionValidation(value, game), 6144, {
         coerce: value => coerceEvaluation(value, game),
         fallback: () => fallbackEvaluation(game),
       });
