@@ -1881,12 +1881,13 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   async function start(options = {}) {
     if (runtime.busy) return false;
     if (!hasConnection()) { openSettings(); return false; }
-    const nationId = options.nationId || state.lobbyNationId;
+    const nationId = options.nationId || state.lobbyNationId || 'japan';
     const difficulty = options.difficulty || $('campaign-difficulty')?.value || 'standard';
     const mandate = options.mandate || $('campaign-mandate')?.value || 'recovery';
     const maxTurns = resolveMaxTurns(options);
     if (!SCENARIOS.era_1932.nations[nationId] || !RULES[difficulty] || !['recovery', 'diplomacy', 'security'].includes(mandate) || !allowedMaxTurns(maxTurns)) throw new Error('キャンペーン設定が不正です。');
     if (campaign && !options.replace && typeof window.confirm === 'function' && !window.confirm('新しい歴史を始めます。現在の自動保存を置き換えますか？')) return false;
+    if (typeof exitLobbyMode === 'function') exitLobbyMode();
     campaign = createCampaign(nationId, difficulty, mandate, maxTurns);
     resetDesktop();
     actors = buildActors(campaign);
@@ -2867,6 +2868,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     runtime.actorId = '';
     syncWorld();
     centerPlayerMap();
+    if (typeof exitLobbyMode === 'function') exitLobbyMode();
     $('lobby-overlay')?.classList.add('hidden');
     render();
     if (campaign.phase === 'briefing' && hasConnection()) return retryBriefing();
@@ -2876,7 +2878,12 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
 
   async function resume() {
     if (runtime.busy) return false;
-    if (campaign) { $('lobby-overlay')?.classList.add('hidden'); render(); return true; }
+    if (campaign) {
+      if (typeof exitLobbyMode === 'function') exitLobbyMode();
+      $('lobby-overlay')?.classList.add('hidden');
+      render();
+      return true;
+    }
     if (!runtime.saved) return false;
     try { return await activateSave(runtime.saved); }
     catch (error) { toast(`再開できません。${error.message}`); return false; }
@@ -2916,6 +2923,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     closeDialog('game-ending');
     state.lobbyNationId = campaign?.playerNationId || state.lobbyNationId;
     $('lobby-overlay')?.classList.remove('hidden');
+    if (typeof enterLobbyMode === 'function') enterLobbyMode();
     renderLobbyNationsGrid();
     renderResumeButton();
   }

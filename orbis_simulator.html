@@ -1173,21 +1173,122 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .text-button { background: none; border: 0; color: #2f6db8; font-size: 11px; cursor: pointer; padding: 6px 2px; }
 .brand-slash { color: #2f6db8; }
 .brand-year { font: 500 22px var(--font-mono); color: #6c829c; margin-left: 8px; }
-.lobby-step-num { color: #fff; }
-.lobby-overlay { background: #eef4fb; padding: 30px 24px; }
-.lobby-container { max-width: 1160px; gap: 20px; }
-.lobby-header { align-items: flex-start; text-align: left; gap: 10px; }
-.lobby-title { font-size: 30px; letter-spacing: -.04em; }
-.lobby-subtitle { font-size: 13px; max-width: 760px; line-height: 1.9; }
-#lobby-api-banner { max-width: none !important; border-color: #d3dfec !important; background: #ffffff !important; padding: 12px 16px !important; }
+.lobby-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  background: linear-gradient(90deg, rgba(238, 244, 251, 0.96) 0%, rgba(238, 244, 251, 0.92) 520px, rgba(238, 244, 251, 0.4) 800px, rgba(238, 244, 251, 0.05) 100%);
+  pointer-events: none;
+  overflow: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+.lobby-overlay.hidden { display: none !important; }
+.lobby-container {
+  max-width: 580px;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.88);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(217, 228, 240, 0.85);
+  box-shadow: 6px 0 32px rgba(15, 30, 60, 0.12);
+}
+@media (max-width: 920px) {
+  .lobby-overlay {
+    flex-direction: column;
+    background: rgba(238, 244, 251, 0.95);
+    overflow-y: auto;
+    pointer-events: auto;
+  }
+  .lobby-container {
+    max-width: 100%;
+    height: auto;
+    border-right: none;
+    box-shadow: none;
+    background: transparent;
+    backdrop-filter: none;
+  }
+}
+@media (min-width: 921px) {
+  body.in-lobby #orbis-world-svg {
+    transform: translateX(min(220px, 15vw));
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+@keyframes lobby-nation-glow {
+  0%, 100% {
+    filter: brightness(1.22) saturate(1.2) drop-shadow(0 0 8px rgba(56, 189, 248, 0.8));
+    stroke: #38bdf8;
+    stroke-width: 2.2px;
+  }
+  50% {
+    filter: brightness(1.4) saturate(1.35) drop-shadow(0 0 16px rgba(56, 189, 248, 1));
+    stroke: #0284c7;
+    stroke-width: 2.6px;
+  }
+}
+.prov-path.lobby-highlighted {
+  animation: lobby-nation-glow 2.4s ease-in-out infinite !important;
+  opacity: 1 !important;
+  stroke: #38bdf8 !important;
+  stroke-width: 2.4px !important;
+  paint-order: fill stroke !important;
+}
+body.in-lobby.nation-selected .prov-path:not(.lobby-highlighted):not(.sea-zone-path) {
+  opacity: 0.42;
+  transition: opacity 0.35s ease;
+}
+body.in-lobby:not(.nation-selected) .prov-path {
+  opacity: 1;
+  transition: opacity 0.35s ease;
+}
+.map-label.lobby-highlighted-label {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  fill: #0c4a6e !important;
+  stroke: #ffffff !important;
+  stroke-width: 4px !important;
+  paint-order: stroke fill !important;
+  opacity: 1 !important;
+}
+body.in-lobby.nation-selected .map-label:not(.lobby-highlighted-label) {
+  opacity: 0.25 !important;
+  transition: opacity 0.35s ease;
+}
+body.in-lobby .map-filter-bar,
+body.in-lobby .map-zoom-controls {
+  opacity: 0.35;
+  pointer-events: auto;
+  transition: opacity 0.25s ease;
+}
+body.in-lobby .map-filter-bar:hover,
+body.in-lobby .map-zoom-controls:hover {
+  opacity: 1;
+}
+.lobby-header { align-items: flex-start; text-align: left; gap: 8px; }
+.lobby-title { font-size: 26px; letter-spacing: -.03em; }
+.lobby-subtitle { font-size: 12.5px; max-width: 520px; line-height: 1.6; }
+#lobby-api-banner { max-width: none !important; border-color: #d3dfec !important; background: #ffffff !important; padding: 10px 14px !important; }
 .lobby-nation-card { background: #ffffff; border: 1px solid #d9e4f0; text-align: left; }
 .lobby-nation-card:hover { background: #f2f7fc; transform: none; }
-.lobby-nation-card.selected { box-shadow: none; border-color: #2f6db8; background: #eaf2fb; }
-.lobby-nations-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-.lobby-footer { background: #ffffff; border-color: #d3dfec; gap: 20px; }
+.lobby-nation-card.selected { box-shadow: 0 0 0 2px #2f6db8; border-color: #2f6db8; background: #eaf2fb; }
+.lobby-nations-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.lobby-footer { background: #ffffff; border-color: #d3dfec; gap: 14px; }
 .lobby-resume { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--text-muted); font-size: 11px; }
-.campaign-options { display: grid; grid-template-columns: 1fr 1fr 140px; gap: 14px; }
-.campaign-options label { color: var(--text-muted); font-size: 11px; display: grid; gap: 6px; }
+.campaign-options { display: grid; grid-template-columns: 1fr 1fr 140px; gap: 10px; }
+.campaign-options label { color: var(--text-muted); font-size: 11px; display: grid; gap: 5px; }
 .filter-group-box { flex-wrap: wrap; background: #ffffff; border-color: #d3dfec; }
 .os-shell { height: 100dvh; width: 100%; }
 .os-shell { position: relative; isolation: isolate; }
@@ -3613,7 +3714,7 @@ const FLASHPOINT_DECISIONS = {
  */
 
 const state = {
-  lobbyNationId: 'japan',
+  lobbyNationId: null,
   lobbyRegionFilter: 'all',
   playerNationId: 'japan',
   year: 1932,
@@ -3624,7 +3725,7 @@ const state = {
   selectedStateId: 'jp_kanto',
 
   mapMode: 'country',
-  mapProjection: 'flat',
+  mapProjection: 'globe',
   globe: {
     lon: 135,
     lat: 32,
@@ -3648,6 +3749,186 @@ const state = {
   relations: {},
   states: []
 };
+
+let lobbySpinAnimationId = null;
+let isTransitioningCamera = false;
+
+function isLobbyOpen() {
+  if (typeof document === 'undefined') return false;
+  if (!document.body?.classList?.contains('in-lobby')) return false;
+  const overlay = document.getElementById('lobby-overlay');
+  return Boolean(!overlay || !overlay.classList?.contains('hidden'));
+}
+
+function startLobbyGlobeSpin() {
+  if (typeof requestAnimationFrame !== 'function') return;
+  if (lobbySpinAnimationId) return;
+  function spin() {
+    if (!isLobbyOpen() || state.lobbyNationId || state.mapTransform.isDragging || isTransitioningCamera) {
+      lobbySpinAnimationId = null;
+      return;
+    }
+    if (state.mapProjection === 'globe') {
+      state.globe.lon = (state.globe.lon + 0.22 + 360) % 360;
+      updateMapVisualsLite();
+    }
+    lobbySpinAnimationId = requestAnimationFrame(spin);
+  }
+  lobbySpinAnimationId = requestAnimationFrame(spin);
+}
+
+function stopLobbyGlobeSpin() {
+  if (lobbySpinAnimationId) {
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(lobbySpinAnimationId);
+    lobbySpinAnimationId = null;
+  }
+}
+
+function flyGlobeTo(targetLon, targetLat, targetZoom = 1.2, durationMs = 700, onComplete) {
+  if (state.mapProjection !== 'globe') {
+    state.mapProjection = 'globe';
+    resetMapTransformForProjection();
+  }
+  isTransitioningCamera = true;
+  stopLobbyGlobeSpin();
+
+  const startLon = ((state.globe.lon % 360) + 360) % 360;
+  const tLon = ((targetLon % 360) + 360) % 360;
+  let dLon = tLon - startLon;
+  if (dLon > 180) dLon -= 360;
+  if (dLon < -180) dLon += 360;
+
+  const startLat = state.globe.lat;
+  const clampedTargetLat = clamp(targetLat, -70, 70);
+  const dLat = clampedTargetLat - startLat;
+
+  const startZoom = state.globe.zoom;
+  const dZoom = targetZoom - startZoom;
+
+  if (typeof requestAnimationFrame !== 'function') {
+    state.globe.lon = (targetLon + 360) % 360;
+    state.globe.lat = clampedTargetLat;
+    state.globe.zoom = targetZoom;
+    isTransitioningCamera = false;
+    updateMapVisuals();
+    if (onComplete) onComplete();
+    return;
+  }
+
+  const startTime = (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now();
+
+  function step(now) {
+    const elapsed = (now || Date.now()) - startTime;
+    const t = Math.min(1, elapsed / durationMs);
+    const ease = 1 - Math.pow(1 - t, 3);
+
+    state.globe.lon = (startLon + dLon * ease + 360) % 360;
+    state.globe.lat = startLat + dLat * ease;
+    state.globe.zoom = startZoom + dZoom * ease;
+
+    updateMapVisualsLite();
+
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      state.globe.lon = (targetLon + 360) % 360;
+      state.globe.lat = clampedTargetLat;
+      state.globe.zoom = targetZoom;
+      isTransitioningCamera = false;
+      updateMapVisuals();
+      if (onComplete) onComplete();
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
+function flyGlobeToNation(nationId) {
+  const anchors = window.ORBIS_MAP_META?.countryAnchors || {};
+  const capitals = window.ORBIS_MAP_META?.capitals || {};
+  let targetLon = 135;
+  let targetLat = 32;
+
+  const anchor = anchors[nationId];
+  const cap = capitals[nationId];
+  if (anchor && Number.isFinite(anchor.lon) && Number.isFinite(anchor.lat)) {
+    targetLon = anchor.lon;
+    targetLat = anchor.lat;
+  } else if (cap && Number.isFinite(cap[0]) && Number.isFinite(cap[1])) {
+    targetLon = cap[0];
+    targetLat = cap[1];
+  } else {
+    const p = state.states.find(s => s.country === nationId && !s.isSea);
+    if (p) { targetLon = p.lon; targetLat = p.lat; }
+  }
+
+  const zoomLevels = { russia: 1.05, canada: 1.05, usa: 1.15, brazil: 1.15, china: 1.15, australia: 1.15 };
+  const targetZoom = zoomLevels[nationId] || 1.22;
+
+  applyLobbyHighlights();
+  flyGlobeTo(targetLon, targetLat, targetZoom, 700, () => {
+    updateMapVisuals();
+  });
+}
+
+function applyLobbyHighlights() {
+  const targetCountry = (isLobbyOpen() && state.lobbyNationId) ? state.lobbyNationId : null;
+  document.body?.classList?.toggle('nation-selected', Boolean(targetCountry));
+  if (!state.states?.length) return;
+  for (const s of state.states) {
+    const el = document.getElementById(`prov-${s.id}`);
+    if (!el) continue;
+    const isHigh = Boolean(targetCountry && s.country === targetCountry);
+    el.classList?.toggle('lobby-highlighted', isHigh);
+  }
+}
+
+function selectLobbyNation(id) {
+  if (!id) return;
+  state.lobbyNationId = id;
+  renderLobbyNationsGrid();
+  updateLobbySelectedSummary();
+  flyGlobeToNation(id);
+}
+
+function deselectLobbyNation() {
+  state.lobbyNationId = null;
+  renderLobbyNationsGrid();
+  updateLobbySelectedSummary();
+  applyLobbyHighlights();
+  updateMapVisuals();
+  startLobbyGlobeSpin();
+}
+
+function enterLobbyMode() {
+  document.body?.classList?.add('in-lobby');
+  const overlay = document.getElementById('lobby-overlay');
+  if (overlay) overlay.classList?.remove('hidden');
+  state.mapProjection = 'globe';
+  const btnGlobe = document.getElementById('btn-proj-globe');
+  const btnFlat = document.getElementById('btn-proj-flat');
+  if (btnGlobe) btnGlobe.classList?.add('active');
+  if (btnFlat) btnFlat.classList?.remove('active');
+  resetMapTransformForProjection();
+
+  if (state.lobbyNationId) {
+    document.body?.classList?.add('nation-selected');
+    flyGlobeToNation(state.lobbyNationId);
+  } else {
+    document.body?.classList?.remove('nation-selected');
+    updateMapVisuals();
+    startLobbyGlobeSpin();
+  }
+}
+
+function exitLobbyMode() {
+  document.body?.classList?.remove('in-lobby', 'nation-selected');
+  const overlay = document.getElementById('lobby-overlay');
+  if (overlay) overlay.classList?.add('hidden');
+  stopLobbyGlobeSpin();
+  applyLobbyHighlights();
+  updateMapVisuals();
+}
 
 const svgPathCache = new Map();
 const MAP_ZOOM_FLAT_MIN = 0.55;
@@ -3698,6 +3979,7 @@ function initLobbyScreen() {
   });
 
   renderLobbyNationsGrid();
+  enterLobbyMode();
 }
 
 function renderLobbyNationsGrid() {
@@ -3746,9 +4028,11 @@ function renderLobbyNationsGrid() {
     `;
 
     card.addEventListener('click', () => {
-      state.lobbyNationId = id;
-      renderLobbyNationsGrid();
-      updateLobbySelectedSummary();
+      if (state.lobbyNationId === id) {
+        deselectLobbyNation();
+      } else {
+        selectLobbyNation(id);
+      }
     });
 
     grid.appendChild(card);
@@ -3759,7 +4043,28 @@ function renderLobbyNationsGrid() {
 
 function updateLobbySelectedSummary() {
   const sumEl = document.getElementById('lobby-selected-summary');
+  const startBtn = document.getElementById('btn-start-campaign');
   if (!sumEl) return;
+
+  if (!state.lobbyNationId) {
+    sumEl.innerHTML = `
+      <div style="font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:8px;">
+        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#2f6db8;"></span>
+        <span>担当する国家を世界地図またはリストから選択してください</span>
+      </div>
+    `;
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.title = '国家を選択してください';
+    }
+    return;
+  }
+
+  if (startBtn) {
+    startBtn.disabled = false;
+    startBtn.title = '';
+  }
+
   const n = SCENARIOS.era_1932.nations[state.lobbyNationId];
   if (!n) return;
   const flagSvg = getCountryFlagSvg(state.lobbyNationId, true);
@@ -3767,15 +4072,23 @@ function updateLobbySelectedSummary() {
     <div style="display:flex; align-items:center; gap:10px;">
       ${flagSvg}
       <div>
-        <div style="font-size:13px; font-weight:700; color:var(--text-primary);">
-          選択中: ${n.name} （指導者: ${n.leader} / ${n.blocName || n.regime || '体制'}）
+        <div style="font-size:13px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+          <span>選択中: ${n.name}</span>
+          <button type="button" class="text-button" id="btn-lobby-deselect" style="font-size:11px; color:#2f6db8; text-decoration:underline;">解除</button>
         </div>
-        <div style="font-size:11.5px; color:var(--text-secondary); max-width:620px;">
+        <div style="font-size:11px; color:var(--text-muted); line-height:1.35; margin-top:2px;">
+          指導者: <strong>${n.leader}</strong> (${n.blocName || n.regime || '体制'})
+        </div>
+        <div style="font-size:11.5px; color:var(--text-secondary); max-width:520px; margin-top:2px; line-height:1.4;">
           ${n.aiAgenda}
         </div>
       </div>
     </div>
   `;
+  document.getElementById('btn-lobby-deselect')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    deselectLobbyNation();
+  });
 }
 
 // ==========================================================================
@@ -4179,8 +4492,11 @@ function updateMapVisuals() {
     const ariaLabel = `${regionTitle} · ${state.nations[s.country]?.name || s.country}${occupied ? '（占領）' : ''}`;
     if (el.getAttribute('aria-label') !== ariaLabel) el.setAttribute('aria-label', ariaLabel);
 
-    el.classList.toggle('selected', s.id === state.selectedStateId);
-    el.classList.toggle('player-owned', s.country === state.playerNationId);
+    const isLobby = isLobbyOpen();
+    const isLobbyHighlighted = Boolean(isLobby && state.lobbyNationId && s.country === state.lobbyNationId);
+    el.classList.toggle('lobby-highlighted', isLobbyHighlighted);
+    el.classList.toggle('selected', !isLobby && s.id === state.selectedStateId);
+    el.classList.toggle('player-owned', !isLobby && s.country === state.playerNationId);
     el.classList.toggle('at-war', Boolean(state.activeConflicts?.[s.id]));
   });
 
@@ -4189,6 +4505,7 @@ function updateMapVisuals() {
       labelsLayer.innerHTML = '';
       mapLabelPool.clear();
     } else {
+      const isLobby = isLobbyOpen();
       // HOI4-style: country names keep a constant screen size and gradually fade out when zoomed in.
       const fadeStart = isGlobe ? 2.2 : 3;
       const fadeEnd = isGlobe ? 4.5 : 7;
@@ -4217,16 +4534,25 @@ function updateMapVisuals() {
         const cy = pt?.visible ? pt.y : (box.minY + box.maxY) / 2;
         const span = Math.max(box.maxX - box.minX, box.maxY - box.minY);
         return { country, cx, cy, span, ll: anchor ? [anchor.lon, anchor.lat] : null };
-      }).sort((a, b) => ((state.nations[b.country].isMajor ? 1 : 0) - (state.nations[a.country].isMajor ? 1 : 0)) || (b.span - a.span));
+      }).sort((a, b) => {
+        if (isLobby && state.lobbyNationId) {
+          if (a.country === state.lobbyNationId) return -1;
+          if (b.country === state.lobbyNationId) return 1;
+        }
+        return ((state.nations[b.country].isMajor ? 1 : 0) - (state.nations[a.country].isMajor ? 1 : 0)) || (b.span - a.span);
+      });
 
       for (const g of countryOp < 0.03 ? [] : entries) {
         const label = COUNTRY_LABEL_NAMES[g.country] || (state.nations[g.country].name || g.country).split(/[（(・]/)[0];
-        const font = Math.min(16, Math.max(10.5, 0.2 * g.span)) * invZoom;
+        const isSelectedNation = isLobby && (g.country === state.lobbyNationId);
+        const font = (isSelectedNation ? Math.min(20, Math.max(13, 0.24 * g.span)) : Math.min(16, Math.max(10.5, 0.2 * g.span))) * invZoom;
         const hw = label.length * font * 0.58;
         const hh = font * 0.66;
         if (!fits(g.cx, g.cy, hw, hh)) continue;
         placed.push({ x: g.cx, y: g.cy, hw, hh });
-        wanted.set(`c:${g.country}`, { text: label, x: g.cx, y: g.cy, font, op: countryOp, cls: 'map-label-country', ll: g.ll });
+        const labelCls = isSelectedNation ? 'map-label-country lobby-highlighted-label' : 'map-label-country';
+        const labelOp = isSelectedNation ? 1 : (isLobby && state.lobbyNationId ? 0.35 : countryOp);
+        wanted.set(`c:${g.country}`, { text: label, x: g.cx, y: g.cy, font, op: labelOp, cls: labelCls, ll: g.ll });
       }
 
       if (zoomFactor >= 1.35) {
@@ -4409,6 +4735,17 @@ function handleStateSelect(stateId) {
   const s = state.states.find(st => st.id === stateId);
   if (!s) return;
 
+  if (isLobbyOpen()) {
+    if (s.country && SCENARIOS.era_1932.nations[s.country]) {
+      if (state.lobbyNationId === s.country) {
+        deselectLobbyNation();
+      } else {
+        selectLobbyNation(s.country);
+      }
+      return;
+    }
+  }
+
   renderStateInspector(s);
   updateMapVisuals();
 }
@@ -4519,6 +4856,7 @@ function initPanZoom() {
   };
   viewport.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
+    if (isLobbyOpen()) stopLobbyGlobeSpin();
     activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     viewport.setPointerCapture(e.pointerId);
     if (activePointers.size === 1) {
@@ -4582,6 +4920,7 @@ function initPanZoom() {
       const wasDragging = state.mapTransform.isDragging;
       state.mapTransform.isDragging = false;
       if (wasDragging && state.mapProjection === 'globe') window.scheduleMapVisuals();
+      if (isLobbyOpen() && !state.lobbyNationId) startLobbyGlobeSpin();
     }
     if (viewport.hasPointerCapture(e.pointerId)) viewport.releasePointerCapture(e.pointerId);
   };
@@ -4593,6 +4932,7 @@ function initPanZoom() {
     if (state.mapProjection === 'globe') {
       state.globe.zoom = clamp(state.globe.zoom * factor, MAP_ZOOM_GLOBE_MIN, MAP_ZOOM_GLOBE_MAX);
       redraw();
+      if (isLobbyOpen() && !state.lobbyNationId && !lobbySpinAnimationId) startLobbyGlobeSpin();
     } else {
       state.mapTransform.scale = clamp(state.mapTransform.scale * factor, MAP_ZOOM_FLAT_MIN, MAP_ZOOM_FLAT_MAX);
       applyFlatTransform();
