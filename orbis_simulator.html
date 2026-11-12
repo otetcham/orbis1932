@@ -1714,8 +1714,8 @@ svg path:focus-visible,
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
-  <script src="orbis_states.js?v=1932.3" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
-  <script src="orbis_map_meta.js?v=1932.3" defer></script>
+  <script src="orbis_states.js?v=1932.4" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
+  <script src="orbis_map_meta.js?v=1932.4" defer></script>
 </head>
 <body>
 
@@ -1748,7 +1748,7 @@ svg path:focus-visible,
           <div class="lobby-section-label">
             <span class="lobby-step-num">1932年3月1日</span>
             <span>担当する国家を選ぶ</span>
-            <span id="orbis-build-version" style="font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:var(--cyan-bright); margin-left:6px; letter-spacing:0.5px;">Rev 1932.3</span>
+            <span id="orbis-build-version" style="font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:var(--cyan-bright); margin-left:6px; letter-spacing:0.5px;">Rev 1932.4</span>
           </div>
           <div class="filter-group-box">
             <button class="filter-btn active" data-lobby-region="all">全32カ国</button>
@@ -2503,8 +2503,8 @@ const SCENARIOS = {
         name: '中華民国 (南京国民政府)', bloc: 'versailles', blocName: '国際連盟・抗日統一模索',
         leader: '蔣介石 軍事委員会委員長 / 汪兆銘 行政院長', ministry: '国民政府外交部',
         mil: 72, eco: 58, stb: 56, tech: 55, gdpText: '$11.2B',
-        aiAgenda: '「安内攘外」による国内統一・ドイツ軍事顧問団を通じた中央軍近代化・満洲失地回復',
-        summary: '満洲事変と第一次上海事変の衝撃の中、蔣介石と汪兆銘の合作政権が発足。地方軍閥や紅軍との内戦を抱えつつ、米英独からの借款と武器輸入で近代化を急ぐ。',
+        aiAgenda: '「安内攘外」による国内統一（瑞金包囲・地方軍閥統制）・上海事変停戦と洛陽臨時首都運営・満洲失地回復模索',
+        summary: '満洲事変と第一次上海事変（停戦交渉中）の国難下、蔣介石・汪兆銘の合作体制で洛陽への遷都準備を進める。瑞金の中央ソビエト区（紅軍）包囲と地方軍閥割拠を抱えつつ、米英独からの借款で国防近代化を急ぐ。',
         interestGroups: [
           { id: 'ig_military', name: '黄埔系中央軍・地方軍閥', influence: 40, approval: 62, demand: 'ドイツ式装備の導入と軍備拡充', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍閥割拠' },
           { id: 'ig_industrialists', name: '江浙財閥・宋子文金融資本', influence: 25, approval: 65, demand: '銀本位制改革（法幣導入）と上海関税収入の確保', bonusText: '支持70%+: 経済+6' },
@@ -2521,10 +2521,10 @@ const SCENARIOS = {
       manchukuo: {
         id: 'manchukuo', code: 'MAN', region: '東アジア・太平洋', isMajor: false,
         name: '満洲国 (奉天・新京政権)', bloc: 'revisionist', blocName: '日満経済ブロック',
-        leader: '愛新覚羅 溥儀 執政 / 駒井 徳三 総務長官', ministry: '満洲国外交部・関東軍司令部',
+        leader: '愛新覚羅溥儀 執政（3月9日就任） / 駒井徳三 総務長官', ministry: '満洲国外交部・関東軍司令部',
         mil: 68, eco: 64, stb: 58, tech: 66, gdpText: '¥1.8B',
-        aiAgenda: '満洲重工業開発（五ヶ年計画）の推進と国際承認の獲得・北満鉄道の買収',
-        summary: '1932年3月に建国宣言された新興国家。鞍山製鉄所や撫順炭鉱など豊富な石炭・鉄鉱資源と満鉄網を有し、日満経済ブロックの重工業拠点として急速な開発が進む。',
+        aiAgenda: '3月1日建国宣言後の機構整備・日満議定書締結準備と治安確立・重工業開発',
+        summary: '1932年3月1日に建国宣言された新興国家。愛新覚羅溥儀の執政就任（3月9日予定）を控え、日満議定書による防衛・資源開発体制を急ぎ構築する。鞍山製鉄所や撫順炭鉱など豊富な石炭・鉄鉱資源と満鉄網を擁する。',
         interestGroups: [
           { id: 'ig_military', name: '関東軍参謀部・満洲国軍', influence: 45, approval: 75, demand: '治安粛正と対ソ国境要塞の建設', bonusText: '支持70%+: 軍事+6' },
           { id: 'ig_industrialists', name: '満鉄（南満洲鉄道）・満洲炭鉱・昭和製鉄所', influence: 30, approval: 70, demand: '重化学工業・鉄道網への集中投資', bonusText: '支持70%+: 鉱物・工業生産+15%' },
@@ -2532,7 +2532,7 @@ const SCENARIOS = {
           { id: 'ig_labor', name: '五族協和会・開拓農民・労働者', influence: 10, approval: 52, demand: '大豆価格の安定と民生治安の改善', bonusText: '支持70%+: 経済+4' }
         ],
         cabinet: [
-          { role: '執政', name: '愛新覚羅 溥儀', trait: '旧清朝正統性・北方民族融和' },
+          { role: '執政', name: '愛新覚羅溥儀', trait: '旧清朝正統性・北方民族融和' },
           { role: '国務総理', name: '鄭孝胥', trait: '王道楽土構想・行政機構整備' },
           { role: '関東軍司令官', name: '本庄 繁 / 武藤 信義', trait: '日満議定書・国境防衛+25%' }
         ]
@@ -2563,7 +2563,7 @@ const SCENARIOS = {
         name: 'アメリカ合衆国', bloc: 'democratic', blocName: 'モンロー主義・民主主義陣営',
         leader: 'ハーバート・フーヴァー 大統領 (1932年11月大統領選)', ministry: '米国務省 (スチムソン国務長官)',
         mil: 82, eco: 88, stb: 58, tech: 94, gdpText: '$58.7B',
-        aiAgenda: '大恐慌からの経済再建（ニューディール）とスチムソン・ドクトリンによる現状変更不承認',
+        aiAgenda: '復興金融公社（RFC）を通じた恐慌対策と国内経済の再建・スチムソン・ドクトリンによる現状変更不承認',
         summary: '世界最大の工業力と石油資源を持つが、失業率24%の大恐慌に苦しむ。1932年11月の大統領選でフーヴァーかF.D.ルーズベルトかの選択を迎え、孤立主義議会と国際関与の間で揺れる。',
         interestGroups: [
           { id: 'ig_industrialists', name: 'ウォール街金融街・五大湖巨大企業', influence: 35, approval: 54, demand: '金融システムの救済と海外市場の確保', bonusText: '支持70%+: 経済+8 / 不満35%以下: 銀行恐慌再発' },
@@ -2703,8 +2703,8 @@ const SCENARIOS = {
         name: 'ウルグアイ東方共和国', bloc: 'neutral', blocName: 'ラ・プラタ通商・福祉先進国',
         leader: 'ガブリエル・テラ 大統領', ministry: 'モンテビデオ外務省',
         mil: 54, eco: 60, stb: 72, tech: 60, gdpText: '$0.5B',
-        aiAgenda: '羊毛・牛肉輸出と隣国アルゼンチン・ブラジルとの均衡、1930年モンテビデオ会議の外交遺産',
-        summary: '南米随一の教育・社会福祉先進国。ブラジルとアルゼンチンの緩衝国として、米国主導のモンテビデオ会議 (1930) で米州平和条約を主催した外交伝統を持つ。',
+        aiAgenda: '羊毛・牛肉輸出と隣国アルゼンチン・ブラジルとの均衡、1933年モンテビデオ会議（第7回パン・アメリカ会議）の開催準備',
+        summary: '南米随一の教育・社会福祉先進国。ブラジルとアルゼンチンの緩衝国として、不干渉原則を打ち立てる1933年モンテビデオ会議（第7回パン・アメリカ会議）の開催に向けた外交伝統を持つ。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
           { role: '大統領', name: 'G.テラ', trait: '牧牛経済安定・バタービーフ輸出' }
@@ -2797,13 +2797,13 @@ const SCENARIOS = {
       panama: {
         id: 'panama', code: 'PAN', region: '南北アメリカ', isMajor: false,
         name: 'パナマ共和国', bloc: 'neutral', blocName: '世界の運河・中立化条約国',
-        leader: 'リカルド・J・アルファロ 大統領', ministry: 'パナマシティ外務省',
+        leader: 'リカルド・ホアキン・アルファロ 大統領', ministry: 'パナマシティ外務省',
         mil: 46, eco: 52, stb: 58, tech: 50, gdpText: '$0.15B',
         aiAgenda: 'パナマ運河中立化条約の維持と米国領運河地帯との共存',
         summary: '世界貿易の大動脈「パナマ運河」の主権国。米国との条約体制下で運河の永久中立化が確定しており、米国艦隊と共生する世界戦略の要衝。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
-          { role: '大統領', name: 'リカルド・J・アルファロ', trait: '運河権益交渉・対米協調 (+外交)' }
+          { role: '大統領', name: 'リカルド・ホアキン・アルファロ', trait: '運河権益交渉・対米協調 (+外交)' }
         ]
       },
       haiti: {
@@ -3029,11 +3029,11 @@ const SCENARIOS = {
       },
       austria: {
         id: 'austria', code: 'AUT', region: 'ヨーロッパ', isMajor: false,
-        name: 'オーストリア連邦国', bloc: 'neutral', blocName: 'ドナウ経済圏・独立防衛派',
+        name: 'オーストリア共和国 (第一共和国)', bloc: 'neutral', blocName: 'ドナウ経済圏・独立防衛派',
         leader: 'カール・ブレシュ 首相', ministry: 'ウィーン外務省',
         mil: 62, eco: 62, stb: 58, tech: 74, gdpText: '$1.9B',
         aiAgenda: '関税同盟問題の収拾、ドイツ併合運動とイタリア独立保証の板挟み、金融再建',
-        summary: '1931年独オーストリア関税同盟構想が仏により潰され、銀行恐慌 (クレジットアンシュタルト) で経済が疲弊。ウィーンのナチ党勢力とイタリアの独立保証がせめぎ合う中、7月にドルフス内閣へ交代する。',
+        summary: '1931年独オーストリア関税同盟構想が仏により潰され、銀行恐慌（クレジットアンシュタルト）で経済が疲弊。5月にエンゲルベルト・ドルフース内閣へ交代を控え、ナチス併合運動とイタリア独立保証の間で揺れる。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
           { role: '首相', name: 'カール・ブレシュ', trait: '金融再建・独立維持 (+安定)' },
@@ -3194,7 +3194,7 @@ const SCENARIOS = {
         name: 'ベルギー王国', bloc: 'versailles', blocName: 'ロカルノ保証・コンゴ鉱物圏',
         leader: 'ジュル・レンキン 首相', ministry: 'ブリュッセル外務省',
         mil: 68, eco: 78, stb: 74, tech: 80, gdpText: '$2.9B',
-        aiAgenda: 'ロカルノ条約保证体系の死守とエバン・エマール要塞の増強、コンゴのウラン・銅鉱物',
+        aiAgenda: 'ロカルノ条約保証体系の死守とエバン・エマール要塞の建設推進（1932年4月着工予定）・コンゴ鉱物資源の保全',
         summary: 'ヴェルサイユ条約でエウペン・マルメディを獲得した「要塞中立国」。世界最大級のコンゴ鉱物圏 (銅・ウラン・ダイヤ) を擁し、英仏の保証とアントワープ港で外交と通商の結節点となる。',
         interestGroups: createDefaultInterestGroups('versailles'),
         cabinet: [
@@ -3230,14 +3230,17 @@ const SCENARIOS = {
       turkey: {
         id: 'turkey', code: 'TUR', region: '中東・アフリカ', isMajor: false,
         name: 'トルコ共和国', bloc: 'neutral', blocName: 'ケマル主義・海峡中立圏',
-        leader: 'ガジ・ムスタファ・ケマル 大統領', ministry: 'アンカラ外務省 (アラス外相)',
+        leader: 'ガーズィ・ムスタファ・ケマル 大統領', ministry: 'アンカラ外務省 (アラス外相)',
         mil: 72, eco: 66, stb: 80, tech: 68, gdpText: '$2.1B',
         aiAgenda: '世俗化・工業化五ヶ年計画の推進、1932年国際連盟加盟、ローザンヌ条約による海峡主権の完全回復',
-        summary: '建国の父ガジ・ムスタファ・ケマルのもとで急速な近代化を成し遂げ、1932年7月に国際連盟へ加盟。黒海と地中海を結ぶボスポラス海峡を握る地政学上の要衝。',
+        summary: '建国の父ガーズィ・ムスタファ・ケマルのもとで急速な近代化を成し遂げ、1932年7月に国際連盟へ加盟。黒海と地中海を結ぶボスポラス海峡を握る地政学上の要衝。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
-          { role: '初代大統領', name: 'ガジ・ムスタファ・ケマル', trait: '六本の矢（近代化改革）・国家威信+15%' },
-          { role: '首相', name: 'イスメト・イノニュ', trait: '武装中立・海峡主権外交' }
+          { role: '初代大統領', name: 'ガーズィ・ムスタファ・ケマル', trait: '六本の矢（近代化改革）・国家威信+15%' },
+          { role: '首相', name: 'イスメト・パシャ', trait: '武装中立・海峡主権外交' },
+          { role: '参謀総長', name: 'フェヴズィ・パシャ', trait: '陸海軍近代化・海峡防衛' },
+          { role: '外務大臣', name: 'テヴフィク・リュシュテュ・ベイ', trait: '国際連盟加盟交渉・バルカン協約' },
+          { role: '経済指導者', name: 'マフムト・ジェラル・ベイ', trait: '国営工業化・エティバンク創設' }
         ]
       },
       iran: {
@@ -3249,7 +3252,8 @@ const SCENARIOS = {
         summary: '1932年11月、レザー・シャーが英国との不平等な石油利権契約（ダーシー利権）の破棄・再交渉に踏み切る歴史的瞬間。アバダン大製油所を擁する中東最大の産油国。',
         interestGroups: createDefaultInterestGroups('neutral'),
         cabinet: [
-          { role: '皇帝 (シャー)', name: 'レザー・シャー・パフラヴィー', trait: '石油利権改定・イラン縦貫鉄道建設' }
+          { role: '皇帝 (シャー)', name: 'レザー・シャー・パフラヴィー', trait: '石油利権改定・イラン縦貫鉄道建設' },
+          { role: '財務大臣', name: 'ペルシア財務大臣', trait: '石油利権再交渉・国庫収入確保' }
         ]
       },
       afghanistan: {
@@ -3266,7 +3270,7 @@ const SCENARIOS = {
       },
       saudi_arabia: {
         id: 'saudi_arabia', code: 'SAU', region: '中東・アフリカ', isMajor: false,
-        name: 'ヒジャーズ・ネジュド王国', bloc: 'neutral', blocName: 'アラビア半島独立王国',
+        name: 'ヒジャーズ・ネジュド王国（サウジアラビア）', bloc: 'neutral', blocName: 'アラビア半島独立王国',
         leader: 'アブドゥルアズィーズ・イブン・サウード 国王', ministry: 'リヤド・ジェッダ外務省',
         mil: 60, eco: 60, stb: 76, tech: 55, gdpText: '$0.8B',
         aiAgenda: '1932年9月の「サウジアラビア王国」建国統一と米国石油資本（SOCAL）への石油採掘権付与',
@@ -5609,12 +5613,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
-<script src="orbis_events.js?v=1932.3"></script>
-<script src="orbis_region_labels.js?v=1932.3"></script>
-<script src="orbis_campaign_core.js?v=1932.3"></script>
-<script src="orbis_timeline_engine.js?v=1932.3"></script>
-<script src="orbis_turn_playback.js?v=1932.3"></script>
-<script src="orbis_game.js?v=1932.3"></script>
+<script src="orbis_events.js?v=1932.4"></script>
+<script src="orbis_region_labels.js?v=1932.4"></script>
+<script src="orbis_campaign_core.js?v=1932.4"></script>
+<script src="orbis_timeline_engine.js?v=1932.4"></script>
+<script src="orbis_turn_playback.js?v=1932.4"></script>
+<script src="orbis_game.js?v=1932.4"></script>
 
 </body>
 </html>

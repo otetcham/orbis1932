@@ -2,21 +2,23 @@
 /**
  * Rebuild ORBIS_STATES_DB from Natural Earth admin-1 (data/raw/ne_admin1_build.geojson).
  *
- * Pipeline (topology preserving):
+ * Pipeline (topology preserving, 1932-03-01 historical borders):
  *   1. Every admin-1 feature is assigned a 1932 sovereign (ADM0 tables + polygon-level rules).
  *   2. All units go through TopoJSON so neighbouring borders share identical arcs
  *      (no gaps / overlaps), then are simplified once, globally.
  *   3. Provinces are merged down to per-country caps ONLY with topologically adjacent
- *      provinces (isolated islands fall back to the nearest same-country province).
+ *      provinces, while PROTECTED_KEYS (historical flashpoints, colonies, and enclaves)
+ *      are locked so they are never swallowed into mainland provinces.
  *   4. Merged provinces are dissolved with topojson.merge (no internal borders).
- * No admin-1 feature is dropped: every non-Antarctic land unit lands in some province.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import polylabel from 'polylabel';
 import turfArea from '@turf/area';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import distance from '@turf/distance';
-import { point } from '@turf/helpers';
+import turfDiff from '@turf/difference';
+import turfIntersect from '@turf/intersect';
+import { point, featureCollection, polygon } from '@turf/helpers';
 import { topology } from 'topojson-server';
 import { merge, neighbors } from 'topojson-client';
 import { presimplify, simplify } from 'topojson-simplify';
@@ -52,8 +54,8 @@ const BLOCS = {
     sudan: 'SDN SDS', east_africa: 'KEN UGA TZA', rhodesia: 'ZMB MWI ZWE', southern_africa: 'BWA LSO SWZ',
     west_africa: 'NGA GHA SLE GMB', malaya: 'MYS SGP BRN', ceylon: 'LKA', hongkong: 'HKG',
     pacific: 'FJI SLB VUT TON KIR TUV PCN',
-    caribbean: 'JAM BHS TTO BLZ TCA CYM BMU BRB LCA DMA GRD VCT ATG KNA MSR AIA VGB', guyana: 'GUY',
-    atlantic: 'FLK SHN SGS IOT SYC MUS MDV', england: 'JEY GGY IMN', somaliland: 'SOL',
+    caribbean: 'JAM BHS TTO BLZ TCA CYM BMU BRB LCA DMA GRD VCT ATG KNA MSR AIA VGB GUY FLK SHN SGS IOT SYC MUS MDV',
+    england: 'JEY GGY IMN', somaliland: 'SOL',
   },
   france: {
     fwa: 'SEN MLI MRT NER BFA CIV BEN GIN', fea: 'TCD CAF GAB COG', cameroons: 'CMR TGO', algeria: 'DZA',
@@ -89,10 +91,13 @@ const ISO_OVERRIDE = {
   'UA-07': ['poland', null], 'UA-56': ['poland', null], 'UA-46': ['poland', null], 'UA-61': ['poland', null],
   'UA-26': ['poland', null], 'UA-21': ['czechoslovakia', 'ruthenia'], 'UA-77': ['romania', 'bukovina'],
   'BG-08': ['romania', 'dobruja'], 'BG-19': ['romania', 'dobruja'], 'HR-18': ['italy', 'istria'],
-  'TR-31': ['france', 'levant'], 'CN-LN': ['manchukuo', null], 'CN-JL': ['manchukuo', null], 'CN-HL': ['manchukuo', null],
+  'TR-31': ['france', 'hatay'], 'DE-SL': ['germany', 'saar'], 'CA-NL': ['uk', 'newfoundland'],
+  'PY-19': ['bolivia', 'chaco_boreal'],
+  'CN-JL': ['manchukuo', null], 'CN-HL': ['manchukuo', null],
+  'CN-HI': ['china', 'cn_gd'],
 };
 const SOMALILAND = /Awdal|Woqooyi|Togdheer|Sanaag|Sool/i;
-const SPANISH_MOROCCO = /Tanger|T[ée]touan/i;
+const SPANISH_MOROCCO = /Tanger|T[ée]touan|Oriental|Taza|Hoceima|Nador/i;
 const SOV_FALLBACK = { // dependencies whose adm0 is not listed explicitly
   ATA: null,
 };
@@ -115,7 +120,7 @@ const KEY_NAMES = {
   libya: ['リビア', 'Libya'], eritrea: ['エリトリア', 'Eritrea'], somalia: ['イタリア領ソマリランド', 'Italian Somaliland'],
   sahara: ['スペイン領サハラ', 'Spanish Sahara'], suriname: ['スリナム', 'Suriname'], antilles: ['蘭領アンティル', 'Dutch Antilles'],
   greenland: ['グリーンランド', 'Greenland'], iceland: ['アイスランド', 'Iceland'], faroe: ['フェロー諸島', 'Faroe Islands'],
-  liberia: ['リベリア', 'Liberia'], empire_kor: ['朝鮮（南部）', 'Korea (South)'], empire_prk: ['朝鮮（北部）', 'Korea (North)'],
+  liberia: ['リベリア', 'Liberia'], empire_kor: ['朝鮮', 'Korea'], empire_prk: ['朝鮮（北部）', 'Korea (North)'],
   empire_twn: ['台湾', 'Taiwan'], empire_pacific: ['南洋群島', 'South Seas Mandate'], png: ['パプア・ニューギニア', 'Papua & New Guinea'],
   swa: ['南西アフリカ', 'South West Africa'], yemen: ['イエメン', 'Yemen'], uzbekistan: ['ウズベク', 'Uzbekistan'],
   turkmenistan: ['トルクメン', 'Turkmenistan'], tajikistan: ['タジク', 'Tajikistan'], kyrgyzstan: ['キルギス', 'Kyrgyzstan'],
@@ -129,6 +134,29 @@ const KEY_NAMES = {
   scotland: ['スコットランド', 'Scotland'], wales: ['ウェールズ', 'Wales'], england: ['イングランド', 'England'], northern_ireland: ['北アイルランド', 'Northern Ireland'],
   caribbean_usa: ['米領カリブ', 'US Caribbean'], phl_n: ['ルソン', 'Luzon'], phl_c: ['ビサヤ', 'Visayas'], phl_s: ['ミンダナオ', 'Mindanao'],
   ca_nt: ['ノースウェスト準州', 'Northwest Territories'], ulster: ['アルスター', 'Ulster'], connacht: ['コナハト', 'Connacht'], munster: ['マンスター', 'Munster'], leinster: ['レンスター', 'Leinster'],
+  // 1932 historical additions
+  suiyuan: ['綏遠省', 'Suiyuan'],
+  chahar: ['察哈爾省', 'Chahar'],
+  jehol: ['熱河省', 'Jehol'],
+  xingan: ['興安省', 'Hsingan'],
+  ruijin_soviet: ['中央ソビエト区（瑞金）', 'Ruijin Soviet'],
+  xikang: ['西康省', 'Xikang'],
+  empire_kwantung: ['関東州', 'Kwantung Leased Territory'],
+  guangzhouwan: ['広州湾', 'Guangzhouwan'],
+  karelia: ['カレリア（ヴィープリ）', 'Karelia (Viipuri)'],
+  petsamo: ['ペツァモ', 'Petsamo'],
+  wilno_nowogrodek: ['ヴィルノ・ノヴォグルデク', 'Wilno & Nowogródek'],
+  bessarabia_south: ['南ベッサラビア（ブジャク）', 'Southern Bessarabia (Budjak)'],
+  saar: ['ザール地方', 'Saar Territory'],
+  hatay: ['アレクサンドレッタ（ハタイ）', 'Sanjak of Alexandretta'],
+  sp_morocco: ['スペイン領モロッコ', 'Spanish Morocco'],
+  newfoundland: ['ニューファンドランド', 'Newfoundland'],
+  aden: ['アデン保護領', 'Aden Protectorate'],
+  chaco_boreal: ['チャコ・ボレアール', 'Chaco Boreal'],
+  cn_cq: ['四川省東部（重慶）', 'Chongqing (Eastern Sichuan)'],
+  cn_sc: ['四川省西部（成都）', 'Western Sichuan (Chengdu)'],
+  cn_jx: ['江西省北部（南昌）', 'Northern Jiangxi (Nanchang)'],
+  cn_gd: ['広東省', 'Guangdong'],
 };
 
 const LEGACY_ID_HINTS = [
@@ -183,6 +211,64 @@ function clipPolyLat(poly, cut, keepNorth) {
   const holes = poly.slice(1).map(h => clipRingLat(h, cut, keepNorth)).filter(Boolean);
   return [outer, ...holes];
 }
+// Sutherland-Hodgman clip of a closed ring against lon >= cut (keepEast) or lon <= cut.
+function clipRingLon(ring, cut, keepEast) {
+  const inside = p => (keepEast ? p[0] >= cut : p[0] <= cut);
+  const out = [];
+  const pts = ring.slice(0, -1);
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]; const b = pts[(i + 1) % pts.length];
+    const ia = inside(a); const ib = inside(b);
+    if (ia) out.push(a);
+    if (ia !== ib) {
+      const t = (cut - a[0]) / (b[0] - a[0]);
+      out.push([cut, a[1] + t * (b[1] - a[1])]);
+    }
+  }
+  if (out.length < 3) return null;
+  out.push(out[0]);
+  return out;
+}
+function clipPolyLon(poly, cut, keepEast) {
+  const outer = clipRingLon(poly[0], cut, keepEast);
+  if (!outer) return null;
+  const holes = poly.slice(1).map(h => clipRingLon(h, cut, keepEast)).filter(Boolean);
+  return [outer, ...holes];
+}
+function splitPolysLon(polys, cut) {
+  const west = [];
+  const east = [];
+  for (const poly of polys) {
+    const xs = poly[0].map(c => c[0]);
+    const lo = Math.min(...xs); const hi = Math.max(...xs);
+    if (hi <= cut) west.push(poly);
+    else if (lo >= cut) east.push(poly);
+    else {
+      const w = clipPolyLon(poly, cut, false);
+      const e = clipPolyLon(poly, cut, true);
+      if (w) west.push(w);
+      if (e) east.push(e);
+    }
+  }
+  return { west, east };
+}
+function splitPolysLat(polys, cut) {
+  const south = [];
+  const north = [];
+  for (const poly of polys) {
+    const ys = poly[0].map(c => c[1]);
+    const lo = Math.min(...ys); const hi = Math.max(...ys);
+    if (hi <= cut) south.push(poly);
+    else if (lo >= cut) north.push(poly);
+    else {
+      const s = clipPolyLat(poly, cut, false);
+      const n = clipPolyLat(poly, cut, true);
+      if (s) south.push(s);
+      if (n) north.push(n);
+    }
+  }
+  return { south, north };
+}
 
 /* ------------------------------------------------------------------ classification */
 function classifyFeature(f, stats) {
@@ -216,6 +302,148 @@ function classifyFeature(f, stats) {
     if (south.length) out.push({ country: 'japan', key: 'empire_rus_11_6', polys: south });
     return out;
   }
+
+  // Finland: Petsamo from Murmansk (RU-MUR, west of 31.65E)
+  if (iso === 'RU-MUR') {
+    const { west: petsamo, east: murmansk } = splitPolysLon(polys, 31.65);
+    const out = [];
+    if (petsamo.length) out.push({ country: 'finland', key: 'petsamo', polys: petsamo });
+    if (murmansk.length) out.push({ country: 'russia', key: ukey, polys: murmansk });
+    hit('RU-MUR-split');
+    return out;
+  }
+
+  // Finland: Viipuri & Karelian Isthmus from Leningrad (RU-LEN, west of 30.75E & north of 60.42N)
+  if (iso === 'RU-LEN') {
+    const { west: lenW, east: lenE } = splitPolysLon(polys, 30.75);
+    const { south: lenWSouth, north: viipuri } = splitPolysLat(lenW, 60.42);
+    const out = [];
+    if (viipuri.length) out.push({ country: 'finland', key: 'karelia', polys: viipuri });
+    const rus = [...lenE, ...lenWSouth];
+    if (rus.length) out.push({ country: 'russia', key: ukey, polys: rus });
+    hit('RU-LEN-split');
+    return out;
+  }
+
+  // Finland: Ladoga Karelia from Republic of Karelia (RU-KR, west of 32.35E & south of 62.25N)
+  if (iso === 'RU-KR') {
+    const { west: krW, east: krE } = splitPolysLon(polys, 32.35);
+    const { south: ladoga, north: krWNorth } = splitPolysLat(krW, 62.25);
+    const out = [];
+    if (ladoga.length) out.push({ country: 'finland', key: 'karelia', polys: ladoga });
+    const rus = [...krE, ...krWNorth];
+    if (rus.length) out.push({ country: 'russia', key: ukey, polys: rus });
+    hit('RU-KR-split');
+    return out;
+  }
+
+  // Poland: Riga border (BY-MI and BY-VI west of 27.35E -> Wilno & Nowogródek)
+  if (iso === 'BY-MI' || iso === 'BY-VI') {
+    const { west: polandPart, east: ussrPart } = splitPolysLon(polys, 27.35);
+    const out = [];
+    if (polandPart.length) out.push({ country: 'poland', key: 'wilno_nowogrodek', polys: polandPart });
+    if (ussrPart.length) out.push({ country: 'russia', key: ukey, polys: ussrPart });
+    hit(`${iso}-split`);
+    return out;
+  }
+
+  // Romania: Southern Bessarabia / Budjak (UA-51 west of 30.42E & south of 46.52N)
+  if (iso === 'UA-51') {
+    const { west: uaW, east: uaE } = splitPolysLon(polys, 30.42);
+    const { south: budjak, north: uaWNorth } = splitPolysLat(uaW, 46.52);
+    const out = [];
+    if (budjak.length) out.push({ country: 'romania', key: 'bessarabia_south', polys: budjak });
+    const rus = [...uaE, ...uaWNorth];
+    if (rus.length) out.push({ country: 'russia', key: ukey, polys: rus });
+    hit('UA-51-split');
+    return out;
+  }
+
+  // China: Inner Mongolia (CN-NM) 1932 split (Suiyuan, Chahar, Jehol, Hsingan)
+  if (iso === 'CN-NM') {
+    const { west: w116, east: e116 } = splitPolysLon(polys, 116.8);
+    const { south: jeholPolys, north: xinganPolys } = splitPolysLat(e116, 44.5);
+    const { west: suiyuanPolys, east: chaharPolys } = splitPolysLon(w116, 112.5);
+    const out = [];
+    if (suiyuanPolys.length) out.push({ country: 'china', key: 'suiyuan', polys: suiyuanPolys });
+    if (chaharPolys.length) out.push({ country: 'china', key: 'chahar', polys: chaharPolys });
+    if (jeholPolys.length) out.push({ country: 'china', key: 'jehol', polys: jeholPolys });
+    if (xinganPolys.length) out.push({ country: 'manchukuo', key: 'xingan', polys: xinganPolys });
+    hit('CN-NM-split');
+    return out;
+  }
+
+  // China: Jiangxi (CN-JX) split at 27.2N (North Nanchang vs South Ruijin Soviet)
+  if (iso === 'CN-JX') {
+    const { south: ruijin, north: nanchang } = splitPolysLat(polys, 27.2);
+    const out = [];
+    if (nanchang.length) out.push({ country: 'china', key: 'cn_jx', polys: nanchang });
+    if (ruijin.length) out.push({ country: 'china', key: 'ruijin_soviet', polys: ruijin });
+    hit('CN-JX-split');
+    return out;
+  }
+
+  // China: Sichuan (CN-SC) split at 102.0E (West Xikang vs East Chengdu)
+  if (iso === 'CN-SC') {
+    const { west: xikangPart, east: chengduPart } = splitPolysLon(polys, 102.0);
+    const out = [];
+    if (chengduPart.length) out.push({ country: 'china', key: 'cn_sc', polys: chengduPart });
+    if (xikangPart.length) out.push({ country: 'china', key: 'xikang', polys: xikangPart });
+    hit('CN-SC-split');
+    return out;
+  }
+
+  // China: Tibet (CN-XZ) split at 96.5E (West Tibet vs East Xikang / Chamdo)
+  if (iso === 'CN-XZ') {
+    const { west: tibetPart, east: xikangPart } = splitPolysLon(polys, 96.5);
+    const out = [];
+    if (tibetPart.length) out.push({ country: 'china', key: 'cn_xz', polys: tibetPart });
+    if (xikangPart.length) out.push({ country: 'china', key: 'xikang', polys: xikangPart });
+    hit('CN-XZ-split');
+    return out;
+  }
+
+  // Japan / Manchukuo: Liaoning (CN-LN) Kwantung Leased Territory split at 39.45N
+  if (iso === 'CN-LN') {
+    const { south: kwantung, north: manchuriaLn } = splitPolysLat(polys, 39.45);
+    const out = [];
+    if (manchuriaLn.length) out.push({ country: 'manchukuo', key: ukey, polys: manchuriaLn });
+    if (kwantung.length) out.push({ country: 'japan', key: 'empire_kwantung', polys: kwantung });
+    hit('CN-LN-kwantung');
+    return out;
+  }
+
+  // France / China: Guangzhouwan leased territory carved out from Guangdong (CN-GD)
+  if (iso === 'CN-GD') {
+    const gzBBox = polygon([[[110.0, 20.9], [110.65, 20.9], [110.65, 21.45], [110.0, 21.45], [110.0, 20.9]]]);
+    try {
+      const diff = turfDiff(featureCollection([f, gzBBox]));
+      const inter = turfIntersect(featureCollection([f, gzBBox]));
+      const out = [];
+      if (diff?.geometry) out.push({ country: 'china', key: 'cn_gd', polys: toPolys(diff.geometry) });
+      if (inter?.geometry) out.push({ country: 'france', key: 'guangzhouwan', polys: toPolys(inter.geometry) });
+      if (out.length) {
+        hit('CN-GD-guangzhouwan');
+        return out;
+      }
+    } catch {
+      // fallback to regular assignment if difference throws
+    }
+  }
+
+  // Yemen: South Yemen (Aden protectorate -> UK) vs North Yemen (Kingdom of Yemen -> Saudi Arabia)
+  if (adm0 === 'YEM') {
+    const isSouth = /Hadramawt|Mahrah|Adan|Lahij|Abyan|Shabwah|Socotra|Dali/i.test(`${name} ${p.name_en || ''}`) ||
+      centroid[1] < 13.8 || centroid[0] > 45.3;
+    if (isSouth) {
+      hit('yemen-south');
+      return [{ country: 'uk', key: 'aden', polys }];
+    } else {
+      hit('yemen-north');
+      return [{ country: 'saudi_arabia', key: 'yemen', polys }];
+    }
+  }
+
   // Dodecanese (Italian) vs Cyclades (Greek) inside the South Aegean region.
   if (adm0 === 'GRC' && /Notio Aigaio|South Aegean|Dodeka/i.test(`${name} ${p.name_en || ''}`)) {
     const dode = []; const rest = [];
@@ -232,7 +460,7 @@ function classifyFeature(f, stats) {
     return [{ country: c, key: k || ukey, polys }];
   }
   if (adm0 === 'SOM' && SOMALILAND.test(name)) { hit('somaliland'); return [{ country: 'uk', key: 'somaliland', polys }]; }
-  if (adm0 === 'MAR' && SPANISH_MOROCCO.test(name)) { hit('spanish-morocco'); return [{ country: 'spain', key: 'morocco', polys }]; }
+  if (adm0 === 'MAR' && SPANISH_MOROCCO.test(name)) { hit('spanish-morocco'); return [{ country: 'spain', key: 'sp_morocco', polys }]; }
   if (adm0 === 'PHL') {
     const lat = centroid[1];
     return [{ country: 'usa', key: lat > 12.3 ? 'phl_n' : lat > 9.3 ? 'phl_c' : 'phl_s', polys }];
@@ -412,8 +640,11 @@ async function main() {
   const defaultCap = agg.defaultCap || 30;
   const PROTECTED_KEYS = new Set([
     'hongkong', 'macau', 'timor', 'djibouti', 'dodecanese', 'somaliland', 'karafuto',
-    'empire_twn', 'empire_kor', 'empire_pacific', 'ruthenia', 'bukovina', 'dobruja', 'istria',
-    'levant', 'kwantung', 'jehol', 'chahar', 'suiyuan', 'nepal', 'bhutan', 'gibraltar', 'malta'
+    'empire_twn', 'empire_kor', 'empire_pacific', 'empire_kwantung', 'ruthenia', 'bukovina', 'dobruja', 'istria',
+    'levant', 'kwantung', 'jehol', 'chahar', 'suiyuan', 'xingan', 'nepal', 'bhutan', 'gibraltar', 'malta',
+    'co_ama', 'pe_lor', 'py_15', 'py_16', 'pl_pm', 'cn_cq', 'cn_sc', 'cn_jx', 'ruijin_soviet', 'xikang',
+    'guangzhouwan', 'karelia', 'petsamo', 'wilno_nowogrodek', 'bessarabia_south', 'saar', 'hatay',
+    'sp_morocco', 'newfoundland', 'aden', 'chaco_boreal', 'cn_gd', 'cn_hi'
   ]);
   const byCountry = new Map();
   for (const pr of provs.values()) { if (!byCountry.has(pr.country)) byCountry.set(pr.country, new Set()); byCountry.get(pr.country).add(pr.id); }
@@ -431,11 +662,21 @@ async function main() {
       if (!cands.length) {
         const [sx, sy] = cen(s);
         cands = [...ids].filter(id => id !== src).sort((a, b) => {
+          const pa = PROTECTED_KEYS.has(provs.get(a).key) ? 1 : 0;
+          const pb = PROTECTED_KEYS.has(provs.get(b).key) ? 1 : 0;
+          if (pa !== pb) return pa - pb;
           const da = (cen(provs.get(a))[0] - sx) ** 2 + (cen(provs.get(a))[1] - sy) ** 2;
           const db = (cen(provs.get(b))[0] - sx) ** 2 + (cen(provs.get(b))[1] - sy) ** 2;
           return da - db;
         }).slice(0, 1);
-      } else cands.sort((a, b) => provs.get(a).area - provs.get(b).area);
+      } else {
+        cands.sort((a, b) => {
+          const pa = PROTECTED_KEYS.has(provs.get(a).key) ? 1 : 0;
+          const pb = PROTECTED_KEYS.has(provs.get(b).key) ? 1 : 0;
+          if (pa !== pb) return pa - pb;
+          return provs.get(a).area - provs.get(b).area;
+        });
+      }
       const dst = provs.get(cands[0]);
       dst.units.push(...s.units); dst.area += s.area; dst.cx += s.cx; dst.cy += s.cy;
       for (const n of adj.get(src)) { adj.get(n).delete(src); if (n !== dst.id) { adj.get(n).add(dst.id); adj.get(dst.id).add(n); } }
