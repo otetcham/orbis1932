@@ -4098,7 +4098,20 @@ function updateMapVisualsLite() {
     const display = globeD ? 'inline' : 'none';
     if (el.style.display !== display) el.style.display = display;
   }
+  repositionGlobeLabels();
   renderGlobeBackdrop();
+}
+
+// Cheap label follow during globe drag: move existing country labels, no re-layout.
+function repositionGlobeLabels() {
+  for (const node of mapLabelPool.values()) {
+    if (!node._ll) continue;
+    const pt = projectLonLatPoint(node._ll[0], node._ll[1]);
+    if (!pt.visible) { if (node.style.display !== 'none') node.style.display = 'none'; continue; }
+    if (node.style.display === 'none') node.style.display = '';
+    node.setAttribute('x', pt.x.toFixed(1));
+    node.setAttribute('y', pt.y.toFixed(1));
+  }
 }
 
 function updateMapVisuals() {
@@ -4198,7 +4211,7 @@ function updateMapVisuals() {
         const cx = pt?.visible ? pt.x : (box.minX + box.maxX) / 2;
         const cy = pt?.visible ? pt.y : (box.minY + box.maxY) / 2;
         const span = Math.max(box.maxX - box.minX, box.maxY - box.minY);
-        return { country, cx, cy, span };
+        return { country, cx, cy, span, ll: anchor ? [anchor.lon, anchor.lat] : null };
       }).sort((a, b) => ((state.nations[b.country].isMajor ? 1 : 0) - (state.nations[a.country].isMajor ? 1 : 0)) || (b.span - a.span));
 
       for (const g of entries) {
@@ -4208,7 +4221,7 @@ function updateMapVisuals() {
         const hh = font * 0.66;
         if (!fits(g.cx, g.cy, hw, hh)) continue;
         placed.push({ x: g.cx, y: g.cy, hw, hh });
-        wanted.set(`c:${g.country}`, { text: label, x: g.cx, y: g.cy, font, op: countryOp, cls: 'map-label-country' });
+        wanted.set(`c:${g.country}`, { text: label, x: g.cx, y: g.cy, font, op: countryOp, cls: 'map-label-country', ll: g.ll });
       }
 
       if (zoomFactor >= 1.35) {
@@ -4225,7 +4238,7 @@ function updateMapVisuals() {
           const hh = font * 0.66;
           if (!fits(pt.x, pt.y, hw, hh)) continue;
           placed.push({ x: pt.x, y: pt.y, hw, hh });
-          wanted.set(`city:${s.id}`, { text: label, x: pt.x, y: pt.y, font, op: cityOp, cls: 'map-label-city' });
+          wanted.set(`city:${s.id}`, { text: label, x: pt.x, y: pt.y, font, op: cityOp, cls: 'map-label-city', ll: [s.lon, s.lat] });
         }
       }
 
@@ -4244,6 +4257,8 @@ function updateMapVisuals() {
           labelsLayer.appendChild(node);
           mapLabelPool.set(key, node);
         }
+        node._ll = d.ll || null;
+        node.style.display = '';
         node.setAttribute('class', `map-label ${d.cls}`);
         node.style.fontSize = `${d.font.toFixed(1)}px`;
         node.style.opacity = d.op.toFixed(2);
@@ -4558,7 +4573,11 @@ function initPanZoom() {
   const release = (e) => {
     activePointers.delete(e.pointerId);
     if (activePointers.size < 2) pinchSnapshot = null;
-    if (!activePointers.size) state.mapTransform.isDragging = false;
+    if (!activePointers.size) {
+      const wasDragging = state.mapTransform.isDragging;
+      state.mapTransform.isDragging = false;
+      if (wasDragging && state.mapProjection === 'globe') window.scheduleMapVisuals();
+    }
     if (viewport.hasPointerCapture(e.pointerId)) viewport.releasePointerCapture(e.pointerId);
   };
   window.addEventListener('pointerup', release);
