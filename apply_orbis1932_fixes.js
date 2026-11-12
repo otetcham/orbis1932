@@ -90,7 +90,8 @@ async function applySimulatorFix() {
     content = content.replace("name: 'アンドレ・タルデュー / E.エリオ'", "name: 'アンドレ・タルデュー'");
 
     await writeFile(simPath, content);
-    console.log('✓ orbis_simulator.html 修正適用 (都市名: サマーラ/奉天, 元首・国号史実化)');
+    await writeFile(path.join(ROOT, 'index.html'), content);
+    console.log('✓ orbis_simulator.html & index.html 修正適用 (都市名: サマーラ/奉天, 元首・国号史実化)');
   }
 }
 
