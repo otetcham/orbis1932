@@ -1618,10 +1618,13 @@ svg path:focus-visible,
   stroke-dasharray: 2.2 1.8;
   stroke: rgba(255, 255, 255, 0.55) !important;
 }
-.prov-path.local-government-province {
-  stroke: rgba(255, 255, 255, 0.72) !important;
-  stroke-dasharray: 5 2.4;
-  stroke-width: 1.1px !important;
+.colonial-border {
+  fill: none;
+  stroke: #123a5a;
+  stroke-width: 4.6px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 1.6px rgba(255, 255, 255, 0.85));
 }
 .prov-path.selected,
 .desktop-workspace .prov-path.selected {
@@ -2051,11 +2054,43 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   border-radius: 0 0 18px 18px;
 }
 #window-chat { border: 1px solid #d5e0ec; box-shadow: 0 16px 50px rgba(23, 42, 68, 0.16), 0 2px 8px rgba(23, 42, 68, 0.08); }
+#window-warlords { border-radius: 18px; overflow: visible; }
+#window-warlords::before {
+  content: "";
+  position: absolute;
+  left: -9px;
+  bottom: 30px;
+  width: 0;
+  height: 0;
+  border: 9px solid transparent;
+  border-right-color: #ffffff;
+  filter: drop-shadow(-2px 0 1px rgba(23, 42, 68, 0.10));
+  pointer-events: none;
+}
+#window-warlords .window-titlebar { border-radius: 18px 18px 0 0; }
+#window-warlords .window-body { border-radius: 0 0 18px 18px; overflow-y: auto; }
+.warlord-panel { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+.warlord-status-head { display: flex; align-items: center; gap: 7px; margin-top: 2px; font-size: 11px; font-weight: 700; color: #3d5570; }
+.warlord-swatch { width: 10px; height: 10px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.15); }
+.warlord-card { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid #dbe5f0; border-radius: 6px; background: #fff; }
+.warlord-card label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.warlord-card strong { font-size: 11.5px; color: #16283e; }
+.warlord-card small { font-size: 9.5px; color: #6c829c; }
+.warlord-card input { accent-color: #1f5f9e; }
+.warlord-summon { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.conference-box { border-top: 1px solid #e2e9f2; padding-top: 9px; display: flex; flex-direction: column; gap: 8px; }
+.conference-feed { display: flex; flex-direction: column; gap: 5px; max-height: 180px; overflow-y: auto; }
+.conference-line { padding: 6px 8px; border-radius: 6px; background: #f6f9fc; font-size: 11px; line-height: 1.5; }
+.conference-line.player { background: #eaf2fb; align-self: flex-end; }
+.conference-line strong { display: block; font-size: 9.5px; color: #6c829c; margin-bottom: 2px; }
+.conference-input-row { display: flex; gap: 6px; }
+.conference-input-row input { flex: 1; min-width: 0; }
 .dock-button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 64px; min-height: 59px; padding: 8px 10px 10px; border: 1px solid transparent; border-radius: 22px; background: transparent; color: #42566e; cursor: pointer; transition: background .14s, color .14s; }
 .dock-button > svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; fill: none; }
 .dock-button > span { font-size: 9px; line-height: 1; font-weight: 500; }
 .dock-button:hover { background: rgba(47, 109, 184, 0.06); color: #16283e; }
 .dock-button.active { background: rgba(47, 109, 184, 0.10); color: #16283e; border-color: rgba(47, 109, 184, 0.18); box-shadow: inset 0 1px 0 #ffffff; }
+.dock-button[hidden] { display: none !important; }
 .dock-open-dot { display: none; position: absolute; bottom: 3px; left: calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: #2f6db8; }
 .dock-button.is-open .dock-open-dot { display: block; }
 .dock-button.is-collapsed .dock-open-dot { background: none; border: 1px solid #2f6db8; }
@@ -2119,8 +2154,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
-  <script src="orbis_states.js?v=1932.5" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
-  <script src="orbis_map_meta.js?v=1932.5" defer></script>
+  <script src="orbis_states.js?v=1932.8" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
+  <script src="orbis_map_meta.js?v=1932.8" defer></script>
 </head>
 <body>
 
@@ -2245,12 +2280,6 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           </div>
           <div>
             <div style="font-size:11px; font-weight:700; color:var(--text-muted); margin:12px 0 6px; letter-spacing:0.04em;">
-              自治政府・植民地政庁
-            </div>
-            <div id="local-governments-list" style="display:flex; flex-direction:column; gap:6px;"></div>
-          </div>
-          <div>
-            <div style="font-size:11px; font-weight:700; color:var(--text-muted); margin:12px 0 6px; letter-spacing:0.04em;">
               宗主国・従属国
             </div>
             <div id="dependency-panel" style="display:flex; flex-direction:column; gap:6px;"></div>
@@ -2272,6 +2301,15 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         </div>
         <div class="window-resize-handle" data-window-resize="state" role="separator" tabindex="0" aria-label="国家と勢力のサイズを変更" title="ドラッグ、または矢印キーでサイズ変更"></div>
       </aside>
+
+      <section class="virtual-window warlords-window" id="window-warlords" role="dialog" aria-modal="false" aria-labelledby="window-warlords-title" data-window="warlords" hidden>
+        <div class="window-titlebar" data-window-drag="warlords" tabindex="0" title="ドラッグで移動 · Alt＋矢印キーでも移動">
+          <span class="window-title" id="window-warlords-title">軍閥会議</span>
+          <div class="window-controls"><button data-window-minimize="warlords" aria-label="軍閥会議を折りたたむ" aria-controls="window-warlords-body" aria-expanded="true">−</button><button data-window-close="warlords" aria-label="軍閥会議を閉じる">×</button></div>
+        </div>
+        <div class="window-body" id="window-warlords-body"><div id="warlord-panel-content"></div></div>
+        <div class="window-resize-handle" data-window-resize="warlords" role="separator" tabindex="0" aria-label="軍閥会議のサイズを変更" title="ドラッグ、または矢印キーでサイズ変更"></div>
+      </section>
 
       <section class="virtual-window history-panel" id="window-history" role="dialog" aria-modal="false" aria-labelledby="window-history-title" data-window="history" hidden>
         <div class="window-titlebar" data-window-drag="history" tabindex="0" title="ドラッグで移動 · Alt＋矢印キーでも移動">
@@ -2339,6 +2377,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
               <g id="sea-zones-layer"></g>
               <g id="provinces-layer"></g>
               <g id="nation-boundary-layer" style="pointer-events: none;"><path id="nation-outer-boundary" class="nation-outer-boundary" d="" /></g>
+              <g id="colonial-border-layer" style="pointer-events: none;"></g>
               <g id="frontlines-layer"></g>
               <g id="labels-layer"></g>
               <g id="combat-bubbles-layer"></g>
@@ -2371,10 +2410,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
               <button class="btn" id="btn-insp-action-war">戦争・和平</button>
             </div>
             <div class="insp-admin-row" id="insp-admin-row" hidden>
-              <button class="btn btn-ghost" id="btn-insp-admin-create">自治政府を設置</button>
               <button class="btn btn-ghost" id="btn-insp-dependent-create">従属政権を創設</button>
-              <button class="btn btn-ghost" id="btn-insp-admin-integrate">中央政府へ統合</button>
-              <button class="btn btn-ghost" id="btn-insp-admin-transfer">他の自治政府へ移管</button>
             </div>
           </div>
         </div>
@@ -2452,6 +2488,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
       </section>
 
       <nav class="desktop-dock" aria-label="国家のカテゴリ">
+        <button class="dock-button" id="dock-warlords" data-panel-open="warlords" aria-controls="window-warlords" aria-expanded="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l4 3V9l4 3V4l4 8V9l4 3v8Z"/></svg><span>軍閥</span><i class="dock-open-dot" aria-hidden="true"></i></button>
         <button class="dock-button" id="dock-state" data-panel-open="state" aria-controls="window-state" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-6 9 6H3ZM5 11v8m7-8v8m7-8v8M3 21h18"/></svg><span>内政</span><i class="dock-open-dot" aria-hidden="true"></i></button>
         <button class="dock-button" id="dock-chat" data-panel-open="chat" aria-controls="window-chat" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11a8 8 0 0 1-8 8H7l-5 3 1-7a8 8 0 0 1-1-4 9 9 0 0 1 19 0Z"/><path d="M7 10h10M7 14h6"/></svg><span>外交</span><b class="dock-badge" id="dock-chat-badge" hidden>0</b><i class="dock-open-dot" aria-hidden="true"></i></button>
         <button class="dock-button" id="dock-intel" data-panel-open="history" aria-controls="window-history" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9h-9Z"/><path d="M12 3v9h9"/></svg><span>諜報</span><b class="dock-badge" id="dock-history-badge" hidden>1</b><i class="dock-open-dot" aria-hidden="true"></i></button>
@@ -2508,7 +2545,6 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-war-panel" aria-labelledby="war-panel-title"><div class="modal-head"><strong id="war-panel-title">戦争・和平・紛争</strong><button class="btn btn-ghost" data-close-dialog="modal-war-panel">閉じる</button></div><div class="modal-body" id="war-panel-body"></div></dialog>
   <dialog class="game-dialog" id="modal-country-card" aria-labelledby="country-card-title"><div class="modal-window"><div class="modal-head"><strong id="country-card-title">国家情報</strong><button class="btn btn-ghost" data-close-dialog="modal-country-card" aria-label="国家情報を閉じる">閉じる</button></div><div class="modal-body" id="country-card-body"></div></div></dialog>
-  <dialog class="game-dialog" id="modal-lg-admin" aria-labelledby="lg-admin-title"><div class="modal-window"><div class="modal-head"><strong id="lg-admin-title">行政コマンド</strong><button class="btn btn-ghost" data-close-dialog="modal-lg-admin">閉じる</button></div><div class="modal-body" id="lg-admin-body"></div><div class="modal-foot"><span class="muted small" id="lg-admin-hint"></span><button class="btn btn-primary" id="btn-lg-admin-submit">実行</button></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-briefing" aria-labelledby="briefing-title"><div class="modal-window"><div class="modal-head"><strong id="briefing-title">情勢分析</strong><button class="btn btn-ghost" data-close-dialog="modal-briefing">閉じる</button></div><div class="modal-body" id="briefing-body"></div></div></dialog>
   <dialog class="game-dialog" id="modal-dependent-admin" aria-labelledby="dependent-admin-title"><div class="modal-window"><div class="modal-head"><strong id="dependent-admin-title">従属政権</strong><button class="btn btn-ghost" data-close-dialog="modal-dependent-admin">閉じる</button></div><div class="modal-body" id="dependent-admin-body"></div><div class="modal-foot"><span class="muted small" id="dependent-admin-hint"></span><button class="btn btn-primary" id="btn-dependent-admin-submit">実行</button></div></div></dialog>
   <div id="turn-playback-overlay" hidden></div>
@@ -2526,9 +2562,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
       <ol><li><b>メッセージを読む。</b>「トーク」の一覧から相手を選ぶ。検索と未読・国内・外交の絞り込みも使える。左上の矢印で一覧に戻る。</li><li><b>交渉する。</b>返信案は下書き。条件を編集し、自由文で送る。相手にも守るべき利益がある。</li><li><b>月末に裁定する。</b>「ターンを終える」で全交渉と未回答をGMが評価。結果は「歴史」で確認する。</li></ol>
       <p>非公開電報は相手とGMだけが読む。公式声明は他の勢力にも伝わる。矛盾した密約には代償がある。</p>
       <p>財政には収入と維持費がある。増強や救済には支出が伴う。目標・支持率・条約の期限は「国家」で確認する。</p>
-      <p>自国領の州を選ぶと「自治政府を設置」から植民地政庁・自治政府・軍閥政府を作れる。地図の色は自国のままで、行政だけを分離して扱う。自治度が低いほど税収が増えるが忠誠は下がりやすい。州パネルから中央政府への統合、他の自治政府への移管ができる。</p>
-      <p>傀儡国・自治領・植民地・保護国・軍閥は「従属国」グループから選択できる。宗主国には宣戦できず月次貢納を払うが、自治度を上げて独立を宣言できる。宗主国側は自治度60未満の従属国を威信12で併合できる。領土を失った国は請求権を保持し、州パネルに表示される。</p>
-      <p>州パネルの「従属政権を創設」で、自国領から植民地・保護国・軍閥・現地政府を動的に作れる。国家タブでは従属政権の自治度・忠誠・正統性を調整し、統合・移管ができる。軍閥は忠誠40未満、植民地は自治20未満かつ忠誠30未満、現地政府は正統性30未満が2半月続くと、独立・反乱・崩壊が起きる。</p>
+      <p>州パネルの「従属政権を創設」で、自国領から植民地・保護国・軍閥を動的に作れる。植民地は宗主国と同じ色、保護国は別の色で表示される。植民地が宗主国と陸続きの場合、国境線を太く表示する。宗主国側は自治度60未満の従属国を威信12で併合できる。領土を失った国は請求権を保持し、州パネルに表示される。</p>
+      <p>中華民国のプレイヤーには「軍閥」タブが表示される。軍閥は自治・中立・独立の3状態に分かれ、自治は宗主国色、中立・独立は専用色で表示される。軍閥タブで複数を選んで招集すると、翌ターンに参加可否が決まり、参加した軍閥との会議チャットを開ける。</p>
       <p>安定度か経済が8以下、財政が0、緊張度が95以上のいずれかが2か月続くと任期終了。</p>
       <p>会話と下書きは自動保存。ウィンドウを閉じても消えない。セーブの書き出しとAI設定は「メニュー」から。</p>
     </div>
@@ -2613,6 +2648,8 @@ const COUNTRY_MAP_COLORS = {
   manchukuo: '#eab308',      // 満洲国 (Imperial Yellow)
   china: '#3b82f6',          // 中華民国・南京国民政府 (Kuomintang Blue)
   tibet: '#8a6b4f',          // チベット
+  warlord_neutral: '#7b8fa3', // 中立軍閥
+  warlord_independent: '#a05a52', // 独立軍閥
   shanxi: '#c48a2c',         // 晋系（山西）
   guangxi: '#2e7d5b',        // 新広西派（広西）
   guangdong: '#d4694a',      // 西南派（広東）
@@ -4770,11 +4807,11 @@ const LOBBY_PORTRAITS = {
   russia: './portraits/russia.jpg'
 };
 
+const WARLORD_STATUS_LABEL = { autonomous: '自治軍閥', neutral: '中立軍閥', independent: '独立軍閥' };
 const DEPENDENCY_KINDS = {
   colony: { label: '植民地', badge: '植民地' },
   protectorate: { label: '保護国', badge: '保護国' },
   warlord: { label: '軍閥', badge: '軍閥' },
-  local: { label: '現地政府', badge: '現地' },
   puppet: { label: '傀儡国', badge: '傀儡' },
   satellite: { label: '衛星国', badge: '衛星' },
   dominion: { label: '自治領', badge: '自治領' }
@@ -5142,7 +5179,8 @@ function projectOrthographicPath(id, rings) {
 }
 
 function buildMapGeometryOnce() {
-  if (mapGeometryBuilt) return;
+  if (mapGeometryBuilt && provDomCache.size > 0) return;
+  mapGeometryBuilt = false;
   const provLayer = document.getElementById('provinces-layer');
   const seaLayer = document.getElementById('sea-zones-layer');
   if (!provLayer) return;
@@ -5842,8 +5880,7 @@ function updateMapVisuals() {
     const colorSource = (typeof Orbis !== 'undefined' && Orbis.colorNation) ? Orbis.colorNation(s.country) : s.country;
     el.classList.toggle('player-owned', !isLobby && colorSource === state.playerNationId);
     el.classList.toggle('vassal-province', colorSource !== s.country);
-    const localGovernment = (typeof Orbis !== 'undefined' && Orbis.localGovernmentForState) ? Orbis.localGovernmentForState(s.id) : null;
-    el.classList.toggle('local-government-province', Boolean(localGovernment));
+
     el.classList.toggle('at-war', Boolean(state.activeConflicts?.[s.id]));
   });
 
@@ -6007,6 +6044,62 @@ function updateMapVisuals() {
 
   updateMapLegend();
   updateNationOuterBoundary();
+  updateColonialBorders();
+}
+
+const colonialEdgeCache = new Map();
+function colonialEdgeKey(a, b) {
+  const q = value => Math.round(value * 100) / 100;
+  const ka = `${q(a[0])},${q(a[1])}`;
+  const kb = `${q(b[0])},${q(b[1])}`;
+  return ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+}
+function buildColonialEdges(colonyId, sponsorId) {
+  const signature = state.states.filter(region => region.country === colonyId).map(region => region.id).join(',');
+  const key = `${colonyId}:${sponsorId}:${signature}`;
+  if (colonialEdgeCache.has(key)) return colonialEdgeCache.get(key);
+  const group = new Set([sponsorId]);
+  for (const entry of state.colonialGroups || []) if (entry.sponsorId === sponsorId) group.add(entry.id);
+  group.delete(colonyId);
+  const otherEdges = new Set();
+  for (const region of state.states) {
+    if (!group.has(region.country) || !region.rings) continue;
+    for (const ring of region.rings) {
+      for (let i = 0; i < ring.length - 1; i += 1) otherEdges.add(colonialEdgeKey(ring[i], ring[i + 1]));
+    }
+  }
+  const shared = [];
+  for (const region of state.states) {
+    if (region.country !== colonyId || !region.rings) continue;
+    for (const ring of region.rings) {
+      for (let i = 0; i < ring.length - 1; i += 1) {
+        if (otherEdges.has(colonialEdgeKey(ring[i], ring[i + 1]))) shared.push([ring[i], ring[i + 1]]);
+      }
+    }
+  }
+  colonialEdgeCache.set(key, shared);
+  return shared;
+}
+function updateColonialBorders() {
+  const layer = document.getElementById('colonial-border-layer');
+  if (!layer) return;
+  if (!(typeof Orbis !== 'undefined' && Orbis.colonialColorGroups)) { layer.innerHTML = ''; return; }
+  const groups = Orbis.colonialColorGroups();
+  state.colonialGroups = groups;
+  const paths = [];
+  for (const entry of groups) {
+    const edges = buildColonialEdges(entry.id, entry.sponsorId);
+    let d = '';
+    for (const [a, b] of edges) {
+      const p1 = projectLonLatPoint(a[0], a[1]);
+      const p2 = projectLonLatPoint(b[0], b[1]);
+      if (!p1 || !p2) continue;
+      if (state.mapProjection === 'globe' && (!p1.visible || !p2.visible)) continue;
+      d += `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)} `;
+    }
+    if (d) paths.push(`<path class="colonial-border" d="${d}" />`);
+  }
+  layer.innerHTML = paths.join('');
 }
 
 function renderWarGlyphs() {
@@ -6193,7 +6286,6 @@ function renderStateInspector(s) {
         <div class="insp-info-line"><span class="insp-info-label">体制</span><span>${escapeHtml(info.ownerRegime)}</span></div>
         <div class="insp-info-line"><span class="insp-info-label">関係</span><span>${relation}</span></div>
         ${info.vassalOf ? `<div class="insp-info-line"><span class="insp-info-label">宗主国</span><span>${escapeHtml(info.vassalOf.overlordName)}（${escapeHtml(info.vassalOf.typeLabel)}）</span></div>` : ''}
-        ${info.localGovernment ? `<div class="insp-info-line"><span class="insp-info-label">現地政府</span><span>${escapeHtml(info.localGovernment.name)}（${escapeHtml(info.localGovernment.kindLabel)}・自治 ${info.localGovernment.autonomy}% / 忠誠 ${info.localGovernment.loyalty}%）</span></div>` : ''}
         ${info.originalOwnerName ? `<div class="insp-info-line"><span class="insp-info-label">元の領有国</span><span>${escapeHtml(info.originalOwnerName)}</span></div>` : ''}
       `;
     }
@@ -6236,118 +6328,13 @@ function renderStateInspector(s) {
   if (warBtn) warBtn.onclick = () => Orbis.openWarPanel();
 
   const adminRow = document.getElementById('insp-admin-row');
-  const adminNote = document.getElementById('insp-admin-note');
-  const createBtn = document.getElementById('btn-insp-admin-create');
   const dependentCreateBtn = document.getElementById('btn-insp-dependent-create');
-  const integrateBtn = document.getElementById('btn-insp-admin-integrate');
-  const transferBtn = document.getElementById('btn-insp-admin-transfer');
-  const localGov = info.localGovernment;
-  const canManage = Boolean(info.isOwn && !info.isSea);
+  const canManage = Boolean(info.isOwn && !info.isSea && !info.vassalOf);
   if (adminRow) adminRow.hidden = !canManage;
-  if (createBtn) createBtn.hidden = !(canManage && !localGov);
-  if (dependentCreateBtn) dependentCreateBtn.hidden = !(canManage && !localGov);
-  if (integrateBtn) integrateBtn.hidden = !(canManage && localGov);
-  if (transferBtn) transferBtn.hidden = !(canManage && localGov);
-  if (adminNote) {
-    adminNote.hidden = !canManage;
-    if (canManage) {
-      adminNote.textContent = localGov
-        ? `${localGov.kindLabel}「${localGov.name}」の管轄（自治 ${localGov.autonomy}% / 忠誠 ${localGov.loyalty}% / 総督 ${localGov.governor || '—'}）`
-        : '中央政府の直轄領。自治政府を設置すると現地へ行政を委ね、税収と引き換えに自治度・忠誠の管理が必要になる。';
-    }
-  }
-  if (createBtn) createBtn.onclick = () => openLocalGovernmentCommand('create', s.id);
+  if (dependentCreateBtn) dependentCreateBtn.hidden = !canManage;
   if (dependentCreateBtn) dependentCreateBtn.onclick = () => openDependentCreateDialog(s.id);
-  if (integrateBtn) integrateBtn.onclick = () => openLocalGovernmentCommand('integrate', s.id);
-  if (transferBtn) transferBtn.onclick = () => openLocalGovernmentCommand('transfer', s.id);
 
   card.classList.add('open');
-}
-
-let lgCommandState = { mode: 'create', stateId: null };
-
-let dependentCommandState = { mode: 'create', stateId: null, vassalId: null };
-
-function openDependentCreateDialog(stateId) {
-  const info = Orbis.provincePanelData?.(stateId);
-  const body = document.getElementById('dependent-admin-body');
-  const title = document.getElementById('dependent-admin-title');
-  const hint = document.getElementById('dependent-admin-hint');
-  const submit = document.getElementById('btn-dependent-admin-submit');
-  if (!info || !body || !title || !hint || !submit) return;
-  dependentCommandState = { mode: 'create', stateId };
-  const baseId = (`dv_${stateId}`).replace(/[^a-z0-9_]+/gi, '_').toLowerCase().slice(0, 30);
-  title.textContent = '従属政権の創設';
-  body.innerHTML = `
-    <p class="muted small">${escapeHtml(info.name)}を自国の宗主権の下で切り離し、従属政権を創設します。地図上の色は自国のままです。</p>
-    <label for="dep-name-input">名称</label>
-    <input class="form-input" id="dep-name-input" maxlength="40" value="${escapeHtml(info.name)}政庁">
-    <label for="dep-type-select">種類</label>
-    <select class="form-select" id="dep-type-select">
-      <option value="colony">植民地（自治15・資源搾取・反乱リスク）</option>
-      <option value="protectorate" selected>保護国（自治30・外交支配）</option>
-      <option value="warlord">軍閥（自治70・独立リスク）</option>
-      <option value="local">現地政府（自治10・正統性）</option>
-    </select>
-    <label for="dep-id-input">国ID</label>
-    <input class="form-input" id="dep-id-input" maxlength="31" value="${baseId}" spellcheck="false">
-    <p class="muted small">費用: 財政 -3。国IDは英小文字・数字・_（3〜31文字）。</p>`;
-  hint.textContent = '従属政権は宗主国の色で表示され、外交・軍事は宗主国に従属する。';
-  submit.textContent = '創設する';
-  submit.disabled = false;
-  Orbis.openDialog('modal-dependent-admin');
-}
-
-function openDependentTransferDialog(vassalId) {
-  const info = Orbis.dependencyInfo(vassalId);
-  const snapshot = Orbis.snapshot?.();
-  const body = document.getElementById('dependent-admin-body');
-  const title = document.getElementById('dependent-admin-title');
-  const hint = document.getElementById('dependent-admin-hint');
-  const submit = document.getElementById('btn-dependent-admin-submit');
-  if (!info || !snapshot || !body || !title || !hint || !submit) return;
-  dependentCommandState = { mode: 'transfer', vassalId };
-  const candidates = Object.keys(snapshot.nations).filter(id => id !== vassalId && !snapshot.nations[id].suzerain && !snapshot.nations[id].dissolved && id !== info.overlordId);
-  title.textContent = '従属政権の移管';
-  if (!candidates.length) {
-    body.innerHTML = '<p class="muted small">移管先の独立国がありません。</p>';
-    hint.textContent = '移管先なし';
-    submit.disabled = true;
-  } else {
-    body.innerHTML = `
-      <p class="muted small">${escapeHtml(info.name || vassalId)}の宗主国を${escapeHtml(info.overlordName)}から別の国へ移します。</p>
-      <label for="dep-sponsor-select">新しい宗主国</label>
-      <select class="form-select" id="dep-sponsor-select">
-        ${candidates.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(Orbis.nationMeta?.(id)?.name || id)}</option>`).join('')}
-      </select>
-      <p class="muted small">移管後、旧宗主国との関係は悪化し、忠誠が8低下します。</p>`;
-    hint.textContent = '移管は即時。連鎖従属は禁止。';
-    submit.disabled = false;
-  }
-  submit.textContent = '移管する';
-  Orbis.openDialog('modal-dependent-admin');
-}
-
-function submitDependentCommand() {
-  const state = dependentCommandState;
-  let result = { ok: false, error: '不明なコマンドです。' };
-  if (state.mode === 'create') {
-    result = Orbis.createDependentRegionCommand(
-      state.stateId,
-      document.getElementById('dep-id-input')?.value?.trim() || '',
-      document.getElementById('dep-name-input')?.value || '',
-      document.getElementById('dep-type-select')?.value || 'protectorate'
-    );
-  } else if (state.mode === 'transfer') {
-    const target = document.getElementById('dep-sponsor-select')?.value;
-    result = target ? Orbis.transferDependentCommand(state.vassalId, target) : { ok: false, error: '移管先を選択してください。' };
-  }
-  if (result?.ok) {
-    document.getElementById('modal-dependent-admin')?.close();
-  } else {
-    const hint = document.getElementById('dependent-admin-hint');
-    if (hint) hint.textContent = result?.error || '実行できませんでした。';
-  }
 }
 
 function openSituationBriefing() {
@@ -6364,16 +6351,12 @@ function openSituationBriefing() {
   const subjects = data.subjects.length
     ? data.subjects.map(entry => `<div class="insp-info-line"><span class="insp-info-label">${escapeHtml(entry.kind)}</span><span>${escapeHtml(entry.name)}（自治 ${entry.autonomy}% / 忠誠 ${entry.loyalty}%）</span></div>`).join('')
     : '';
-  const localGovs = data.localGovernments.length
-    ? data.localGovernments.map(entry => `<div class="insp-info-line"><span class="insp-info-label">${escapeHtml(entry.kind)}</span><span>${escapeHtml(entry.name)}（${entry.states}州 / 自治 ${entry.autonomy}% / 忠誠 ${entry.loyalty}%）</span></div>`).join('')
-    : '';
   body.innerHTML = `
     <div class="country-card">
       <div class="country-card-head"><div><strong>${escapeHtml(data.date)} の情勢</strong><span class="country-card-meta">国力 ${data.power} · ${data.rank} / ${data.total} 位</span></div></div>
       <div class="country-card-section"><h3>国力上位</h3>${powers}</div>
       <div class="country-card-section"><h3>脅威</h3>${threats}</div>
       <div class="country-card-section"><h3>従属関係</h3>${dependency}${subjects}</div>
-      <div class="country-card-section"><h3>自治政府</h3>${localGovs || '<p class="small muted">自治政府はありません。</p>'}</div>
       <div class="country-card-section"><h3>財政</h3><div class="insp-info-line"><span class="insp-info-label">収支</span><span>収入 ${data.budget.income} / 維持費 ${data.budget.upkeep} / 純収支 ${data.budget.net}${data.budget.tribute ? `（貢納 -${data.budget.tribute}）` : ''}</span></div><div class="insp-info-line"><span class="insp-info-label">戦争</span><span>${data.wars} 件</span></div></div>
       <div class="country-card-section"><h3>助言</h3><ul style="margin:0; padding-left:18px;">${data.notes.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul></div>
     </div>`;
@@ -6511,10 +6494,91 @@ function initActionSuggestions() {
   renderActionSuggestions();
 }
 
+let dependentCommandState = { mode: 'create', stateId: null, vassalId: null };
+
+function openDependentCreateDialog(stateId) {
+  const info = Orbis.provincePanelData?.(stateId);
+  const body = document.getElementById('dependent-admin-body');
+  const title = document.getElementById('dependent-admin-title');
+  const hint = document.getElementById('dependent-admin-hint');
+  const submit = document.getElementById('btn-dependent-admin-submit');
+  if (!info || !body || !title || !hint || !submit) return;
+  dependentCommandState = { mode: 'create', stateId };
+  const baseId = (`dv_${stateId}`).replace(/[^a-z0-9_]+/gi, '_').toLowerCase().slice(0, 30);
+  title.textContent = '従属政権の創設';
+  body.innerHTML = `
+    <p class="muted small">${escapeHtml(info.name)}を自国の宗主権の下で切り離し、従属政権を創設します。</p>
+    <label for="dep-name-input">名称</label>
+    <input class="form-input" id="dep-name-input" maxlength="40" value="${escapeHtml(info.name)}政庁">
+    <label for="dep-type-select">種類</label>
+    <select class="form-select" id="dep-type-select">
+      <option value="colony">植民地（自治15・資源搾取・反乱リスク）</option>
+      <option value="protectorate" selected>保護国（自治30・外交支配）</option>
+      <option value="warlord">軍閥（自治70・独立リスク）</option>
+    </select>
+    <label for="dep-id-input">国ID</label>
+    <input class="form-input" id="dep-id-input" maxlength="31" value="${baseId}" spellcheck="false">
+    <p class="muted small">費用: 財政 -3。国IDは英小文字・数字・_（3〜31文字）。</p>`;
+  hint.textContent = '植民地は宗主国色、保護国は独自色で表示される。';
+  submit.textContent = '創設する';
+  submit.disabled = false;
+  Orbis.openDialog('modal-dependent-admin');
+}
+
+function openDependentTransferDialog(vassalId) {
+  const info = Orbis.dependencyInfo(vassalId);
+  const snapshot = Orbis.snapshot?.();
+  const body = document.getElementById('dependent-admin-body');
+  const title = document.getElementById('dependent-admin-title');
+  const hint = document.getElementById('dependent-admin-hint');
+  const submit = document.getElementById('btn-dependent-admin-submit');
+  if (!info || !snapshot || !body || !title || !hint || !submit) return;
+  dependentCommandState = { mode: 'transfer', vassalId };
+  const candidates = Object.keys(snapshot.nations).filter(id => id !== vassalId && !snapshot.nations[id].suzerain && !snapshot.nations[id].dissolved && id !== info.overlordId);
+  title.textContent = '従属政権の移管';
+  if (!candidates.length) {
+    body.innerHTML = '<p class="muted small">移管先の独立国がありません。</p>';
+    hint.textContent = '移管先なし';
+    submit.disabled = true;
+  } else {
+    body.innerHTML = `
+      <p class="muted small">${escapeHtml(info.name || vassalId)}の宗主国を${escapeHtml(info.overlordName)}から別の国へ移します。</p>
+      <label for="dep-sponsor-select">新しい宗主国</label>
+      <select class="form-select" id="dep-sponsor-select">
+        ${candidates.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(Orbis.nationMeta?.(id)?.name || id)}</option>`).join('')}
+      </select>
+      <p class="muted small">移管後、旧宗主国との関係は悪化し、忠誠が8低下します。</p>`;
+    hint.textContent = '移管は即時。連鎖従属は禁止。';
+    submit.disabled = false;
+  }
+  submit.textContent = '移管する';
+  Orbis.openDialog('modal-dependent-admin');
+}
+
+function submitDependentCommand() {
+  const state = dependentCommandState;
+  let result = { ok: false, error: '不明なコマンドです。' };
+  if (state.mode === 'create') {
+    result = Orbis.createDependentRegionCommand(
+      state.stateId,
+      document.getElementById('dep-id-input')?.value?.trim() || '',
+      document.getElementById('dep-name-input')?.value || '',
+      document.getElementById('dep-type-select')?.value || 'protectorate'
+    );
+  } else if (state.mode === 'transfer') {
+    const target = document.getElementById('dep-sponsor-select')?.value;
+    result = target ? Orbis.transferDependentCommand(state.vassalId, target) : { ok: false, error: '移管先を選択してください。' };
+  }
+  if (result?.ok) {
+    document.getElementById('modal-dependent-admin')?.close();
+  } else {
+    const hint = document.getElementById('dependent-admin-hint');
+    if (hint) hint.textContent = result?.error || '実行できませんでした。';
+  }
+}
+
 function initLocalGovernmentAdmin() {
-  const submit = document.getElementById('btn-lg-admin-submit');
-  if (submit) submit.addEventListener('click', submitLocalGovernmentCommand);
-  const dependentSubmit = document.getElementById('btn-dependent-admin-submit');
+    const dependentSubmit = document.getElementById('btn-dependent-admin-submit');
   if (dependentSubmit) dependentSubmit.addEventListener('click', submitDependentCommand);
 }
 
@@ -6525,13 +6589,12 @@ function showStateTooltip(s) {
   const occupied = s.originalOwner && s.originalOwner !== s.country;
   const clientOccupied = occupied && OCCUPATION_CLIENT_IDS.has(s.originalOwner);
   const dependency = (typeof Orbis !== 'undefined' && Orbis.dependencyInfo) ? Orbis.dependencyInfo(s.country) : null;
-  const localGovernment = (typeof Orbis !== 'undefined' && Orbis.localGovernmentForState) ? Orbis.localGovernmentForState(s.id) : null;
   const flagSvg = getCountryFlagSvg(s.country);
   tip.innerHTML = `
     <div style="display:flex; align-items:center; gap:6px;">
       ${flagSvg}
       <strong>${s.nameJa || s.name || s.id}</strong>
-      <span style="color:var(--text-muted);">(${owner.name}${localGovernment ? `・${localGovernment.name}` : ''}${dependency && !dependency.dissolved ? `・${dependency.overlordName}の${dependency.kindLabel}` : ''}${occupied ? '・占領' : ''}${clientOccupied ? '（占領）' : ''})</span>
+      <span style="color:var(--text-muted);">(${owner.name}${dependency && !dependency.dissolved ? `・${dependency.overlordName}の${dependency.kindLabel}` : ''}${occupied ? '・占領' : ''}${clientOccupied ? '（占領）' : ''})</span>
     </div>
   `;
   tip.style.display = 'block';
@@ -6892,13 +6955,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
-<script src="orbis_events.js?v=1932.5"></script>
-<script src="orbis_region_labels.js?v=1932.5"></script>
-<script src="orbis_campaign_core.js?v=1932.5"></script>
-<script src="orbis_timeline_engine.js?v=1932.5"></script>
-<script src="orbis_turn_playback.js?v=1932.5"></script>
-<script src="orbis_text.js?v=1932.5"></script>
-<script src="orbis_game.js?v=1932.5"></script>
+<script src="orbis_events.js?v=1932.8"></script>
+<script src="orbis_region_labels.js?v=1932.8"></script>
+<script src="orbis_campaign_core.js?v=1932.8"></script>
+<script src="orbis_timeline_engine.js?v=1932.8"></script>
+<script src="orbis_turn_playback.js?v=1932.8"></script>
+<script src="orbis_text.js?v=1932.8"></script>
+<script src="orbis_game.js?v=1932.8"></script>
 
 </body>
 </html>
