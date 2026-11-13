@@ -757,9 +757,14 @@ const Orbis = (() => {
     return result;
   }
 
+  // 宗主国と同じ地図色になる従属国（植民地と自治軍閥）。同色のため国境線の補助が必要。
   function colonialColorGroups() {
     return Object.entries(campaign?.clients || {})
-      .filter(([, client]) => (client.type || client.kind) === 'colony' && !client.dissolved && client.sponsorId)
+      .filter(([, client]) => {
+        if (client.dissolved || client.independent || !client.sponsorId) return false;
+        const type = client.type || client.kind;
+        return type === 'colony' || (type === 'warlord' && (client.warlordStatus || 'neutral') === 'autonomous');
+      })
       .map(([id, client]) => ({ id, sponsorId: client.sponsorId }));
   }
 
