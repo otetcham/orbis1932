@@ -1164,6 +1164,9 @@ try {
     for (const id of autonomous) assert.equal(api.colorNation(id), 'china', id);
     for (const id of neutral) assert.equal(api.colorNation(id), 'warlord_neutral', id);
     for (const id of independent) assert.equal(api.colorNation(id), 'warlord_independent', id);
+    const sharedColor = api.colonialColorGroups().map(entry => entry.id);
+    for (const id of autonomous) assert.ok(sharedColor.includes(id), id);
+    for (const id of [...neutral, ...independent]) assert.ok(!sharedColor.includes(id), id);
     assert.equal(api.provincePanelData('china_cn_sx').ownerId, 'shanxi');
     assert.equal(api.provincePanelData('china_cn_cq').ownerId, 'sichuan');
     assert.equal(api.provincePanelData('china_cn_sx').vassalOf.overlordName, '中国');

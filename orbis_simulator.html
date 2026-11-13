@@ -2158,8 +2158,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
-  <script src="orbis_states.js?v=1932.12" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
-  <script src="orbis_map_meta.js?v=1932.12" defer></script>
+  <script src="orbis_states.js?v=1932.14" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
+  <script src="orbis_map_meta.js?v=1932.14" defer></script>
 </head>
 <body>
 
@@ -6077,11 +6077,11 @@ function colonialEdgeKey(a, b) {
 }
 function buildColonialEdges(colonyId, sponsorId) {
   const signature = state.states.filter(region => region.country === colonyId).map(region => region.id).join(',');
-  const key = `${colonyId}:${sponsorId}:${signature}`;
-  if (colonialEdgeCache.has(key)) return colonialEdgeCache.get(key);
   const group = new Set([sponsorId]);
   for (const entry of state.colonialGroups || []) if (entry.sponsorId === sponsorId) group.add(entry.id);
   group.delete(colonyId);
+  const key = `${colonyId}:${[...group].sort().join(',')}:${signature}`;
+  if (colonialEdgeCache.has(key)) return colonialEdgeCache.get(key);
   const otherEdges = new Set();
   for (const region of state.states) {
     if (!group.has(region.country) || !region.rings) continue;
@@ -6976,13 +6976,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
-<script src="orbis_events.js?v=1932.12"></script>
-<script src="orbis_region_labels.js?v=1932.12"></script>
-<script src="orbis_campaign_core.js?v=1932.12"></script>
-<script src="orbis_timeline_engine.js?v=1932.12"></script>
-<script src="orbis_turn_playback.js?v=1932.12"></script>
-<script src="orbis_text.js?v=1932.12"></script>
-<script src="orbis_game.js?v=1932.12"></script>
+<script src="orbis_events.js?v=1932.14"></script>
+<script src="orbis_region_labels.js?v=1932.14"></script>
+<script src="orbis_campaign_core.js?v=1932.14"></script>
+<script src="orbis_timeline_engine.js?v=1932.14"></script>
+<script src="orbis_turn_playback.js?v=1932.14"></script>
+<script src="orbis_text.js?v=1932.14"></script>
+<script src="orbis_game.js?v=1932.14"></script>
 
 </body>
 </html>
