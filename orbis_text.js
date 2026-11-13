@@ -9,6 +9,16 @@ window.OrbisText = (() => {
   const COUNTRY_INFO = {
     japan: { name: '大日本帝国', wiki: '大日本帝国', aliases: ['日本国', '日本'] },
     china: { name: '中華民国', wiki: '中華民国', aliases: ['南京国民政府', '国民政府', '中国'] },
+    shanxi: { name: '晋系', wiki: '閻錫山', aliases: ['山西軍閥', '晋系', '晋軍'] },
+    guangxi: { name: '新広西派', wiki: '新桂系', aliases: ['広西軍閥', '桂系', '桂軍'] },
+    guangdong: { name: '西南派', wiki: '陳済棠', aliases: ['広東軍閥', '粤系', '粤軍'] },
+    sichuan: { name: '四川軍', wiki: '劉湘', aliases: ['四川軍閥', '川軍'] },
+    yunnan: { name: '滇系', wiki: '龍雲', aliases: ['雲南軍閥', '滇軍'] },
+    shandong: { name: '魯系', wiki: '韓復榘', aliases: ['山東軍閥', '魯軍'] },
+    xinjiang: { name: '新疆政権', wiki: '金樹仁', aliases: ['新疆軍閥', '新疆軍'] },
+    ma_clique: { name: '西北三馬', wiki: '馬家軍', aliases: ['馬家軍', '西北軍閥', '三馬'] },
+    hunan: { name: '湘系', wiki: '何鍵', aliases: ['湖南軍閥', '湘軍'] },
+    guizhou: { name: '黔系', wiki: '王家烈', aliases: ['貴州軍閥', '黔軍'] },
     manchukuo: { name: '満洲国', wiki: '満洲国', aliases: ['満州国'] },
     mongolia: { name: 'モンゴル人民共和国', wiki: 'モンゴル人民共和国', aliases: ['モンゴル'] },
     usa: { name: 'アメリカ合衆国', wiki: 'アメリカ合衆国', aliases: ['アメリカ', '米国', '合衆国'] },
@@ -159,6 +169,22 @@ window.OrbisText = (() => {
   person('芳澤謙吉', '芳澤謙吉', '芳澤 謙吉');
   person('蔣介石', '蔣介石', '蒋介石');
   person('汪兆銘', '汪兆銘');
+  person('閻錫山', '閻錫山', '閻 錫山');
+  person('李宗仁', '李宗仁');
+  person('白崇禧', '白崇禧');
+  person('陳済棠', '陳済棠', '陈济棠');
+  person('劉湘', '劉湘');
+  person('劉文輝', '劉文輝');
+  person('龍雲', '龍雲');
+  person('韓復榘', '韓復榘');
+  person('金樹仁', '金樹仁');
+  person('盛世才', '盛世才');
+  person('馬麟', '馬麟');
+  person('馬鴻逵', '馬鴻逵');
+  person('馬鴻賓', '馬鴻賓');
+  person('何鍵', '何鍵');
+  person('王家烈', '王家烈');
+  person('傅作義', '傅作義');
   person('宋子文', '宋子文');
   person('愛新覚羅溥儀', '愛新覚羅溥儀', '溥儀');
   person('鄭孝胥', '鄭孝胥');
@@ -198,6 +224,9 @@ window.OrbisText = (() => {
   person('エリザベス2世', 'エリザベス2世');
 
   // 事件・戦争・条約（ゲーム内の史実DBと主要な世界史記事）
+  event('中原大戦', '中原大戦', '中原大戦争');
+  event('蒋桂戦争', '蒋桂戦争');
+  event('福建事変', '福建事変');
   event('満州事変', '満州事変', '満洲事変');
   event('関東大震災', '関東大震災');
   event('五・一五事件', '五・一五事件');

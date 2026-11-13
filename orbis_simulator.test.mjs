@@ -872,10 +872,10 @@ try {
     assert.ok(api.snapshot().briefing.telegrams.every(t => t.actorId !== 'ministry:atlantis'));
   });
 
-  await check('史実データ監査 (66カ国・Admin-1州・危機・歴史イベントの整合)', async () => {
+  await check('史実データ監査 (76カ国・Admin-1州・危機・歴史イベントの整合)', async () => {
     const { context } = harness();
     const audit = auditData(context);
-    assert.equal(audit.nations, 66);
+    assert.equal(audit.nations, 76);
     assert.ok(audit.land >= 900 && audit.land <= 2000, `陸上州数 ${audit.land}`);
     assert.ok(audit.land <= 1300, `ヨーロッパ集約後の州数上限目安 (${audit.land})`);
     assert.equal(audit.events, 9);
