@@ -676,7 +676,8 @@ try {
     const after = api.snapshot();
     assert.equal(after.relations.usa.uk - before.relations.usa.uk, 8);
     assert.equal(after.relations.usa.uk, after.relations.uk.usa);
-    assert.deepEqual(json(after.territories), {});
+    assert.deepEqual(json(after.territories), json(before.territories));
+    assert.equal(after.territories.jp_kanto, undefined);
     assert.equal(after.npcAgreements.length, 2);
     assert.ok(after.articles.some(article => article.headline === '米英の通商協議'));
     await api.restore(after);
@@ -1135,48 +1136,34 @@ try {
     assert.equal(vm.runInContext('state.lobbyNationId', context), 'japan');
   });
 
-  await check('自治政府の設置・移管・統合と宗主国の領土を維持する', async () => {
+  await check('旧植民地政庁は開始時に植民地型従属国へ移行する', async () => {
     const { api } = harness();
     await begin(api);
-    const preset = api.localGovernmentsFor('japan').find(entry => entry.name === '朝鮮総督府');
-    assert.ok(preset, '初期自治政府');
-    assert.equal(api.provincePanelData('japan_empire_kor').ownerId, 'japan');
-    assert.equal(api.provincePanelData('japan_empire_kor').localGovernment.name, '朝鮮総督府');
-
-    const created = api.createLocalGovernment('japan_jp_03', { name: '東北自治政府', kind: 'autonomous' });
-    assert.equal(created.ok, true);
-    const local = api.localGovernmentsFor('japan').find(entry => entry.name === '東北自治政府');
-    assert.ok(local.stateIds.includes('japan_jp_03'));
+    const korea = api.dependencyInfo('col_japan_korea');
+    assert.equal(korea.type, 'colony');
+    assert.equal(korea.overlordId, 'japan');
+    assert.equal(api.provincePanelData('japan_empire_kor').ownerId, 'col_japan_korea');
+    assert.equal(api.colorNation('col_japan_korea'), 'japan');
+    assert.equal(api.nationMeta('col_japan_korea').name, '朝鮮総督府');
+    assert.equal(api.snapshot().localGovernments, undefined, '自治政府レイヤーは廃止');
+    assert.equal(api.dependencyInfo('col_france_fwa').overlordId, 'france');
     assert.equal(api.provincePanelData('japan_jp_03').ownerId, 'japan');
-
-    assert.equal(api.transferLocalGovernmentState('japan_jp_03', preset.id).ok, true);
-    assert.ok(api.localGovernmentsFor('japan').find(entry => entry.name === '朝鮮総督府').stateIds.includes('japan_jp_03'));
-    assert.equal(api.integrateLocalGovernmentState('japan_jp_03').ok, true);
-    assert.equal(api.localGovernmentForState('japan_jp_03'), null);
-
-    const second = api.createLocalGovernment('japan_jp_04', { name: '陸奥政庁', kind: 'colonial' });
-    assert.equal(second.ok, true);
-    assert.equal(api.integrateLocalGovernment(second.id).ok, true);
-
-    const snapshot = api.snapshot();
-    assert.equal(await api.restore(snapshot), true);
-    assert.ok(api.localGovernmentsFor('japan').some(entry => entry.name === '朝鮮総督府'));
-
-    const invalid = api.snapshot();
-    invalid.localGovernments.lg_bad = { id: 'lg_bad', name: '不正な政庁', parentId: 'japan', kind: 'autonomous', stateIds: ['france_fwa'], autonomy: 40, loyalty: 50, governor: '', createdAt: 0 };
-    assert.equal(await api.restore(invalid), true);
-    assert.ok(!api.localGovernmentsFor('japan').some(entry => entry.id === 'lg_bad'));
   });
 
-  await check('中国軍閥は中華民国の軍閥型従属政権として地図色を共有する', async () => {
+  await check('中国軍閥は自治・中立・独立で色分けされる', async () => {
     const { api, context } = harness();
     await begin(api);
-    for (const id of ['shanxi', 'guangxi', 'guangdong', 'sichuan', 'yunnan', 'shandong', 'xinjiang', 'ma_clique', 'hunan', 'guizhou']) {
+    const autonomous = ['shanxi', 'sichuan', 'hunan'];
+    const neutral = ['guangxi', 'yunnan', 'shandong', 'ma_clique'];
+    const independent = ['guangdong', 'xinjiang', 'guizhou'];
+    for (const id of [...autonomous, ...neutral, ...independent]) {
       const dependency = api.dependencyInfo(id);
       assert.equal(dependency.type, 'warlord', id);
       assert.equal(dependency.overlordId, 'china', id);
-      assert.equal(api.colorNation(id), 'china', id);
     }
+    for (const id of autonomous) assert.equal(api.colorNation(id), 'china', id);
+    for (const id of neutral) assert.equal(api.colorNation(id), 'warlord_neutral', id);
+    for (const id of independent) assert.equal(api.colorNation(id), 'warlord_independent', id);
     assert.equal(api.provincePanelData('china_cn_sx').ownerId, 'shanxi');
     assert.equal(api.provincePanelData('china_cn_cq').ownerId, 'sichuan');
     assert.equal(api.provincePanelData('china_cn_sx').vassalOf.overlordName, '中国');
@@ -1238,16 +1225,17 @@ try {
   await check('従属政権の登録・移管・統合と地図色の解決', async () => {
     const { api } = harness();
     await begin(api);
-    assert.equal(api.colorNation('manchukuo'), 'japan');
+    assert.equal(api.colorNation('manchukuo'), 'manchukuo', '保護国は独自色');
+    assert.equal(api.colorNation('col_japan_korea'), 'japan', '植民地は宗主国色');
     assert.equal(api.colorNation('china'), 'china');
     const registered = api.createDependentCommand('siam', 'protectorate', 'シャム保護国');
     assert.equal(registered.ok, true);
     assert.equal(api.dependencyInfo('siam').type, 'protectorate');
-    assert.equal(api.colorNation('siam'), 'japan');
+    assert.equal(api.colorNation('siam'), 'siam', '保護国は宗主国色にしない');
     const transferred = api.transferDependentCommand('siam', 'uk');
     assert.equal(transferred.ok, true);
     assert.equal(api.dependencyInfo('siam').overlordId, 'uk');
-    assert.equal(api.colorNation('siam'), 'uk');
+    assert.equal(api.colorNation('siam'), 'siam');
     const second = api.createDependentCommand('iran', 'colony', 'イラン植民地');
     assert.equal(second.ok, true);
     const integrated = api.integrateDependentCommand('iran');
@@ -1275,21 +1263,19 @@ try {
     assert.ok(!api.actorRoster().includes('ministry:dv_test_state'), '統合後はactorを除去');
   });
 
-  await check('軍閥型は低忠誠で独立し、現地政府は正統性喪失で崩壊する', async () => {
+  await check('軍閥型は低忠誠で独立する', async () => {
     const { api } = harness();
     respond = () => null;
     await begin(api);
     const snapshot = api.snapshot();
     snapshot.clients.shanxi.loyalty = 10;
     snapshot.nations.shanxi.stb = 50;
-    snapshot.localGovernments.lg_japan_korea.legitimacy = 5;
     assert.equal(await api.restore(snapshot), true);
     assert.equal(await api.finishTurn(), true);
     assert.equal(await api.finishTurn(), true);
     const after = api.snapshot();
     assert.equal(after.clients.shanxi.independent, true);
     assert.ok(Object.values(after.wars).some(war => war.attacker === 'shanxi' && war.defender === 'china'));
-    assert.ok(!after.localGovernments.lg_japan_korea, '正統性喪失で現地政府が崩壊');
   });
 
   await check('AI裁定で従属政権を創設・統合できる', async () => {
@@ -1333,6 +1319,26 @@ try {
     assert.equal(await api.restore(save), true);
     assert.equal(api.dependencyInfo('manchukuo').type, 'protectorate');
     assert.equal(typeof api.dependencyInfo('manchukuo').legitimacy, 'number');
+  });
+
+  await check('中華民国の軍閥会議: 招集・翌ターンの参加表明・会議チャット', async () => {
+    const { api } = harness();
+    respond = () => null;
+    assert.equal(await api.start({ nationId: 'china', difficulty: 'standard', mandate: 'recovery', maxTurns: 24, replace: true }), true);
+    const summoned = api.summonWarlords(['shanxi', 'guangxi', 'guangdong']);
+    assert.equal(summoned.ok, true);
+    assert.equal(api.conferenceInfo().status, 'pending');
+    assert.equal(await api.finishTurn(), true);
+    const conference = api.conferenceInfo();
+    assert.equal(conference.status, 'ready');
+    assert.equal(conference.invited.length, 3);
+    assert.equal(conference.attended.length + conference.declined.length, 3);
+    assert.equal(api.sendConferenceMessage('自治条件と省境の扱いを協議したい。').ok, true);
+    const chat = api.conferenceInfo();
+    assert.ok(chat.messages.some(message => message.role === 'player'));
+    assert.ok(chat.messages.some(message => message.role === 'warlord'));
+    assert.equal(await api.restore(api.snapshot()), true);
+    assert.equal(api.conferenceInfo().invited.length, 3);
   });
 
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
