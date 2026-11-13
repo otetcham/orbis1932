@@ -413,12 +413,13 @@ window.OrbisText = (() => {
     return COUNTRY_INFO[countryId]?.name || fallbackName || countryId || '';
   }
 
+  // 国名はWikipediaへ飛ばさず、ゲーム内の国家情報ポップアップを開く。
   function countryMention(countryId, fallbackName = '') {
     const info = COUNTRY_INFO[countryId];
     if (!info) return escapeHtml(fallbackName || countryId || '');
     const flag = flagMarkup(countryId);
     const name = escapeHtml(info.name);
-    const linked = wikiLink(name, info.wiki || info.name);
+    const linked = `<a class="orbis-wiki-link orbis-country-link" href="#" role="button" aria-haspopup="dialog" data-orbis-country="${escapeHtml(countryId)}" title="${escapeHtml(info.name)}の国家情報">${name}</a>`;
     return flag ? `<span class="orbis-country-mention">${flag}${linked}</span>` : `<span class="orbis-country-mention">${linked}</span>`;
   }
 
