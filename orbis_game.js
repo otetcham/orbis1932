@@ -98,6 +98,26 @@ const Orbis = (() => {
 史実は正解ではなくデフォルトの因果の流れ。calendarに当月・年内の史実ノートを渡す。causal_kind=structural は干渉が原因に届かない限り史実どおり、contingent はプレイヤーの分岐がその原因に触れた場合のみ「起きない／別形／別時期」を理由1文付きで選ぶ。depends_on の依存元が無効化された出来事は史実どおりに強制しない。収束は同じ役者・同じ構造が別筋で似た結果に近づく形にする。
 絵文字・Markdownコードフェンス・前置きは使わず、指定した単一のJSONオブジェクトだけを出力する。本文は読みやすい日本語。`;
 
+  // 会話・説明の教養レベル。AIの語彙と情報量だけを変え、ゲーム規則は変えない。
+  const KNOWLEDGE_PROFILES = {
+    doctor: {
+      label: '博士',
+      instruction: '博士号相当の専門知識を持つ読者として扱う。学術用語・統計・一次史料の区分を省略せず、因果の複数解釈と不確実性まで簡潔に示す。前提説明は最小限。'
+    },
+    professional: {
+      label: '専門職',
+      instruction: '政策・外交・経済の実務に従事する専門職として扱う。専門用語は使ってよいが、判断に必要な数字・制約・代替案を簡潔に添える。'
+    },
+    general: {
+      label: '一般',
+      instruction: '歴史の専門教育を受けていない一般読者として扱う。専門用語には短い言い換えを添え、結論を先に、文を短くする。背景説明は1文まで。'
+    },
+    student: {
+      label: '学生',
+      instruction: '歴史を学び始めた学生として扱う。用語を定義し、なぜ重要かを1文で示す。因果は順序立てて説明し、情報量を抑える。'
+    }
+  };
+
   let campaign = null;
   let actors = {};
   let config = { provider: 'gemini', endpoint: PROVIDER_CONFIGS.gemini.defaultEndpoint, apiKey: '', model: 'gemini-2.5-flash', remember: false };
@@ -146,7 +166,7 @@ const Orbis = (() => {
   const capRuling = (value, limit) => finite(value, -limit, limit);
   const capCombinedRuling = (key, value) => capRuling(value, rulingCaps().combined[key] ?? 4);
 
-  function createCampaign(nationId, difficulty, mandate, maxTurns) {
+  function createCampaign(nationId, difficulty, mandate, maxTurns, knowledgeLevel = 'general') {
     const nations = {};
     const relations = {};
     const base = SCENARIOS.era_1932.nations;
@@ -162,6 +182,7 @@ const Orbis = (() => {
     }
     const game = {
       version: 5, saveFormat: 6, halfMonth: true, id: uid('campaign'), playerNationId: nationId, difficulty, mandate, maxTurns,
+      knowledgeLevel: Object.hasOwn(KNOWLEDGE_PROFILES, knowledgeLevel) ? knowledgeLevel : 'general',
       milestoneHalfTurns: MILESTONE_HALVES(), continuePastMilestone: false, milestoneAcknowledged: false,
       completedTurns: 0, phase: 'briefing', usedActions: 0, tension: 42, treasury: 65, prestige: 40,
       nations, relations, leaders: {}, actorState: {}, threads: {}, activeActorId: 'adviser',
@@ -1981,7 +2002,8 @@ const Orbis = (() => {
 
   async function structuredAI(operation, prompt, context, validate, maxTokens, options = {}) {
     const { coerce = null, fallback = null } = options;
-    const messages = [{ role: 'system', content: `${BASE_PROMPT}\nOPERATION: ${operation}\n${prompt}` }, { role: 'user', content: JSON.stringify({ operation, context }) }];
+    const knowledge = KNOWLEDGE_PROFILES[campaign?.knowledgeLevel] || KNOWLEDGE_PROFILES.general;
+    const messages = [{ role: 'system', content: `${BASE_PROMPT}\n会話レベル（${knowledge.label}）: ${knowledge.instruction}\nOPERATION: ${operation}\n${prompt}` }, { role: 'user', content: JSON.stringify({ operation, context }) }];
     runtime.streamPreview = '';
     runtime.coerceNotes = [];
     const requestKey = `${operation}:${context?.completedTurns ?? ''}:${messages[1].content.length}`;
@@ -2726,10 +2748,12 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const difficulty = options.difficulty || $('campaign-difficulty')?.value || 'standard';
     const mandate = options.mandate || $('campaign-mandate')?.value || 'recovery';
     const maxTurns = resolveMaxTurns(options);
+    const knowledgeLevel = options.knowledgeLevel || $('campaign-knowledge')?.value || 'general';
+    if (!Object.hasOwn(KNOWLEDGE_PROFILES, knowledgeLevel)) throw new Error('会話レベルが不正です。');
     if (!SCENARIOS.era_1932.nations[nationId] || !RULES[difficulty] || !['recovery', 'diplomacy', 'security'].includes(mandate) || !allowedMaxTurns(maxTurns)) throw new Error('キャンペーン設定が不正です。');
     if (campaign && !options.replace && typeof window.confirm === 'function' && !window.confirm('新しい歴史を始めます。現在の自動保存を置き換えますか？')) return false;
     if (typeof exitLobbyMode === 'function') exitLobbyMode();
-    campaign = createCampaign(nationId, difficulty, mandate, maxTurns);
+    campaign = createCampaign(nationId, difficulty, mandate, maxTurns, knowledgeLevel);
     resetDesktop();
     actors = buildActors(campaign);
     thread(campaign, 'adviser');
@@ -3243,6 +3267,23 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     text('mandate-progress', `${goal.name} · ${goal.conditions.filter(condition => condition.met).length} / ${goal.conditions.length}条件達成`);
   }
 
+  function setKnowledgeLevel(level) {
+    if (!campaign || !Object.hasOwn(KNOWLEDGE_PROFILES, level)) return false;
+    campaign.knowledgeLevel = level;
+    saveCampaign();
+    renderKnowledge();
+    render();
+    toast(`会話レベルを「${KNOWLEDGE_PROFILES[level].label}」に変更した。`);
+    return true;
+  }
+
+  function renderKnowledge() {
+    if (!campaign) return;
+    const profile = KNOWLEDGE_PROFILES[campaign.knowledgeLevel] || KNOWLEDGE_PROFILES.general;
+    if ($('select-knowledge-level')) $('select-knowledge-level').value = campaign.knowledgeLevel;
+    text('knowledge-level-label', profile.label);
+  }
+
   function renderWarlords() {
     const host = $('warlord-panel-content');
     if (!host || !campaign) return;
@@ -3415,6 +3456,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const all = !scope;
     const wants = key => all || scope?.includes(key);
     if (wants('top')) renderTop();
+    if (wants('knowledge')) renderKnowledge();
     if (wants('warlords')) renderWarlords();
     if (wants('domestic')) renderDomestic();
     if (wants('history')) renderHistory();
@@ -3892,6 +3934,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     game.milestoneHalfTurns = finite(raw.milestoneHalfTurns, 24, SAVE_TURN_CEILING(), MILESTONE_HALVES());
     game.continuePastMilestone = Boolean(raw.continuePastMilestone);
     game.milestoneAcknowledged = Boolean(raw.milestoneAcknowledged);
+    game.knowledgeLevel = Object.hasOwn(KNOWLEDGE_PROFILES, raw.knowledgeLevel) ? raw.knowledgeLevel : 'general';
     game.establishedFacts = array(raw.establishedFacts || [], '確定した事実', 400).map(item => requiredText(item, '確定した事実', 500));
     game.wars = raw.wars && typeof raw.wars === 'object' ? copy(raw.wars) : {};
     game.civilWars = raw.civilWars && typeof raw.civilWars === 'object' ? copy(raw.civilWars) : {};
@@ -4287,6 +4330,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     on('chat-input-field', 'keydown', event => {
       if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); send(); }
     });
+    on('select-knowledge-level', 'change', event => {
+      setKnowledgeLevel(event.target.value);
+    });
     on('select-ai-provider', 'change', event => {
       const provider = event.target.value;
       fillModelOptions(provider);
@@ -4424,7 +4470,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       turnsThroughCalendarMonth: (year, month, half = 'second') => core.halfTurnsThrough(year, month, half),
     };
   };
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, openPanel, dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, openPanel, setKnowledgeLevel, knowledgeProfiles: KNOWLEDGE_PROFILES, dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
 colorNation, nationMeta: nationId => nationMeta(nationId),
 dependentsFor: nationId => Object.values(campaign?.clients || {}).filter(client => client.sponsorId === (nationId || campaign?.playerNationId) && !client.dissolved),
 createDependent: (sponsorId, vassalId, type, name) => createDependent(sponsorId, vassalId, type, name, campaign),

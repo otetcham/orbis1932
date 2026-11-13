@@ -1341,6 +1341,21 @@ try {
     assert.equal(api.conferenceInfo().invited.length, 3);
   });
 
+  await check('会話レベルがAIプロンプトとセーブに反映される', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'japan', difficulty: 'standard', mandate: 'recovery', maxTurns: 24, knowledgeLevel: 'student', replace: true }), true);
+    assert.equal(api.snapshot().knowledgeLevel, 'student');
+    const briefing = requests.filter(item => item.operation === 'BRIEFING').at(-1);
+    assert.ok(briefing, 'briefing request');
+    assert.match(briefing.body.messages[0].content, /会話レベル（学生）/);
+    assert.equal(api.setKnowledgeLevel('doctor'), true);
+    assert.equal(api.snapshot().knowledgeLevel, 'doctor');
+    const save = api.snapshot();
+    delete save.knowledgeLevel;
+    assert.equal(await api.restore(save), true);
+    assert.equal(api.snapshot().knowledgeLevel, 'general');
+  });
+
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
 } finally {
   await new Promise(resolve => server.close(resolve));
