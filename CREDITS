@@ -21,3 +21,18 @@
 ## 史実タイムライン（フェーズC — 変更禁止）
 
 - `orbis_events.js` / `WORLD_EVENT_DB` — オーナー提供（272件）
+
+## 国家選択画面の指導者肖像（portraits/）
+
+1932年3月時点の首脳肖像。いずれも Wikimedia Commons 由来で、各ファイルのライセンスは該当ページに従う。
+
+| 国 | 人物 | 出典 |
+|---|---|---|
+| 日本 | 犬養毅 | [ja.wikipedia.org/wiki/犬養毅](https://ja.wikipedia.org/wiki/%E7%8A%AC%E9%A4%8A%E6%AF%85) |
+| 中国 | 蔣介石 | [ja.wikipedia.org/wiki/蔣介石](https://ja.wikipedia.org/wiki/%E8%94%A3%E4%BB%8B%E7%9F%B3) |
+| 米国 | ハーバート・フーヴァー | [ja.wikipedia.org/wiki/ハーバート・フーヴァー](https://ja.wikipedia.org/wiki/%E3%83%8F%E3%83%BC%E3%83%90%E3%83%BC%E3%83%88%E3%83%BB%E3%83%95%E3%83%BC%E3%83%B4%E3%82%A1%E3%83%BC) |
+| 英国 | ラムゼイ・マクドナルド | [ja.wikipedia.org/wiki/ラムゼイ・マクドナルド](https://ja.wikipedia.org/wiki/%E3%83%A9%E3%83%A0%E3%82%BC%E3%82%A4%E3%83%BB%E3%83%9E%E3%82%AF%E3%83%89%E3%83%8A%E3%83%AB%E3%83%89) |
+| フランス | アンドレ・タルデュー | [ja.wikipedia.org/wiki/アンドレ・タルデュー](https://ja.wikipedia.org/wiki/%E3%82%A2%E3%83%B3%E3%83%89%E3%83%AC%E3%83%BB%E3%82%BF%E3%83%AB%E3%83%87%E3%83%A5%E3%83%BC) |
+| ドイツ | パウル・フォン・ヒンデンブルク | [ja.wikipedia.org/wiki/パウル・フォン・ヒンデンブルク](https://ja.wikipedia.org/wiki/%E3%83%91%E3%82%A6%E3%83%AB%E3%83%BB%E3%83%95%E3%82%A9%E3%83%B3%E3%83%BB%E3%83%92%E3%83%B3%E3%83%87%E3%83%B3%E3%83%96%E3%83%AB%E3%82%AF) |
+| イタリア | ベニート・ムッソリーニ | [ja.wikipedia.org/wiki/ベニート・ムッソリーニ](https://ja.wikipedia.org/wiki/%E3%83%99%E3%83%8B%E3%83%BC%E3%83%88%E3%83%BB%E3%83%A0%E3%83%83%E3%82%BD%E3%83%AA%E3%83%BC%E3%83%8B) |
+| ソ連 | ヨシフ・スターリン | [ja.wikipedia.org/wiki/ヨシフ・スターリン](https://ja.wikipedia.org/wiki/%E3%83%A8%E3%82%B7%E3%83%95%E3%83%BB%E3%82%B9%E3%82%BF%E3%83%BC%E3%83%AA%E3%83%B3) |
