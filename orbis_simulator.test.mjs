@@ -1134,6 +1134,39 @@ try {
     assert.equal(vm.runInContext('state.lobbyNationId', context), 'japan');
   });
 
+  await check('自治政府の設置・移管・統合と宗主国の領土を維持する', async () => {
+    const { api } = harness();
+    await begin(api);
+    const preset = api.localGovernmentsFor('japan').find(entry => entry.name === '朝鮮総督府');
+    assert.ok(preset, '初期自治政府');
+    assert.equal(api.provincePanelData('japan_empire_kor').ownerId, 'japan');
+    assert.equal(api.provincePanelData('japan_empire_kor').localGovernment.name, '朝鮮総督府');
+
+    const created = api.createLocalGovernment('japan_jp_03', { name: '東北自治政府', kind: 'autonomous' });
+    assert.equal(created.ok, true);
+    const local = api.localGovernmentsFor('japan').find(entry => entry.name === '東北自治政府');
+    assert.ok(local.stateIds.includes('japan_jp_03'));
+    assert.equal(api.provincePanelData('japan_jp_03').ownerId, 'japan');
+
+    assert.equal(api.transferLocalGovernmentState('japan_jp_03', preset.id).ok, true);
+    assert.ok(api.localGovernmentsFor('japan').find(entry => entry.name === '朝鮮総督府').stateIds.includes('japan_jp_03'));
+    assert.equal(api.integrateLocalGovernmentState('japan_jp_03').ok, true);
+    assert.equal(api.localGovernmentForState('japan_jp_03'), null);
+
+    const second = api.createLocalGovernment('japan_jp_04', { name: '陸奥政庁', kind: 'colonial' });
+    assert.equal(second.ok, true);
+    assert.equal(api.integrateLocalGovernment(second.id).ok, true);
+
+    const snapshot = api.snapshot();
+    assert.equal(await api.restore(snapshot), true);
+    assert.ok(api.localGovernmentsFor('japan').some(entry => entry.name === '朝鮮総督府'));
+
+    const invalid = api.snapshot();
+    invalid.localGovernments.lg_bad = { id: 'lg_bad', name: '不正な政庁', parentId: 'japan', kind: 'autonomous', stateIds: ['france_fwa'], autonomy: 40, loyalty: 50, governor: '', createdAt: 0 };
+    assert.equal(await api.restore(invalid), true);
+    assert.ok(!api.localGovernmentsFor('japan').some(entry => entry.id === 'lg_bad'));
+  });
+
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
 } finally {
   await new Promise(resolve => server.close(resolve));
