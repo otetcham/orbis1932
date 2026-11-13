@@ -328,7 +328,7 @@ html, body {
 .badge-indigo { background: var(--indigo-bg); color: var(--indigo-bright); border: 1px solid rgba(99, 102, 241, 0.4); }
 
 /* ==========================================================================
-   START LOBBY OVERLAY (All 32 Nations)
+   START LOBBY OVERLAY (66 Nations · 列強 / 中堅国 / 小国)
    ========================================================================== */
 .lobby-overlay {
   position: fixed;
@@ -1387,7 +1387,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   align-items: stretch;
   justify-content: flex-start;
   padding: 0;
-  background: linear-gradient(90deg, rgba(238, 244, 251, 0.96) 0%, rgba(238, 244, 251, 0.92) 520px, rgba(238, 244, 251, 0.4) 800px, rgba(238, 244, 251, 0.05) 100%);
+  background: transparent;
   pointer-events: none;
   overflow: hidden;
   transition: opacity 0.3s ease, visibility 0.3s ease;
@@ -1408,12 +1408,12 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border-right: 1px solid rgba(217, 228, 240, 0.85);
-  box-shadow: 6px 0 32px rgba(15, 30, 60, 0.12);
+  box-shadow: none;
 }
 @media (max-width: 920px) {
   .lobby-overlay {
     flex-direction: row;
-    background: linear-gradient(90deg, rgba(238, 244, 251, 0.98) 0%, rgba(238, 244, 251, 0.95) 48%, rgba(238, 244, 251, 0.12) 100%);
+    background: transparent;
     overflow: hidden;
     /* 左のカード群だけが入力を受け取り、右に見えている球体はタップできるようにする。 */
     pointer-events: none;
@@ -1423,7 +1423,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
     height: 100%;
     max-height: none;
     border-right: 1px solid rgba(217, 228, 240, 0.85);
-    box-shadow: 6px 0 32px rgba(15, 30, 60, 0.12);
+    box-shadow: none;
     background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(12px);
     pointer-events: auto;
@@ -1435,7 +1435,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 @media (max-width: 620px) {
   .lobby-overlay {
     flex-direction: column;
-    background: linear-gradient(180deg, rgba(238, 244, 251, 0.98) 0%, rgba(238, 244, 251, 0.95) 56%, rgba(238, 244, 251, 0.12) 100%);
+    background: transparent;
   }
   .lobby-container {
     max-width: 100%;
@@ -1488,10 +1488,10 @@ body.in-lobby .map-zoom-controls {
 .nation-outer-boundary {
   fill: none;
   stroke: #38bdf8;
-  stroke-width: 3.4px;
+  stroke-width: 4px;
   stroke-linejoin: round;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.85));
+  filter: drop-shadow(0 0 7px rgba(56, 189, 248, 0.9));
   will-change: stroke, stroke-width;
   animation: nation-outer-glow 2.2s ease-in-out infinite;
   pointer-events: none;
@@ -1499,27 +1499,18 @@ body.in-lobby .map-zoom-controls {
 @keyframes nation-outer-glow {
   0%, 100% {
     stroke: #38bdf8;
-    stroke-width: 3.2px;
-    opacity: 0.9;
+    stroke-width: 3.8px;
+    opacity: 0.92;
   }
   50% {
     stroke: #7dd3fc;
-    stroke-width: 4.2px;
+    stroke-width: 5px;
     opacity: 1;
   }
 }
 
 .prov-path.lobby-highlighted {
   opacity: 1 !important;
-  filter: brightness(1.22) saturate(1.15) !important;
-}
-body.in-lobby.nation-selected .prov-path:not(.lobby-highlighted):not(.sea-zone-path) {
-  opacity: 0.42;
-  transition: opacity 0.35s ease;
-}
-body.in-lobby:not(.nation-selected) .prov-path {
-  opacity: 1;
-  transition: opacity 0.35s ease;
 }
 .map-label.lobby-highlighted-label {
   font-size: 15px !important;
@@ -1529,10 +1520,6 @@ body.in-lobby:not(.nation-selected) .prov-path {
   stroke-width: 4px !important;
   paint-order: stroke fill !important;
   opacity: 1 !important;
-}
-body.in-lobby.nation-selected .map-label:not(.lobby-highlighted-label) {
-  opacity: 0.25 !important;
-  transition: opacity 0.35s ease;
 }
 
 /* Province selection: glowing border along perimeter, no rectangular focus box */
@@ -1580,6 +1567,67 @@ svg path:focus-visible,
 .lobby-nations-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 .lobby-footer { background: #ffffff; border-color: #d3dfec; gap: 14px; }
 .lobby-resume { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--text-muted); font-size: 11px; }
+
+/* HOI4風の国家選択: 列強 / 中堅国 / 小国 */
+.lobby-container { overflow: hidden; }
+@media (max-width: 620px) {
+  .lobby-container { overflow-y: auto; }
+  .lobby-picker { min-height: 340px; }
+}
+@media (max-height: 760px) {
+  .lobby-container { padding: 14px 22px; gap: 10px; }
+  .lobby-subtitle { display: none; }
+  .lobby-title { font-size: 22px; }
+  #lobby-api-banner { padding: 7px 12px !important; }
+  .lobby-footer { padding: 10px 14px; }
+  .lobby-tier-head { margin-bottom: 5px; }
+}
+.lobby-header, .campaign-options, .lobby-footer, .lobby-resume { flex: 0 0 auto; }
+.lobby-picker { display: flex; flex-direction: column; min-height: 0; flex: 1 1 0; }
+.lobby-picker-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; flex: 0 0 auto; }
+.lobby-picker-head .filter-group-box { gap: 2px; }
+.lobby-picker-head .filter-btn { padding: 4px 8px; font-size: 10.5px; }
+.lobby-nations-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.lobby-nations-grid { display: flex; flex-direction: column; gap: 16px; }
+.lobby-tier-head { display: flex; align-items: baseline; gap: 8px; padding-bottom: 5px; margin-bottom: 7px; border-bottom: 1px solid #dde7f1; }
+.lobby-tier-name { font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em; color: #16283e; }
+.lobby-tier-note { font-size: 10px; color: #7b8fa6; }
+.lobby-tier-count { margin-left: auto; font: 600 10px var(--font-mono); color: #8ba0b8; }
+.lobby-tier--major .lobby-tier-name { color: #8a5a12; }
+.lobby-tier-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.lobby-tier-grid.is-minor { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+
+.lobby-nation-card { display: flex; flex-direction: row; align-items: flex-start; gap: 9px; padding: 9px; border-radius: 7px; min-width: 0; }
+.lobby-nation-card--minor { align-items: center; gap: 6px; padding: 6px 8px; }
+
+.lobby-portrait { position: relative; flex: 0 0 auto; width: 46px; height: 56px; border-radius: 4px; overflow: hidden; background: #e9eff6; border: 1px solid #cfdbe8; }
+.lobby-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: center 14%; filter: grayscale(0.25) sepia(0.08) contrast(1.02); }
+.lobby-portrait-code { position: absolute; right: 0; bottom: 0; padding: 1px 3px; border-top-left-radius: 3px; background: rgba(17, 32, 51, 0.72); color: #fff; font: 600 7.5px var(--font-mono); letter-spacing: 0.04em; }
+.lobby-seal { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font: 700 9px var(--font-mono); letter-spacing: 0.02em; background: #eef4fa; border: 1px solid #c9d8e8; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85); }
+
+.lobby-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.lobby-card-title { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.lobby-card-title .flag-badge { flex: 0 0 auto; width: 18px; height: 12px; }
+.lobby-card-title strong { font-size: 12px; font-weight: 700; color: #16283e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lobby-card-badge { flex: 0 0 auto; margin-left: auto; padding: 1px 5px; border-radius: 3px; font-size: 8.5px; font-weight: 700; letter-spacing: 0.04em; }
+.lobby-card-badge.is-major { color: #8a5a12; background: #fdf4e3; border: 1px solid #ecd9b4; }
+.lobby-card-badge.is-mid { color: #1d4e8f; background: #eaf2fb; border: 1px solid #cfe0f2; }
+.lobby-card-badge.is-minor { color: #526b86; background: #f1f5fa; border: 1px solid #d9e4f0; }
+.lobby-card-leader { font-size: 10px; color: #526b86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lobby-card-agenda { font-size: 10px; color: #7b8fa6; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lobby-card-stats { display: flex; gap: 8px; margin-top: 2px; font: 10px var(--font-mono); color: #7b8fa6; }
+.lobby-card-stats b { color: #16283e; font-weight: 600; }
+.lobby-minor-name { font-size: 11px; color: #16283e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lobby-minor-meta { flex: 0 0 auto; font: 9.5px var(--font-mono); color: #8ba0b8; }
+.lobby-empty { padding: 24px 0; text-align: center; font-size: 12px; color: #7b8fa6; }
+
+.lobby-selected { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.lobby-selected .lobby-portrait { width: 52px; height: 64px; }
+.lobby-selected .lobby-seal { width: 46px; height: 46px; font-size: 10px; }
+.lobby-selected-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lobby-selected-title { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: #16283e; }
+.lobby-selected-meta { font-size: 10.5px; color: #7b8fa6; }
+.lobby-selected-agenda { font-size: 11px; color: #526b86; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .campaign-options { display: grid; grid-template-columns: 1fr 1fr 140px; gap: 10px; }
 .campaign-options label { color: var(--text-muted); font-size: 11px; display: grid; gap: 5px; }
 .filter-group-box { flex-wrap: wrap; background: #ffffff; border-color: #d3dfec; }
@@ -1969,25 +2017,27 @@ svg path:focus-visible,
         </div>
       </div>
 
-      <!-- Region Filter Tabs for All 65 Playable Nations -->
-      <div>
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+      <!-- Nation picker: majors / mid powers / minors -->
+      <div class="lobby-picker">
+        <div class="lobby-picker-head">
           <div class="lobby-section-label">
             <span class="lobby-step-num">1932年3月1日</span>
             <span>担当する国家を選ぶ</span>
             <span id="orbis-build-version" style="font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:var(--cyan-bright); margin-left:6px; letter-spacing:0.5px;">Rev 1932.5</span>
           </div>
           <div class="filter-group-box">
-            <button class="filter-btn active" data-lobby-region="all">全32カ国</button>
-            <button class="filter-btn" data-lobby-region="major">主要大国 (7)</button>
-            <button class="filter-btn" data-lobby-region="ヨーロッパ">ヨーロッパ (13)</button>
-            <button class="filter-btn" data-lobby-region="東アジア・太平洋">東アジア・モンゴル (4)</button>
-            <button class="filter-btn" data-lobby-region="アジア・オセアニア">南アジア・豪州 (3)</button>
-            <button class="filter-btn" data-lobby-region="南北アメリカ">南北アメリカ (6)</button>
-            <button class="filter-btn" data-lobby-region="中東・アフリカ">中東・アフリカ (6)</button>
+            <button class="filter-btn active" data-lobby-region="all">全カ国</button>
+            <button class="filter-btn" data-lobby-region="major">列強</button>
+            <button class="filter-btn" data-lobby-region="ヨーロッパ">ヨーロッパ</button>
+            <button class="filter-btn" data-lobby-region="東アジア・太平洋">東アジア</button>
+            <button class="filter-btn" data-lobby-region="アジア・オセアニア">アジア・オセアニア</button>
+            <button class="filter-btn" data-lobby-region="南北アメリカ">南北アメリカ</button>
+            <button class="filter-btn" data-lobby-region="中東・アフリカ">中東・アフリカ</button>
           </div>
         </div>
-        <div class="lobby-nations-grid" id="lobby-nations-grid" style="max-height:38vh; overflow-y:auto; padding-right:4px;"></div>
+        <div class="lobby-nations-scroll">
+          <div class="lobby-nations-grid" id="lobby-nations-grid"></div>
+        </div>
       </div>
 
       <div class="campaign-options">
@@ -4186,17 +4236,26 @@ function applyLobbyHighlights() {
   updateNationOuterBoundary();
 }
 
+function syncLobbySelection() {
+  document.querySelectorAll('.lobby-nation-card').forEach(card => {
+    const on = card.dataset.nationId === state.lobbyNationId;
+    card.classList.toggle('selected', on);
+    card.setAttribute('aria-pressed', String(on));
+    if (on) card.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  });
+}
+
 function selectLobbyNation(id) {
   if (!id) return;
   state.lobbyNationId = id;
-  renderLobbyNationsGrid();
+  syncLobbySelection();
   updateLobbySelectedSummary();
   flyGlobeToNation(id);
 }
 
 function deselectLobbyNation() {
   state.lobbyNationId = null;
-  renderLobbyNationsGrid();
+  syncLobbySelection();
   updateLobbySelectedSummary();
   applyLobbyHighlights();
   updateMapVisuals();
@@ -4269,14 +4328,69 @@ function getRelationLabel(score) {
 }
 
 // ==========================================================================
-// 2. LOBBY SCREEN (All 32 Nations Selection)
+// 2. LOBBY SCREEN (66 Nations · Tiered Selection)
 // ==========================================================================
+// 1932年3月時点の首脳肖像（Wikimedia Commons、PD/CC。出典はCREDITS参照）
+const LOBBY_PORTRAITS = {
+  japan: './portraits/japan.jpg',
+  china: './portraits/china.png',
+  usa: './portraits/usa.jpg',
+  uk: './portraits/uk.jpg',
+  france: './portraits/france.jpg',
+  germany: './portraits/germany.jpg',
+  italy: './portraits/italy.jpg',
+  russia: './portraits/russia.jpg'
+};
+
+const LOBBY_TIER = {
+  major: { name: '列強', note: '世界秩序を決める大国', badge: '列強' },
+  mid: { name: '中堅国', note: '地域情勢を左右する国々', badge: '中堅' },
+  minor: { name: '小国', note: '生き残りを賭ける国々', badge: '小国' }
+};
+
+function lobbyTierOf(nation) {
+  if (nation.isMajor) return 'major';
+  const gdp = parseFloat(String(nation.gdpText || '').replace(/[^0-9.]/g, '')) || 0;
+  return gdp >= 2.5 ? 'mid' : 'minor';
+}
+
+// カード幅に収めるための表示名。正式名称は選択後の詳細と国家情報カードで見せる。
+const LOBBY_SHORT_NAMES = { uk: '大英帝国', russia: 'ソビエト連邦', china: '中華民国', usa: 'アメリカ合衆国' };
+function lobbyDisplayName(id, nation) {
+  if (LOBBY_SHORT_NAMES[id]) return LOBBY_SHORT_NAMES[id];
+  const name = String(nation.name || id);
+  return name.replace(/\s*[（(].*$/, '') || name;
+}
+
+function lobbyPortraitMarkup(id, nation) {
+  const src = LOBBY_PORTRAITS[id];
+  const code = escapeHtml(nation.code || '');
+  if (src) {
+    return `<span class="lobby-portrait"><img src="${src}" alt="" decoding="async"><span class="lobby-portrait-code">${code}</span></span>`;
+  }
+  const color = COUNTRY_MAP_COLORS[id] || '#5b7590';
+  return `<span class="lobby-seal" style="background:${color}1a; border-color:${color}55; color:${color};">${code}</span>`;
+}
+
 function initLobbyScreen() {
+  const base = SCENARIOS.era_1932.nations;
+  const ids = Object.keys(base);
+  const counts = { all: ids.length, major: ids.filter(id => base[id].isMajor).length };
+  for (const id of ids) {
+    const region = base[id].region || base[id].regionGroup;
+    if (region) counts[region] = (counts[region] || 0) + 1;
+  }
+  const shortLabels = {
+    all: '全', major: '列強', 'ヨーロッパ': 'ヨーロッパ', '東アジア・太平洋': '東アジア',
+    'アジア・オセアニア': '南アジア・豪州', '南北アメリカ': 'アメリカ', '中東・アフリカ': '中東・アフリカ'
+  };
   document.querySelectorAll('.filter-btn[data-lobby-region]').forEach(btn => {
+    const key = btn.dataset.lobbyRegion;
+    btn.textContent = `${shortLabels[key] || key} ${counts[key] || 0}`;
     btn.addEventListener('click', () => {
       document.querySelectorAll('.filter-btn[data-lobby-region]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      state.lobbyRegionFilter = btn.dataset.lobbyRegion;
+      state.lobbyRegionFilter = key;
       renderLobbyNationsGrid();
     });
   });
@@ -4285,61 +4399,90 @@ function initLobbyScreen() {
   enterLobbyMode();
 }
 
+function lobbyNationCard(id, base, tier) {
+  const n = base[id];
+  const isSelected = (id === state.lobbyNationId);
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.setAttribute('aria-pressed', String(isSelected));
+  card.dataset.nationId = id;
+
+  if (tier === 'minor') {
+    card.className = `lobby-nation-card lobby-nation-card--minor ${isSelected ? 'selected' : ''}`;
+    card.innerHTML = `
+      ${getCountryFlagSvg(id)}
+      <span class="lobby-minor-name">${escapeHtml(lobbyDisplayName(id, n))}</span>
+      <span class="lobby-minor-meta">${n.mil}/${n.eco}</span>
+    `;
+  } else {
+    card.className = `lobby-nation-card lobby-nation-card--${tier} ${isSelected ? 'selected' : ''}`;
+    const badge = tier === 'major'
+      ? `<span class="lobby-card-badge is-major">${LOBBY_TIER.major.badge}</span>`
+      : '';
+    card.innerHTML = `
+      ${lobbyPortraitMarkup(id, n)}
+      <span class="lobby-card-body">
+        <span class="lobby-card-title">${getCountryFlagSvg(id)}<strong>${escapeHtml(lobbyDisplayName(id, n))}</strong>${badge}</span>
+        <span class="lobby-card-leader">${escapeHtml(n.leader || '')}</span>
+        <span class="lobby-card-agenda">${escapeHtml(n.aiAgenda || n.summary || '')}</span>
+        <span class="lobby-card-stats"><span>軍事 <b>${n.mil}</b></span><span>経済 <b>${n.eco}</b></span><span>安定 <b>${n.stb}</b></span></span>
+      </span>
+    `;
+  }
+
+  card.addEventListener('click', () => {
+    if (state.lobbyNationId === id) {
+      deselectLobbyNation();
+    } else {
+      selectLobbyNation(id);
+    }
+  });
+  return card;
+}
+
 function renderLobbyNationsGrid() {
   const grid = document.getElementById('lobby-nations-grid');
   if (!grid) return;
   grid.innerHTML = '';
 
   const base = SCENARIOS.era_1932.nations;
-  const nIds = Object.keys(base);
   const filter = state.lobbyRegionFilter;
+  const groups = { major: [], mid: [], minor: [] };
 
-  const filtered = nIds.filter(id => {
+  for (const id of Object.keys(base)) {
     const n = base[id];
-    if (filter === 'all') return true;
-    if (filter === 'major') return n.isMajor;
-    return (n.region === filter || n.regionGroup === filter);
-  });
+    if (filter === 'major') {
+      if (!n.isMajor) continue;
+    } else if (filter !== 'all') {
+      if (n.region !== filter && n.regionGroup !== filter) continue;
+    }
+    groups[lobbyTierOf(n)].push(id);
+  }
 
-  filtered.forEach(id => {
-    const n = base[id];
-    const isSelected = (id === state.lobbyNationId);
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.setAttribute('aria-pressed', String(isSelected));
-    card.className = `lobby-nation-card ${isSelected ? 'selected' : ''}`;
-    card.dataset.nationId = id;
+  const gdpOf = id => parseFloat(String(base[id].gdpText || '').replace(/[^0-9.]/g, '')) || 0;
+  groups.major.sort((a, b) => (base[b].mil + base[b].eco) - (base[a].mil + base[a].eco));
+  groups.mid.sort((a, b) => gdpOf(b) - gdpOf(a));
+  groups.minor.sort((a, b) => String(base[a].name).localeCompare(String(base[b].name), 'ja'));
 
-    const flagSvg = getCountryFlagSvg(id, true);
-    const regionName = n.region || n.regionGroup || '一般';
-    card.innerHTML = `
-      <div style="display:flex; align-items:center; justify-content:space-between;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          ${flagSvg}
-          <strong style="font-size:13.5px; color:var(--text-primary);">${n.name}</strong>
-        </div>
-        ${n.isMajor ? '<span class="badge badge-brass" style="font-size:10px;">主要列強</span>' : `<span class="badge" style="font-size:10px; background:rgba(148,163,184,0.15); color:var(--text-muted);">${regionName}</span>`}
-      </div>
-      <div style="font-size:11.5px; color:var(--text-secondary); line-height:1.4;">
-        指導者: <strong style="color:var(--text-primary);">${n.leader}</strong> (${n.blocName || n.regime || '体制'})
-      </div>
-      <div style="font-size:11px; color:var(--text-muted); display:flex; gap:10px; font-family:var(--font-mono); margin-top:2px;">
-        <span>軍事:<b style="color:var(--crimson-bright);">${n.mil}</b></span>
-        <span>経済:<b style="color:var(--brass-bright);">${n.eco}</b></span>
-        <span>安定:<b style="color:var(--emerald-bright);">${n.stb}%</b></span>
-      </div>
-    `;
+  for (const tier of ['major', 'mid', 'minor']) {
+    const ids = groups[tier];
+    if (!ids.length) continue;
+    const section = document.createElement('section');
+    section.className = `lobby-tier lobby-tier--${tier}`;
+    const head = document.createElement('div');
+    head.className = 'lobby-tier-head';
+    head.innerHTML = `<span class="lobby-tier-name">${LOBBY_TIER[tier].name}</span><span class="lobby-tier-note">${LOBBY_TIER[tier].note}</span><span class="lobby-tier-count">${ids.length}</span>`;
+    const tierGrid = document.createElement('div');
+    tierGrid.className = `lobby-tier-grid${tier === 'minor' ? ' is-minor' : ''}`;
+    for (const id of ids) tierGrid.appendChild(lobbyNationCard(id, base, tier));
+    section.appendChild(head);
+    section.appendChild(tierGrid);
+    grid.appendChild(section);
+  }
 
-    card.addEventListener('click', () => {
-      if (state.lobbyNationId === id) {
-        deselectLobbyNation();
-      } else {
-        selectLobbyNation(id);
-      }
-    });
-
-    grid.appendChild(card);
-  });
+  if (!grid.children.length) {
+    grid.innerHTML = '<p class="lobby-empty">該当する国家はありません。</p>';
+  }
 
   updateLobbySelectedSummary();
 }
@@ -4370,21 +4513,19 @@ function updateLobbySelectedSummary() {
 
   const n = SCENARIOS.era_1932.nations[state.lobbyNationId];
   if (!n) return;
-  const flagSvg = getCountryFlagSvg(state.lobbyNationId, true);
+  const tier = lobbyTierOf(n);
+  const badgeCls = tier === 'major' ? 'is-major' : tier === 'mid' ? 'is-mid' : 'is-minor';
   sumEl.innerHTML = `
-    <div style="display:flex; align-items:center; gap:10px;">
-      ${flagSvg}
-      <div>
-        <div style="font-size:13px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
-          <span>選択中: ${n.name}</span>
+    <div class="lobby-selected">
+      ${lobbyPortraitMarkup(state.lobbyNationId, n)}
+      <div class="lobby-selected-body">
+        <div class="lobby-selected-title">
+          <span>${escapeHtml(n.name)}</span>
+          <span class="lobby-card-badge ${badgeCls}">${LOBBY_TIER[tier].badge}</span>
           <button type="button" class="text-button" id="btn-lobby-deselect" style="font-size:11px; color:#2f6db8; text-decoration:underline;">解除</button>
         </div>
-        <div style="font-size:11px; color:var(--text-muted); line-height:1.35; margin-top:2px;">
-          指導者: <strong>${n.leader}</strong> (${n.blocName || n.regime || '体制'})
-        </div>
-        <div style="font-size:11.5px; color:var(--text-secondary); max-width:520px; margin-top:2px; line-height:1.4;">
-          ${n.aiAgenda}
-        </div>
+        <div class="lobby-selected-meta">指導者: <strong>${escapeHtml(n.leader || '')}</strong> · ${escapeHtml(n.blocName || n.regime || '体制')}</div>
+        <div class="lobby-selected-agenda">${escapeHtml(n.aiAgenda || '')}</div>
       </div>
     </div>
   `;
