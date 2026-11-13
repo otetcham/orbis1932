@@ -47,6 +47,7 @@ export function auditData(context) {
   assert.ok((regions.filter(r => r.country === 'canada').length) >= 10, 'カナダの州分割');
   assert.ok((regions.filter(r => r.country === 'usa').length) >= 45, '米国の州分割');
   assert.ok(!land.some(r => r.country === 'canada' && /nunavut/i.test(r.name)), 'カナダにヌナブト（1999年）が残存');
+  assert.ok(!regions.some(region => region.id === 'china_xikang'), '西康省は四川省へ統合済み');
   assert.ok((regions.filter(r => r.country === 'uk').length) <= 22, '英国の州数集約');
   assert.ok((regions.filter(r => r.country === 'japan').length) >= 47 && (regions.filter(r => r.country === 'japan').length) <= 55, '日本は道府県＋帝国領');
   return { nations: ids.length, regions: regions.length, land: land.length, events: events.length, history: history.length };

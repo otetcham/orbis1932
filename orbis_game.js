@@ -7,10 +7,10 @@ const Orbis = (() => {
   const CONFIG_KEY = 'orbis_ai_config';
   const DESKTOP_KEY = 'orbis_desktop_v1';
   const PANELS = {
-    state: { label: '国家と勢力', width: 372, height: 520, minWidth: 300, minHeight: 300 },
-    history: { label: '歴史タイムライン', width: 480, height: 520, minWidth: 320, minHeight: 280 },
-    chat: { label: '外交・国内回線', width: 430, height: 560, minWidth: 320, minHeight: 340 },
-    actions: { label: '国家の行動', width: 410, height: 500, minWidth: 300, minHeight: 300 },
+    state: { label: '内政・国家', width: 410, height: 470, minWidth: 300, minHeight: 300 },
+    history: { label: '諜報・情勢', width: 460, height: 470, minWidth: 320, minHeight: 280 },
+    chat: { label: '外交・国内回線', width: 430, height: 500, minWidth: 320, minHeight: 340 },
+    actions: { label: '国家の行動', width: 420, height: 480, minWidth: 300, minHeight: 300 },
     menu: { label: 'メニュー', width: 320, height: 380, minWidth: 280, minHeight: 290 }
   };
   const RULES = {
@@ -264,6 +264,7 @@ const Orbis = (() => {
     saveCampaign();
     syncWorld();
     render();
+    if (typeof globalThis.updateMapVisuals === 'function') globalThis.updateMapVisuals();
     const selectedId = state?.selectedStateId;
     if (selectedId && typeof globalThis.renderStateInspector === 'function') {
       const selected = state.states?.find(item => item.id === selectedId);
@@ -2724,6 +2725,21 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     return runOperation('今月の電報を再生成しています…', 'briefing', receiveBriefing);
   }
 
+  function focusHomeland() {
+    if (!campaign) return false;
+    const capital = globalThis.ORBIS_MAP_META?.capitals?.[campaign.playerNationId];
+    if (capital && state.mapProjection === 'globe') {
+      state.globe.lon = capital[0];
+      state.globe.lat = capital[1];
+      state.globe.zoom = 1.45;
+      if (typeof updateMapVisuals === 'function') updateMapVisuals();
+    } else {
+      centerPlayerMap();
+      if (typeof updateMapVisuals === 'function') updateMapVisuals();
+    }
+    return true;
+  }
+
   function centerPlayerMap() {
     const region = state.states.find(item => item.country === state.playerNationId && !item.isSea);
     if (region) {
@@ -2745,14 +2761,15 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const height = rect?.height || Math.max(180, (window.innerHeight || 900) - 56);
     const inset = width <= 640 ? 8 : 18;
     const dockRect = document.querySelector('.desktop-dock')?.getBoundingClientRect();
-    return { width, height, inset, margin: 12, dockHeight: dockRect?.height || 0, maxWidth: Math.max(100, width - inset * 2), maxHeight: Math.max(46, height - inset - 12) };
+    const dockHeight = dockRect?.height || 0;
+    return { width, height, inset, margin: 12, dockHeight, maxWidth: Math.max(100, width - inset * 2), maxHeight: Math.max(46, height - inset - dockHeight - 24) };
   }
 
   function panelRect(id, bounds = desktopBounds()) {
     const layout = runtime.windows[id];
     const width = Math.min(layout.collapsed ? Math.min(300, layout.width) : layout.width, bounds.maxWidth);
     const height = layout.collapsed ? 46 : Math.min(layout.height, bounds.maxHeight);
-    const defaultX = id === 'state' ? bounds.inset : id === 'history' ? Math.round((bounds.width - width) * .3) : bounds.width - width - bounds.inset;
+    const defaultX = id === 'menu' ? bounds.width - width - bounds.inset : bounds.inset;
     const defaultY = id === 'menu' ? Math.max(bounds.inset, bounds.height - bounds.margin - bounds.dockHeight - 14 - height) : bounds.inset;
     const x = clamp(layout.x ?? defaultX, bounds.inset, Math.max(bounds.inset, bounds.width - width - bounds.inset));
     const y = clamp(layout.y ?? defaultY, bounds.inset, Math.max(bounds.inset, bounds.height - bounds.margin - height));
@@ -2774,7 +2791,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     $('dock-map')?.classList.toggle('active', !anyOpen);
     $('dock-map')?.setAttribute('aria-pressed', String(!anyOpen));
     for (const [id, panel] of Object.entries(runtime.windows)) {
-      const button = $(`dock-${id}`);
+      const dockId = id === 'history' ? 'intel' : id;
+      const button = $(`dock-${dockId}`);
       if (!button) continue;
       button.classList.toggle('active', panel.open && !panel.collapsed && runtime.frontPanel === id);
       button.classList.toggle('is-open', panel.open);
@@ -2825,16 +2843,35 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     renderWindows();
   }
 
+  function openActions(text = '') {
+    if (!campaign) return false;
+    if (text) {
+      campaign.actionDraft = String(text).slice(0, 2400);
+      if ($('national-action-input')) $('national-action-input').value = campaign.actionDraft;
+      saveCampaign();
+    }
+    openPanel('actions');
+    render();
+    return true;
+  }
+
   function openPanel(id) {
     if (!campaign || !runtime.windows[id]) return;
     const panel = runtime.windows[id];
     if (!panel.open && id === 'chat') runtime.chatView = 'list';
+    // 左の吹き出しウィンドウに集約するため、情報系パネルは同時に1つだけ開く。
+    if (['state', 'chat', 'history', 'actions'].includes(id)) {
+      for (const otherId of ['state', 'chat', 'history', 'actions']) {
+        if (otherId !== id) runtime.windows[otherId].open = false;
+      }
+    }
     panel.open = true;
     panel.collapsed = false;
     if (id === 'history') runtime.historySeen = campaign.articles.length;
     raisePanel(id);
     if (id === 'chat') { renderThreads(); renderChatRoute(); renderConversation(true); }
     if (id === 'actions') renderActions();
+    renderWindows();
     $(`window-${id}`)?.querySelector('[data-window-drag]')?.focus({ preventScroll: true });
   }
 
@@ -2857,6 +2894,14 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     panel.collapsed = !panel.collapsed;
     raisePanel(id);
     $(`window-${id}`)?.querySelector('[data-window-minimize]')?.focus();
+  }
+
+  function closeInfoPanels() {
+    for (const id of ['state', 'chat', 'history', 'actions']) {
+      if (runtime.windows[id]) runtime.windows[id].open = false;
+    }
+    runtime.frontPanel = null;
+    renderWindows();
   }
 
   function showMap() {
@@ -3048,8 +3093,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         <div class="lg-bar"><span style="width:${entry.loyalty}%;background:${loyaltyColor}"></span></div>
         <div class="lg-card-meta">総督: ${escapeHtml(entry.governor || '—')}</div>
         <div class="lg-card-actions">
-          <button class="btn" data-lg-autonomy="-10" data-lg-id="${entry.id}">自治 −10</button>
-          <button class="btn" data-lg-autonomy="10" data-lg-id="${entry.id}">自治 +10</button>
+          <button class="btn" data-lg-negotiate="${entry.id}">自治を再交渉</button>
           <button class="btn" data-lg-integrate="${entry.id}">中央政府へ統合</button>
         </div>
       </article>`;
@@ -3062,7 +3106,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         <div class="dep-head"><strong>${escapeHtml(ownDependency.overlordName)}の${escapeHtml(ownDependency.kindLabel)}</strong><span class="dep-badge">自治 ${ownDependency.autonomy}% / 忠誠 ${ownDependency.loyalty}% / 正統性 ${ownDependency.legitimacy}%</span></div>
         <div class="dep-meta">月次貢納: 財政 -${ownDependency.tribute}　関係: ${signed(campaign.relations[campaign.playerNationId]?.[ownDependency.overlordId] ?? 0)}</div>
         <div class="lg-card-actions">
-          <button class="btn" data-dep-autonomy>自治拡大（威信 -3）</button>
+          <button class="btn" data-dep-negotiate>自治を再交渉</button>
           <button class="btn" data-dep-independence ${ownDependency.canIndependence ? '' : 'disabled'}>独立を宣言</button>
         </div>
       </article>`);
@@ -3074,8 +3118,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         <div class="dep-head"><strong>${escapeHtml(shortName(clientId))}</strong><span class="dep-badge">${escapeHtml(typeLabel)} · 自治 ${client.autonomy}% / 忠誠 ${client.loyalty}% / 正統性 ${client.legitimacy ?? 50}%</span></div>
         <div class="dep-meta">月次協力: ${client.loyalty >= 50 ? 'あり' : '不安定'}</div>
         <div class="lg-card-actions">
-          <button class="btn" data-dep-grant="${clientId}">自治 +5</button>
-          <button class="btn" data-dep-revoke="${clientId}">自治 -5</button>
+          <button class="btn" data-dep-negotiate="${clientId}">自治を再交渉</button>
           <button class="btn" data-dep-transfer="${clientId}">移管</button>
           <button class="btn" data-dep-integrate="${clientId}">統合</button>
         </div>
@@ -4180,6 +4223,15 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (data.depGrant) grantAutonomyCommand(data.depGrant, 5, 2, 2);
       if (data.depRevoke) grantAutonomyCommand(data.depRevoke, -5, -2, -2);
       if (data.depIntegrate) integrateDependentCommand(data.depIntegrate);
+      if (data.lgNegotiate) {
+        const entry = campaign?.localGovernments?.[data.lgNegotiate];
+        if (entry) openActions(`${entry.name}の自治度を再交渉する。現在の自治度${entry.autonomy}%、忠誠${entry.loyalty}%、正統性${entry.legitimacy ?? 40}%。現地の要求と財政負担を踏まえ、自治度・税収・治安の条件を提示する。`);
+      }
+      if (button.hasAttribute('data-dep-negotiate')) {
+        const vassalId = button.getAttribute('data-dep-negotiate') || campaign?.playerNationId;
+        const info = dependencyInfo(vassalId);
+        if (info) openActions(`${info.name || shortName(vassalId)}の自治条件を再交渉する。現在は${info.overlordName}の${info.kindLabel}で、自治度${info.autonomy}%、忠誠${info.loyalty}%、正統性${info.legitimacy}%。双方の負担と見返りを整理し、新しい条件を提示する。`);
+      }
       if (data.depTransfer) globalThis.openDependentTransferDialog?.(data.depTransfer);
       if (data.draftChoice !== undefined) draftChoice(Number(data.draftChoice));
       if (data.panelOpen) openPanel(data.panelOpen);
@@ -4207,6 +4259,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (button.hasAttribute('data-retry-request')) retryRequest();
       if (button.hasAttribute('data-retry-briefing')) retryBriefing();
       if (button.hasAttribute('data-open-settings')) openSettings();
+      if (button.hasAttribute('data-open-war')) openWarPanel();
+      if (button.id === 'dock-homeland') focusHomeland();
       if (button.hasAttribute('data-dismiss-error')) { runtime.error = ''; renderStatus(); }
       if (button.hasAttribute('data-show-ending')) showEnding();
       if (button.id === 'btn-continue-milestone') continuePastMilestone();
@@ -4266,7 +4320,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       turnsThroughCalendarMonth: (year, month, half = 'second') => core.halfTurnsThrough(year, month, half),
     };
   };
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, createLocalGovernment, integrateLocalGovernmentState, integrateLocalGovernment, transferLocalGovernmentState, setLocalGovernmentAutonomy, localGovernmentsFor, localGovernmentForState: stateId => localGovernmentForState(campaign, stateId), dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, createLocalGovernment, integrateLocalGovernmentState, integrateLocalGovernment, transferLocalGovernmentState, setLocalGovernmentAutonomy, localGovernmentsFor, localGovernmentForState: stateId => localGovernmentForState(campaign, stateId), dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
 colorNation, nationMeta: nationId => nationMeta(nationId),
 dependentsFor: nationId => Object.values(campaign?.clients || {}).filter(client => client.sponsorId === (nationId || campaign?.playerNationId) && !client.dissolved),
 createDependent: (sponsorId, vassalId, type, name) => createDependent(sponsorId, vassalId, type, name, campaign),
