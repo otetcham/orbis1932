@@ -2697,6 +2697,99 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     };
   }
 
+  const COUNTRY_CARD_STATS = [
+    { key: 'mil', label: '軍事' },
+    { key: 'eco', label: '経済' },
+    { key: 'stb', label: '安定度' },
+    { key: 'tech', label: '技術' }
+  ];
+
+  function countryCardData(nationId) {
+    const base = SCENARIOS.era_1932.nations[nationId];
+    if (!base) return null;
+    const live = campaign?.nations?.[nationId] || null;
+    const playerId = campaign?.playerNationId || SCENARIOS.era_1932.defaultPlayer || nationId;
+    const isPlayer = nationId === playerId;
+    const relationScore = isPlayer ? 100 : Number(campaign?.relations?.[playerId]?.[nationId] ?? 0);
+    const client = campaign?.clients?.[nationId] || null;
+    const wars = Object.values(campaign?.wars || {})
+      .filter(war => war.status === 'active' && (war.attacker === nationId || war.defender === nationId))
+      .map(war => ({ opponent: war.attacker === nationId ? war.defender : war.attacker, reason: war.reason || '' }));
+    const occupiedRegions = Object.values(campaign?.occupations || {}).filter(holder => holder === nationId).length;
+    return {
+      id: nationId,
+      name: base.name,
+      code: base.code || '',
+      region: base.region || '',
+      bloc: base.blocName || '',
+      leader: campaign?.leaders?.[nationId] || base.leader || '',
+      summary: base.summary || '',
+      agenda: base.aiAgenda || '',
+      gdpText: base.gdpText || '',
+      wikiTitle: globalThis.OrbisText?.countries?.[nationId]?.wiki || base.name,
+      isPlayer,
+      relation: { score: relationScore, label: isPlayer ? '自国' : getRelationLabel(relationScore).label },
+      stats: COUNTRY_CARD_STATS.map(stat => ({ key: stat.key, label: stat.label, value: live?.[stat.key] ?? base[stat.key] ?? 0, base: base[stat.key] ?? 0 })),
+      groups: (base.interestGroups || []).map(group => ({
+        id: group.id,
+        name: group.name,
+        influence: group.influence,
+        approval: live?.groups?.[group.id] ?? group.approval ?? 0
+      })),
+      wars,
+      client,
+      occupiedRegions
+    };
+  }
+
+  function countryCardHtml(data) {
+    if (!data) return '<p class="empty-state">この国の情報は見つかりません。</p>';
+    const flag = getCountryFlagSvg(data.id);
+    const meta = [data.code, data.region, data.gdpText].filter(Boolean).map(escapeHtml).join(' · ');
+    const statRows = data.stats.map(stat => {
+      const delta = stat.value - stat.base;
+      const width = clamp(stat.value, 0, 100);
+      return `<div class="country-card-stat"><span class="country-card-stat-label">${escapeHtml(stat.label)}</span><span class="country-card-stat-track"><span class="country-card-stat-fill" style="width:${width}%"></span></span><strong>${stat.value}</strong><span class="country-card-delta ${delta > 0 ? 'pos' : delta < 0 ? 'neg' : ''}">${delta ? signed(delta) : '—'}</span></div>`;
+    }).join('');
+    const groupRows = data.groups.map(group => {
+      const color = group.approval >= 65 ? '#1f7a4d' : group.approval < 35 ? '#c23b3b' : '#a0762d';
+      return `<div class="country-card-group"><span>${escapeHtml(GROUP_PERSONAS[group.id]?.short || group.name)}</span><span class="country-card-stat-track"><span class="country-card-stat-fill" style="width:${clamp(group.approval, 0, 100)}%;background:${color}"></span></span><strong style="color:${color}">${group.approval}%</strong></div>`;
+    }).join('');
+    const relation = data.isPlayer ? '自国' : `${data.relation.label}（${signed(data.relation.score)}）`;
+    const warNote = data.wars.length
+      ? data.wars.map(war => `${shortName(war.opponent)}と交戦中${war.reason ? `：${war.reason}` : ''}`).join('／')
+      : '交戦中の相手はいない。';
+    const clientNote = data.client?.sponsorId ? `${shortName(data.client.sponsorId)}の影響下（自治 ${data.client.autonomy} / 忠誠 ${data.client.loyalty}）` : '';
+    const wiki = globalThis.OrbisText?.wikipediaUrl(data.wikiTitle) || '#';
+    const canNegotiate = !data.isPlayer && Boolean(actors[`ministry:${data.id}`]);
+    return `<div class="country-card">
+      <div class="country-card-head">${flag}<div><strong>${escapeHtml(data.name)}</strong><span class="country-card-meta">${meta}</span></div></div>
+      <div class="country-card-section"><h3>国勢</h3><div class="country-card-stats">${statRows}</div></div>
+      <div class="country-card-section"><h3>政治</h3>
+        <div class="insp-info-line"><span class="insp-info-label">指導者</span><span>${escapeHtml(data.leader)}</span></div>
+        <div class="insp-info-line"><span class="insp-info-label">勢力圏</span><span>${escapeHtml(data.bloc || '—')}</span></div>
+        <div class="insp-info-line"><span class="insp-info-label">外交</span><span>${escapeHtml(relation)}</span></div>
+        ${clientNote ? `<div class="insp-info-line"><span class="insp-info-label">従属</span><span>${escapeHtml(clientNote)}</span></div>` : ''}
+        ${data.occupiedRegions ? `<div class="insp-info-line"><span class="insp-info-label">占領地</span><span>${data.occupiedRegions}州</span></div>` : ''}
+      </div>
+      <div class="country-card-section"><h3>利益集団</h3><div class="country-card-groups">${groupRows}</div></div>
+      <div class="country-card-section"><h3>国情</h3><p>${escapeHtml(data.summary)}</p><p class="country-card-note">国家目標：${escapeHtml(data.agenda)}</p></div>
+      <p class="country-card-note">${escapeHtml(warNote)}</p>
+      <div class="country-card-foot">
+        <a class="orbis-wiki-link" href="${wiki}" target="_blank" rel="noopener noreferrer">Wikipediaで読む</a>
+        ${canNegotiate ? `<button class="btn btn-primary" data-close-dialog="modal-country-card" data-open-actor="ministry:${data.id}">外務省と交渉</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function openCountryCard(nationId) {
+    const data = countryCardData(nationId);
+    if (!data) return false;
+    html('country-card-body', countryCardHtml(data));
+    openDialog('modal-country-card');
+    return true;
+  }
+
   function openForeign(nationId) {
     openActor(nationId === campaign?.playerNationId ? 'adviser' : `ministry:${nationId}`);
   }
@@ -3135,6 +3228,12 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       settingsFeedback('このプロバイダーのAPIキーを入力し、接続をテストしてください。');
     });
     document.addEventListener('click', event => {
+      const countryLink = event.target.closest?.('[data-orbis-country]');
+      if (!countryLink) return;
+      event.preventDefault();
+      openCountryCard(countryLink.dataset.orbisCountry);
+    });
+    document.addEventListener('click', event => {
       const button = event.target.closest?.('button');
       if (!button || button.disabled) return;
       const data = button.dataset;
@@ -3225,5 +3324,5 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       turnsThroughCalendarMonth: (year, month, half = 'second') => core.halfTurnsThrough(year, month, half),
     };
   };
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, listConflicts, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, listConflicts, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();

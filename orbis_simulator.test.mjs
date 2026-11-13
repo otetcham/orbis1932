@@ -1038,6 +1038,32 @@ try {
     assert.ok(!flagless.includes('<span'));
   });
 
+  await check('国名はゲーム内の国家情報ポップアップを開き、Wikipediaへは飛ばさない', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const decorate = vm.runInContext('OrbisText.decorate', context);
+    const decorated = decorate('日本とアメリカ合衆国が会談した。');
+    assert.ok(decorated.includes('data-orbis-country="japan"'));
+    assert.ok(decorated.includes('data-orbis-country="usa"'));
+    assert.ok(decorated.includes('orbis-country-link'));
+    assert.ok(!decorated.includes('wikipedia.org'));
+    const card = api.countryCardData('japan');
+    assert.equal(card.name, '大日本帝国');
+    assert.equal(card.isPlayer, true);
+    assert.equal(card.stats.find(stat => stat.key === 'mil').value, 84);
+    assert.equal(card.groups.length, 4);
+    assert.ok(card.summary.length > 20);
+    assert.ok(card.agenda.length > 10);
+    const other = api.countryCardData('usa');
+    assert.equal(other.isPlayer, false);
+    assert.ok(other.relation.label.length > 0);
+    assert.ok(other.wikiTitle.length > 0);
+    assert.ok(other.stats.every(stat => Number.isInteger(stat.value)));
+    const manchukuo = api.countryCardData('manchukuo');
+    assert.equal(manchukuo.client.sponsorId, 'japan');
+    assert.equal(api.countryCardData('atlantis'), null);
+  });
+
   await check('プロビンス情報は自国・他国・海洋で行動を出し分ける', async () => {
     const { api, context } = harness();
     await begin(api);

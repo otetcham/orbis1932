@@ -116,6 +116,132 @@ html, body {
   color: #1d4e8f;
   text-decoration-color: #1d4e8f;
 }
+/* リンク文字の右下に添えるWikipediaマーク */
+.orbis-wiki-link:not(.orbis-country-link)::after {
+  content: "";
+  display: inline-block;
+  width: 0.6em;
+  height: 0.6em;
+  margin-left: 0.16em;
+  vertical-align: -0.12em;
+  background-color: currentColor;
+  opacity: 0.42;
+  -webkit-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1.6 3.1 5 12.9 8 5.5l3 7.4 3.4-9.8' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1.6 3.1 5 12.9 8 5.5l3 7.4 3.4-9.8' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.orbis-wiki-link:not(.orbis-country-link):hover::after {
+  opacity: 0.75;
+}
+.orbis-country-link {
+  cursor: pointer;
+  text-decoration-style: dotted;
+}
+.country-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 12px;
+  color: #3d5570;
+  line-height: 1.75;
+}
+.country-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.country-card-head .flag-badge {
+  width: 44px;
+  height: 29px;
+  flex: 0 0 auto;
+}
+.country-card-head strong {
+  display: block;
+  font-size: 15px;
+  color: #16283e;
+}
+.country-card-meta {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: #6c829c;
+}
+.country-card-section > h3 {
+  margin: 0 0 6px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #6c829c;
+}
+.country-card-stats,
+.country-card-groups {
+  display: grid;
+  gap: 5px;
+}
+.country-card-stat,
+.country-card-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.country-card-stat-label {
+  flex: 0 0 4.2em;
+  color: #6c829c;
+  font-weight: 600;
+}
+.country-card-group > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.country-card-stat-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: #e2e9f2;
+  overflow: hidden;
+}
+.country-card-stat-fill {
+  display: block;
+  height: 100%;
+  background: #2f6db8;
+}
+.country-card-stat strong,
+.country-card-group strong {
+  flex: 0 0 2.6em;
+  text-align: right;
+  font: 11px var(--font-mono);
+  color: #16283e;
+}
+.country-card-delta {
+  flex: 0 0 2.4em;
+  text-align: right;
+  font-size: 10px;
+  color: #6c829c;
+}
+.country-card-delta.pos { color: #1f7a4d; }
+.country-card-delta.neg { color: #c23b3b; }
+.country-card-section p {
+  margin: 0 0 6px;
+}
+.country-card-note {
+  border-left: 3px solid #d5e0ec;
+  padding-left: 9px;
+  font-size: 11px;
+  margin: 0;
+}
+.country-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #e2e9f2;
+  padding-top: 12px;
+}
+#modal-country-card .modal-body {
+  max-height: min(68dvh, 560px);
+  overflow-y: auto;
+}
 
 /* ==========================================================================
    BUTTONS & BADGES
@@ -2173,6 +2299,7 @@ svg path:focus-visible,
   <dialog class="game-dialog wide-dialog" id="actor-directory" aria-labelledby="directory-title"><div class="modal-head"><strong id="directory-title">交渉先を選ぶ</strong><button class="btn btn-ghost" data-close-dialog="actor-directory">閉じる</button></div><div class="modal-body"><label class="sr-only" for="actor-search">国名・組織・人物を検索</label><input class="form-input" id="actor-search" type="search" placeholder="国名・組織・人物を検索"><div class="directory-filters" id="directory-filters"><button class="filter-btn active" data-actor-kind="all">すべて</button><button class="filter-btn" data-actor-kind="domestic">国内</button><button class="filter-btn" data-actor-kind="ministry">外務省</button><button class="filter-btn" data-actor-kind="embassy">大使館</button><button class="filter-btn" data-actor-kind="client">従属国・自治領</button><button class="filter-btn" data-actor-kind="foreign_group">国外の利益団体</button></div><div id="actor-directory-list"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-war-panel" aria-labelledby="war-panel-title"><div class="modal-head"><strong id="war-panel-title">戦争・和平・紛争</strong><button class="btn btn-ghost" data-close-dialog="modal-war-panel">閉じる</button></div><div class="modal-body" id="war-panel-body"></div></dialog>
+  <dialog class="game-dialog" id="modal-country-card" aria-labelledby="country-card-title"><div class="modal-window"><div class="modal-head"><strong id="country-card-title">国家情報</strong><button class="btn btn-ghost" data-close-dialog="modal-country-card" aria-label="国家情報を閉じる">閉じる</button></div><div class="modal-body" id="country-card-body"></div></div></dialog>
   <div id="turn-playback-overlay" hidden></div>
   <div class="turn-playback-controls" id="turn-playback-controls">
     <button type="button" class="btn btn-ghost" id="btn-playback-skip">スキップ</button>
