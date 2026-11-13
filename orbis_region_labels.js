@@ -76,7 +76,7 @@ window.ORBIS_REGION_LABELS = (() => {
     'china_ruijin_soviet': '中央ソビエト区（瑞金・中華ソビエト共和国）',
     'china_xikang': '西康省（康定・川辺係争地）',
     'china_cn_cq': '四川省東部（重慶・劉湘）',
-    'china_cn_sc': '四川省西部（成都・劉文輝）',
+    'china_cn_sc': '四川省・西康省（成都・康定）',
     'china_cn_jx': '江西省北部（南昌）',
     'france_guangzhouwan': '広州湾（フランス租借地）',
     'france_hatay': 'アレクサンドレッタ（ハタイ）',

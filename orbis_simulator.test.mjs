@@ -1169,7 +1169,7 @@ try {
   });
 
   await check('中国軍閥は中華民国の軍閥型従属政権として地図色を共有する', async () => {
-    const { api } = harness();
+    const { api, context } = harness();
     await begin(api);
     for (const id of ['shanxi', 'guangxi', 'guangdong', 'sichuan', 'yunnan', 'shandong', 'xinjiang', 'ma_clique', 'hunan', 'guizhou']) {
       const dependency = api.dependencyInfo(id);
@@ -1181,6 +1181,9 @@ try {
     assert.equal(api.provincePanelData('china_cn_cq').ownerId, 'sichuan');
     assert.equal(api.provincePanelData('china_cn_sx').vassalOf.overlordName, '中国');
     assert.equal(api.colorNation('china'), 'china');
+    assert.ok(!vm.runInContext("ORBIS_STATES_DB.some(region => region.id === 'china_xikang')", context));
+    assert.equal(api.provincePanelData('china_cn_sc').ownerId, 'sichuan');
+    assert.ok(api.provincePanelData('china_cn_sc').name.includes('西康'));
   });
 
   await check('チベットは中国の保護国として独立した操作可能国', async () => {
