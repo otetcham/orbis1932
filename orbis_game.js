@@ -24,7 +24,7 @@ const Orbis = (() => {
   const SHORT_NAMES = {
     japan: '日本', china: '中国', manchukuo: '満洲国', mongolia: 'モンゴル', usa: '米国', uk: '英国', france: 'フランス', germany: 'ドイツ', tibet: 'チベット', shanxi: '晋系', guangxi: '桂系', guangdong: '粤系', sichuan: '川軍', yunnan: '滇系', shandong: '魯系', xinjiang: '新疆', ma_clique: '三馬', hunan: '湘系', guizhou: '黔系',
     russia: 'ソ連', italy: 'イタリア', poland: 'ポーランド', spain: 'スペイン', portugal: 'ポルトガル', turkey: 'トルコ', iran: 'ペルシア',
-    saudi_arabia: 'サウジアラビア', egypt: 'エジプト', ethiopia: 'エチオピア', south_africa: '南アフリカ', india: '英領インド', dutch_indies: '蘭領東インド',
+    saudi_arabia: 'サウジアラビア', egypt: 'エジプト', ethiopia: 'エチオピア', south_africa: '南アフリカ', india: '英領インド', dutch_indies: '蘭領東インド', philippines: 'フィリピン',
     australia: 'オーストラリア', new_zealand: 'ニュージーランド', canada: 'カナダ', mexico: 'メキシコ', brazil: 'ブラジル', argentina: 'アルゼンチン',
     ireland: 'アイルランド', siam: 'シャム', afghanistan: 'アフガニスタン', czechoslovakia: 'チェコスロバキア', austria: 'オーストリア', switzerland: 'スイス',
     hungary: 'ハンガリー', bulgaria: 'ブルガリア', romania: 'ルーマニア', yugoslavia: 'ユーゴ', greece: 'ギリシャ', albania: 'アルバニア',
@@ -38,17 +38,18 @@ const Orbis = (() => {
     mongolia: { sponsorId: 'russia', type: 'protectorate', autonomy: 45, loyalty: 70, legitimacy: 50, name: 'モンゴル人民共和国', dissolved: false },
     india: { sponsorId: 'uk', type: 'colony', autonomy: 20, loyalty: 48, legitimacy: 40, name: '英領インド帝国', dissolved: false },
     dutch_indies: { sponsorId: 'netherlands', type: 'colony', autonomy: 15, loyalty: 50, legitimacy: 40, name: '蘭領東インド', dissolved: false },
+    philippines: { sponsorId: 'usa', type: 'protectorate', autonomy: 35, loyalty: 62, legitimacy: 55, name: 'フィリピン・コモンウェルス', dissolved: false },
     tibet: { sponsorId: 'china', type: 'protectorate', autonomy: 85, loyalty: 28, legitimacy: 60, name: 'チベット', dissolved: false },
     shanxi: { sponsorId: 'china', type: 'warlord', autonomy: 70, loyalty: 48, legitimacy: 30, name: '晋系（山西）', dissolved: false, warlordStatus: 'autonomous' },
-    guangxi: { sponsorId: 'china', type: 'warlord', autonomy: 72, loyalty: 50, legitimacy: 30, name: '新広西派（広西）', dissolved: false, warlordStatus: 'neutral' },
-    guangdong: { sponsorId: 'china', type: 'warlord', autonomy: 76, loyalty: 42, legitimacy: 28, name: '西南派（広東）', dissolved: false, warlordStatus: 'independent' },
+    guangxi: { sponsorId: 'china', type: 'warlord', autonomy: 72, loyalty: 50, legitimacy: 30, name: '新広西派（広西）', dissolved: false, warlordStatus: 'autonomous' },
+    guangdong: { sponsorId: 'china', type: 'warlord', autonomy: 76, loyalty: 42, legitimacy: 28, name: '西南派（広東）', dissolved: false, warlordStatus: 'autonomous' },
     sichuan: { sponsorId: 'china', type: 'warlord', autonomy: 68, loyalty: 52, legitimacy: 32, name: '四川軍（川軍）', dissolved: false, warlordStatus: 'autonomous' },
-    yunnan: { sponsorId: 'china', type: 'warlord', autonomy: 78, loyalty: 50, legitimacy: 30, name: '滇系（雲南）', dissolved: false, warlordStatus: 'neutral' },
-    shandong: { sponsorId: 'china', type: 'warlord', autonomy: 66, loyalty: 54, legitimacy: 32, name: '魯系（山東）', dissolved: false, warlordStatus: 'neutral' },
-    xinjiang: { sponsorId: 'china', type: 'warlord', autonomy: 82, loyalty: 44, legitimacy: 26, name: '新疆政権', dissolved: false, warlordStatus: 'independent' },
-    ma_clique: { sponsorId: 'china', type: 'warlord', autonomy: 80, loyalty: 46, legitimacy: 28, name: '西北三馬（甘寧青）', dissolved: false, warlordStatus: 'neutral' },
+    yunnan: { sponsorId: 'china', type: 'warlord', autonomy: 78, loyalty: 50, legitimacy: 30, name: '滇系（雲南）', dissolved: false, warlordStatus: 'autonomous' },
+    shandong: { sponsorId: 'china', type: 'warlord', autonomy: 66, loyalty: 54, legitimacy: 32, name: '魯系（山東）', dissolved: false, warlordStatus: 'autonomous' },
+    xinjiang: { sponsorId: 'china', type: 'warlord', autonomy: 82, loyalty: 44, legitimacy: 26, name: '新疆政権', dissolved: false, warlordStatus: 'autonomous' },
+    ma_clique: { sponsorId: 'china', type: 'warlord', autonomy: 80, loyalty: 46, legitimacy: 28, name: '西北三馬（甘寧青）', dissolved: false, warlordStatus: 'autonomous' },
     hunan: { sponsorId: 'china', type: 'warlord', autonomy: 64, loyalty: 56, legitimacy: 34, name: '湘系（湖南）', dissolved: false, warlordStatus: 'autonomous' },
-    guizhou: { sponsorId: 'china', type: 'warlord', autonomy: 74, loyalty: 42, legitimacy: 26, name: '黔系（貴州）', dissolved: false, warlordStatus: 'independent' }
+    guizhou: { sponsorId: 'china', type: 'warlord', autonomy: 74, loyalty: 42, legitimacy: 26, name: '黔系（貴州）', dissolved: false, warlordStatus: 'autonomous' }
   };
   const DEPENDENCY_TYPES = { colony: '植民地', protectorate: '保護国', warlord: '軍閥', satellite: '衛星国', dominion: '自治領', puppet: '傀儡国' };
   const WARLORD_STATUS = { autonomous: '自治軍閥', neutral: '中立軍閥', independent: '独立軍閥' };
@@ -4043,6 +4044,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         loyalty: saveNumber(item.loyalty, '忠誠', 0, 100),
         legitimacy: saveNumber(item.legitimacy ?? 50, '正統性', 0, 100),
         name: typeof item.name === 'string' && item.name.trim() ? item.name.slice(0, 80) : (nationMeta(id, game)?.name || CLIENTS[id]?.name || id),
+        warlordStatus: type === 'warlord'
+          ? (Object.hasOwn(WARLORD_STATUS, item.warlordStatus) ? item.warlordStatus : (CLIENTS[id]?.warlordStatus || 'neutral'))
+          : undefined,
         dissolved: Boolean(item.dissolved),
         integratedInto: item.integratedInto && game.nations[item.integratedInto] ? item.integratedInto : undefined,
         independent: Boolean(item.independent),
