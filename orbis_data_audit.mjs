@@ -40,12 +40,15 @@ export function auditData(context) {
   for (const event of history) for (const dependency of event.depends_on || []) assert.ok(historyIds.has(dependency), `${event.id}: depends_on未解決 ${dependency}`);
   assert.equal(Math.min(...history.map(event => event.year)), 1932, '史実DBの開始年');
   assert.equal(Math.max(...history.map(event => event.year)), 1972, '史実DBの終了年');
-  assert.equal(ids.length, 77, '国家数 (1932年・77カ国体制)');
+  assert.equal(ids.length, 78, '国家数 (1932年・78カ国体制)');
   assert.ok(land.length >= 900, `陸上州数が少なすぎます (${land.length})`);
   assert.ok(land.length <= 2000, `陸上州数が多すぎます (${land.length})`);
   assert.ok((regions.filter(r => r.country === 'brazil').length) >= 20, 'ブラジルの州分割');
   assert.ok((regions.filter(r => r.country === 'canada').length) >= 10, 'カナダの州分割');
   assert.ok((regions.filter(r => r.country === 'usa').length) >= 45, '米国の州分割');
+  assert.equal(regions.filter(r => r.country === 'philippines').length, 3, 'フィリピンはルソン・ビサヤ・ミンダナオの3地域');
+  assert.equal(nations.philippines?.dependency?.type, 'protectorate', 'フィリピンは米国の保護国');
+  assert.equal(nations.philippines?.dependency?.overlordId, 'usa', 'フィリピンの宗主国は米国');
   assert.ok(!land.some(r => r.country === 'canada' && /nunavut/i.test(r.name)), 'カナダにヌナブト（1999年）が残存');
   assert.ok(!regions.some(region => region.id === 'china_xikang'), '西康省は四川省へ統合済み');
   assert.ok((regions.filter(r => r.country === 'uk').length) <= 22, '英国の州数集約');

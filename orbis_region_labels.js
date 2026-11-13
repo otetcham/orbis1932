@@ -73,11 +73,11 @@ window.ORBIS_REGION_LABELS = (() => {
     'china_jehol': '熱河省（東北軍・湯玉麟）',
     'china_chahar': '察哈爾省（宋哲元・第29軍）',
     'china_suiyuan': '綏遠省（傅作義）',
-    'china_ruijin_soviet': '中央ソビエト区（瑞金・中華ソビエト共和国）',
+    'china_ruijin_soviet': '中央蘇区（瑞金・中華ソビエト共和国）',
     'china_xikang': '西康省（康定・川辺係争地）',
     'china_cn_cq': '四川省東部（重慶・劉湘）',
-    'china_cn_sc': '四川省・西康省（成都・康定）',
-    'china_cn_jx': '江西省北部（南昌）',
+    'china_cn_sc': '四川省（成都・劉文輝）',
+    'china_cn_jx': '江西省（南昌）',
     'france_guangzhouwan': '広州湾（フランス租借地）',
     'france_hatay': 'アレクサンドレッタ（ハタイ）',
     'germany_saar': 'ザール地方（国際連盟管理）',
@@ -108,7 +108,7 @@ window.ORBIS_REGION_LABELS = (() => {
     if (/jehol|rehe/i.test(id)) return '熱河省（東北軍・湯玉麟）';
     if (/chahar/i.test(id)) return '察哈爾省（宋哲元・第29軍）';
     if (/suiyuan/i.test(id)) return '綏遠省（傅作義）';
-    if (/ruijin/i.test(id)) return '中央ソビエト区（瑞金・中華ソビエト共和国）';
+    if (/ruijin/i.test(id)) return '中央蘇区（瑞金・中華ソビエト共和国）';
     if (/xikang/i.test(id)) return '西康省（康定・川辺係争地）';
     if (/xingan/i.test(id)) return '興安省（ホロンバイル）';
     if (id.startsWith('manchukuo') || id === 'cn_dongbei') return '満洲国';

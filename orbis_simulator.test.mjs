@@ -874,10 +874,10 @@ try {
     assert.ok(api.snapshot().briefing.telegrams.every(t => t.actorId !== 'ministry:atlantis'));
   });
 
-  await check('史実データ監査 (77カ国・Admin-1州・危機・歴史イベントの整合)', async () => {
+  await check('史実データ監査 (78カ国・Admin-1州・危機・歴史イベントの整合)', async () => {
     const { context } = harness();
     const audit = auditData(context);
-    assert.equal(audit.nations, 77);
+    assert.equal(audit.nations, 78);
     assert.ok(audit.land >= 900 && audit.land <= 2000, `陸上州数 ${audit.land}`);
     assert.ok(audit.land <= 1300, `ヨーロッパ集約後の州数上限目安 (${audit.land})`);
     assert.equal(audit.events, 9);
@@ -1150,30 +1150,36 @@ try {
     assert.equal(api.provincePanelData('japan_jp_03').ownerId, 'japan');
   });
 
-  await check('中国軍閥は自治・中立・独立で色分けされる', async () => {
+  await check('中国軍閥はすべて国民政府の自治軍閥として宗主国色を共有する', async () => {
     const { api, context } = harness();
     await begin(api);
-    const autonomous = ['shanxi', 'sichuan', 'hunan'];
-    const neutral = ['guangxi', 'yunnan', 'shandong', 'ma_clique'];
-    const independent = ['guangdong', 'xinjiang', 'guizhou'];
-    for (const id of [...autonomous, ...neutral, ...independent]) {
+    const warlords = ['shanxi', 'sichuan', 'hunan', 'guangxi', 'yunnan', 'shandong', 'ma_clique', 'guangdong', 'xinjiang', 'guizhou'];
+    for (const id of warlords) {
       const dependency = api.dependencyInfo(id);
       assert.equal(dependency.type, 'warlord', id);
       assert.equal(dependency.overlordId, 'china', id);
+      assert.equal(dependency.warlordStatusLabel, '自治軍閥', id);
+      assert.equal(api.colorNation(id), 'china', id);
     }
-    for (const id of autonomous) assert.equal(api.colorNation(id), 'china', id);
-    for (const id of neutral) assert.equal(api.colorNation(id), 'warlord_neutral', id);
-    for (const id of independent) assert.equal(api.colorNation(id), 'warlord_independent', id);
     const sharedColor = api.colonialColorGroups().map(entry => entry.id);
-    for (const id of autonomous) assert.ok(sharedColor.includes(id), id);
-    for (const id of [...neutral, ...independent]) assert.ok(!sharedColor.includes(id), id);
+    for (const id of warlords) assert.ok(sharedColor.includes(id), id);
     assert.equal(api.provincePanelData('china_cn_sx').ownerId, 'shanxi');
     assert.equal(api.provincePanelData('china_cn_cq').ownerId, 'sichuan');
     assert.equal(api.provincePanelData('china_cn_sx').vassalOf.overlordName, '中国');
     assert.equal(api.colorNation('china'), 'china');
     assert.ok(!vm.runInContext("ORBIS_STATES_DB.some(region => region.id === 'china_xikang')", context));
     assert.equal(api.provincePanelData('china_cn_sc').ownerId, 'sichuan');
-    assert.ok(api.provincePanelData('china_cn_sc').name.includes('西康'));
+    assert.ok(api.provincePanelData('china_cn_sc').name.includes('四川'));
+
+    const snapshot = api.snapshot();
+    snapshot.clients.guangxi.warlordStatus = 'neutral';
+    snapshot.clients.guangdong.warlordStatus = 'independent';
+    assert.equal(await api.restore(snapshot), true);
+    assert.equal(api.colorNation('guangxi'), 'warlord_neutral');
+    assert.equal(api.colorNation('guangdong'), 'warlord_independent');
+    const after = api.colonialColorGroups().map(entry => entry.id);
+    assert.ok(!after.includes('guangxi'));
+    assert.ok(!after.includes('guangdong'));
   });
 
   await check('チベットは中国の保護国として独立した操作可能国', async () => {
@@ -1185,6 +1191,30 @@ try {
     assert.equal(dependency.kind, 'protectorate');
     assert.equal(dependency.overlordId, 'china');
     assert.ok(dependency.autonomy >= 80);
+  });
+
+  await check('フィリピン・コモンウェルスは米国の保護国', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(vm.runInContext("SCENARIOS.era_1932.nations.philippines.name", context), 'フィリピン・コモンウェルス');
+    const dependency = api.dependencyInfo('philippines');
+    assert.equal(dependency.kind, 'protectorate');
+    assert.equal(dependency.overlordId, 'usa');
+    assert.equal(api.provincePanelData('usa_phl_n').ownerId, 'philippines');
+    assert.equal(api.colorNation('philippines'), 'philippines');
+    assert.equal(await api.start({ nationId: 'philippines', difficulty: 'standard', mandate: 'recovery', maxTurns: 24, replace: true }), true);
+    assert.equal(api.snapshot().playerNationId, 'philippines');
+  });
+
+  await check('中国・日本の州名は1932年3月の呼称', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(api.provincePanelData('cn_beijing').name, '北平市');
+    assert.equal(api.provincePanelData('jp_kanto').name, '東京府');
+    assert.ok(api.provincePanelData('china_cn_gx').name.includes('広西省'));
+    assert.ok(api.provincePanelData('china_cn_xj').name.includes('新疆省'));
+    assert.ok(api.provincePanelData('china_cn_xz').name.includes('西蔵'));
+    assert.equal(api.provincePanelData('japan_empire_rus_11_6').name, '南樺太（樺太庁）・千島');
   });
 
   await check('従属国プレイ: 宗主国への宣戦不可・自治拡大・独立宣言', async () => {

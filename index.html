@@ -2158,13 +2158,13 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
-  <script src="orbis_states.js?v=1932.14" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
-  <script src="orbis_map_meta.js?v=1932.14" defer></script>
+  <script src="orbis_states.js?v=1932.16" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
+  <script src="orbis_map_meta.js?v=1932.16" defer></script>
 </head>
 <body>
 
   <!-- ========================================================================
-       1. 1932 CAMPAIGN START LOBBY (全77カ国プレイ可能・地域別フィルタ付き)
+       1. 1932 CAMPAIGN START LOBBY (全78カ国プレイ可能・地域別フィルタ付き)
        ======================================================================== -->
   <div class="lobby-overlay" id="lobby-overlay">
     <div class="lobby-container">
@@ -2682,6 +2682,7 @@ const COUNTRY_MAP_COLORS = {
   hunan: '#3f7d8c',          // 湘系（湖南）
   guizhou: '#5f6b78',        // 黔系（貴州）
   usa: '#2563eb',            // アメリカ合衆国 (USA Royal Blue)
+  philippines: '#e59a1b',    // フィリピン・コモンウェルス (Commonwealth Gold)
   uk: '#db2777',             // 大英帝国 (British Empire Pink/Rose)
   france: '#0284c7',         // フランス第三共和政 (French Blue)
   germany: '#475569',        // ドイツ国 (Feldgrau / Prussian Slate)
@@ -2784,6 +2785,9 @@ const HISTORICAL_FLAG_SVGS = {
   ma_clique: `<svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#4f7d2f"/><rect x="1.2" y="1.2" width="27.6" height="17.6" fill="none" stroke="#25400f" stroke-width="1.1"/><circle cx="15" cy="10" r="5.4" fill="#ffffff"/><circle cx="17.1" cy="9.4" r="4.6" fill="#4f7d2f"/><polygon points="20.6,6.2 21.4,8 23.3,8.2 21.9,9.5 22.3,11.4 20.6,10.4 18.9,11.4 19.3,9.5 17.9,8.2 19.8,8" fill="#ffffff"/></svg>`,
   hunan: `<svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#3f7d8c"/><rect x="1.2" y="1.2" width="27.6" height="17.6" fill="none" stroke="#173b44" stroke-width="1.1"/><text x="15" y="15.2" text-anchor="middle" font-family="serif" font-size="12" fill="#ffffff">湘</text></svg>`,
   guizhou: `<svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#5f6b78"/><rect x="1.2" y="1.2" width="27.6" height="17.6" fill="none" stroke="#2c353e" stroke-width="1.1"/><text x="15" y="15.2" text-anchor="middle" font-family="serif" font-size="12" fill="#ffffff">黔</text></svg>`,
+
+  // フィリピン・コモンウェルス (1936年国旗: 青・赤地に白三角と太陽・三ツ星)
+  philippines: `<svg viewBox="0 0 30 20"><rect width="30" height="10" fill="#0038a8"/><rect y="10" width="30" height="10" fill="#ce1126"/><polygon points="0,0 12,10 0,20" fill="#ffffff"/><circle cx="4.2" cy="10" r="1.5" fill="#fcd116"/><circle cx="7.4" cy="5.2" r="0.8" fill="#fcd116"/><circle cx="7.4" cy="14.8" r="0.8" fill="#fcd116"/><circle cx="9.4" cy="10" r="0.8" fill="#fcd116"/></svg>`,
 
   // アメリカ合衆国 (1912-1959 48星旗)
   usa: `<svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#b22234"/><path d="M0 3h30M0 7h30M0 11h30M0 15h30M0 19h30" stroke="#fff" stroke-width="1.5"/><rect width="14" height="11" fill="#3c3b6e"/><circle cx="3.5" cy="3" r="0.8" fill="#fff"/><circle cx="7" cy="3" r="0.8" fill="#fff"/><circle cx="10.5" cy="3" r="0.8" fill="#fff"/><circle cx="3.5" cy="5.5" r="0.8" fill="#fff"/><circle cx="7" cy="5.5" r="0.8" fill="#fff"/><circle cx="10.5" cy="5.5" r="0.8" fill="#fff"/><circle cx="3.5" cy="8" r="0.8" fill="#fff"/><circle cx="7" cy="8" r="0.8" fill="#fff"/><circle cx="10.5" cy="8" r="0.8" fill="#fff"/></svg>`,
@@ -2998,8 +3002,8 @@ const SCENARIOS = {
     startYear: 1932,
     startMonth: 3,
     tension: 42,
-    shortDesc: '世界恐慌の嵐の中、満洲事変・ジュネーヴ軍縮会議・ドイツ大統領選挙・米国ニューディール前夜が交錯する1932年。全77カ国から任意の国を選択して歴史を導くグランドストラテジー。',
-    lore: '1932年3月1日。ウォール街大暴落に端を発する世界恐慌が各国の経済と農村を直撃し、国内の「利益集団（軍部・財閥・労組農民・政党官僚）」の対立が先鋭化しています。大国だけでなく中小国・植民地・新興国を含む全77カ国すべてがプレイ可能です。国内利益集団の要求と不満を管理しつつ、外交条約と危機管理で激動の1930年代を勝ち抜いてください。',
+    shortDesc: '世界恐慌の嵐の中、満洲事変・ジュネーヴ軍縮会議・ドイツ大統領選挙・米国ニューディール前夜が交錯する1932年。全78カ国から任意の国を選択して歴史を導くグランドストラテジー。',
+    lore: '1932年3月1日。ウォール街大暴落に端を発する世界恐慌が各国の経済と農村を直撃し、国内の「利益集団（軍部・財閥・労組農民・政党官僚）」の対立が先鋭化しています。大国だけでなく中小国・植民地・保護国・新興国を含む全78カ国すべてがプレイ可能です。国内利益集団の要求と不満を管理しつつ、外交条約と危機管理で激動の1930年代を勝ち抜いてください。',
     defaultPlayer: 'japan',
     initialResources: { pp: 100, oil: 72, chips: 75, minerals: 74 },
     victoryGoalText: '選んだ任期（12〜36か月）の終了時、国家目標の全条件を満たす。政権崩壊・財政破綻・世界大戦を防ぐ。',
@@ -3031,7 +3035,7 @@ const SCENARIOS = {
         leader: '蔣介石 軍事委員会委員長 / 汪兆銘 行政院長', ministry: '国民政府外交部',
         mil: 72, eco: 58, stb: 56, tech: 55, gdpText: '$11.2B',
         aiAgenda: '「安内攘外」による国内統一（瑞金包囲・地方軍閥統制）・上海事変停戦と洛陽臨時首都運営・満洲失地回復模索',
-        summary: '満洲事変と第一次上海事変（停戦交渉中）の国難下、蔣介石・汪兆銘の合作体制で洛陽への遷都準備を進める。山西・広西・広東・四川・雲南・山東・湖南・貴州・新疆・甘寧青の軍閥は独立勢力として分立し、瑞金の中央ソビエト区（紅軍）包囲と併せて「安内攘外」の難題を抱える。',
+        summary: '満洲事変と第一次上海事変（停戦交渉中）の国難下、蔣介石・汪兆銘の合作体制で洛陽への遷都準備を進める。山西・広西・広東・四川・雲南・山東・湖南・貴州・新疆・甘寧青の軍閥は国民政府の下で自治を保ち、瑞金の中央蘇区（紅軍）包囲と併せて「安内攘外」の難題を抱える。',
         interestGroups: [
           { id: 'ig_military', name: '黄埔系中央軍・南京直轄軍', influence: 40, approval: 62, demand: 'ドイツ式装備の導入と軍備拡充', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍閥割拠' },
           { id: 'ig_industrialists', name: '江浙財閥・宋子文金融資本', influence: 25, approval: 65, demand: '銀本位制改革（法幣導入）と上海関税収入の確保', bonusText: '支持70%+: 経済+6' },
@@ -4099,6 +4103,20 @@ const SCENARIOS = {
         interestGroups: createDefaultInterestGroups('democratic'),
         cabinet: [
           { role: '東インド総督', name: 'B.C.デ・ヨング', trait: 'パレンバン油田・戦略資源管理 (石油・鉱物+6%)' }
+        ]
+      },
+      philippines: {
+        id: 'philippines', code: 'PHL', region: 'アジア・オセアニア', isMajor: false,
+        name: 'フィリピン・コモンウェルス', bloc: 'versailles', blocName: 'アメリカ合衆国の保護国・自治準備期',
+        dependency: { overlordId: 'usa', type: 'protectorate', autonomy: 35, loyalty: 62, legitimacy: 55 },
+        leader: 'マヌエル・ケソン 上院議長 / セオドア・ルーズベルト・ジュニア 総督', ministry: 'マニラ政府外務省',
+        mil: 48, eco: 54, stb: 60, tech: 52, gdpText: '$1.6B',
+        aiAgenda: 'ハーレー＝ヘイル＝カッティング法による自治準備と砂糖・ココナッツ輸出、米軍極東拠点の維持',
+        summary: 'ルソン・ビサヤ・ミンダナオの三地域からなる米国の保護国。1930年代の自治議会設置と独立準備を進めつつ、マニラ湾の米軍基地と対日警戒を抱える。',
+        interestGroups: createDefaultInterestGroups('versailles'),
+        cabinet: [
+          { role: '上院議長', name: 'マヌエル・ケソン', trait: '自治拡大・独立準備 (安定度+6%)' },
+          { role: '米国総督', name: 'セオドア・ルーズベルト・ジュニア', trait: '米軍極東拠点の維持 (軍事+4)' }
         ]
       },
       australia: {
@@ -5811,6 +5829,7 @@ function updateMapVisualsLite() {
   repositionGlobeLabels();
   renderGlobeBackdrop();
   updateNationOuterBoundary();
+  updateColonialBorders();
 }
 
 // Cheap label follow during globe drag: move existing country labels, no re-layout.
@@ -6224,7 +6243,7 @@ function updateMapLegend() {
   const mode = state.mapMode;
 
   if (mode === 'country') {
-    box.innerHTML = `<span>1932年 史実国別領土（全77カ国・中国軍閥を含む）</span>`;
+    box.innerHTML = `<span>1932年 史実国別領土（全78カ国・中国軍閥を含む）</span>`;
   } else if (mode === 'faction') {
     box.innerHTML = `
       <span class="legend-dot" style="background:#6285a3;"></span>既存秩序・協調
@@ -6976,13 +6995,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
-<script src="orbis_events.js?v=1932.14"></script>
-<script src="orbis_region_labels.js?v=1932.14"></script>
-<script src="orbis_campaign_core.js?v=1932.14"></script>
-<script src="orbis_timeline_engine.js?v=1932.14"></script>
-<script src="orbis_turn_playback.js?v=1932.14"></script>
-<script src="orbis_text.js?v=1932.14"></script>
-<script src="orbis_game.js?v=1932.14"></script>
+<script src="orbis_events.js?v=1932.16"></script>
+<script src="orbis_region_labels.js?v=1932.16"></script>
+<script src="orbis_campaign_core.js?v=1932.16"></script>
+<script src="orbis_timeline_engine.js?v=1932.16"></script>
+<script src="orbis_turn_playback.js?v=1932.16"></script>
+<script src="orbis_text.js?v=1932.16"></script>
+<script src="orbis_game.js?v=1932.16"></script>
 
 </body>
 </html>
