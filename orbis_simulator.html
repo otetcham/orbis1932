@@ -955,6 +955,55 @@ body.turn-playback-active #game-toast { visibility: hidden !important; pointer-e
   grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
   gap: 6px;
 }
+.btn[hidden] { display: none !important; }
+.insp-admin-row {
+  position: sticky;
+  bottom: -10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+  padding: 4px 0 2px;
+  background: #ffffff;
+}
+.insp-admin-row .btn { min-height: 28px; padding: 4px 9px; font-size: 10.5px; }
+.insp-admin-note {
+  margin-top: 6px;
+  padding: 6px 9px;
+  border-left: 3px solid #c9d8e8;
+  border-radius: 3px;
+  background: #f2f7fc;
+  color: #3d5570;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+.lg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 10px;
+  border: 1px solid #dbe5f0;
+  border-radius: 6px;
+  background: #ffffff;
+}
+.lg-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.lg-card-name { font-size: 12px; font-weight: 700; color: #16283e; }
+.lg-card-meta { font-size: 10px; color: #6c829c; display: flex; gap: 8px; flex-wrap: wrap; }
+.lg-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: #e2e9f2;
+  overflow: hidden;
+}
+.lg-bar > span { display: block; height: 100%; }
+.lg-card-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.lg-card-actions .btn { min-height: 24px; padding: 2px 8px; font-size: 10px; }
+.lg-empty { font-size: 10.5px; color: #7b8fa6; line-height: 1.6; }
 .insp-owner-detail,
 .insp-region-detail {
   display: flex;
@@ -2116,6 +2165,12 @@ svg path:focus-visible,
             </div>
             <div id="interest-groups-list" style="display:flex; flex-direction:column; gap:8px;"></div>
           </div>
+          <div>
+            <div style="font-size:11px; font-weight:700; color:var(--text-muted); margin:12px 0 6px; letter-spacing:0.04em;">
+              自治政府・植民地政庁
+            </div>
+            <div id="local-governments-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+          </div>
         </div>
 
         <!-- Tab 2: World Nations List & Quick Diplomacy -->
@@ -2224,11 +2279,17 @@ svg path:focus-visible,
             <div class="insp-owner-detail" id="insp-owner-detail"></div>
             <div class="insp-region-detail" id="insp-region-detail"></div>
             <div class="insp-status-note" id="insp-status-note" hidden></div>
+            <div class="insp-admin-note" id="insp-admin-note" hidden></div>
             <div class="insp-actions-row">
               <button class="btn btn-cyan" id="btn-insp-action-policy">施策を相談</button>
               <button class="btn" id="btn-insp-action-diplo">統治国と外交交渉</button>
               <button class="btn" id="btn-insp-action-defense">防備・部隊展開</button>
               <button class="btn" id="btn-insp-action-war">戦争・和平</button>
+            </div>
+            <div class="insp-admin-row" id="insp-admin-row" hidden>
+              <button class="btn btn-ghost" id="btn-insp-admin-create">自治政府を設置</button>
+              <button class="btn btn-ghost" id="btn-insp-admin-integrate">中央政府へ統合</button>
+              <button class="btn btn-ghost" id="btn-insp-admin-transfer">他の自治政府へ移管</button>
             </div>
           </div>
         </div>
@@ -2353,6 +2414,7 @@ svg path:focus-visible,
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-war-panel" aria-labelledby="war-panel-title"><div class="modal-head"><strong id="war-panel-title">戦争・和平・紛争</strong><button class="btn btn-ghost" data-close-dialog="modal-war-panel">閉じる</button></div><div class="modal-body" id="war-panel-body"></div></dialog>
   <dialog class="game-dialog" id="modal-country-card" aria-labelledby="country-card-title"><div class="modal-window"><div class="modal-head"><strong id="country-card-title">国家情報</strong><button class="btn btn-ghost" data-close-dialog="modal-country-card" aria-label="国家情報を閉じる">閉じる</button></div><div class="modal-body" id="country-card-body"></div></div></dialog>
+  <dialog class="game-dialog" id="modal-lg-admin" aria-labelledby="lg-admin-title"><div class="modal-window"><div class="modal-head"><strong id="lg-admin-title">行政コマンド</strong><button class="btn btn-ghost" data-close-dialog="modal-lg-admin">閉じる</button></div><div class="modal-body" id="lg-admin-body"></div><div class="modal-foot"><span class="muted small" id="lg-admin-hint"></span><button class="btn btn-primary" id="btn-lg-admin-submit">実行</button></div></div></dialog>
   <div id="turn-playback-overlay" hidden></div>
   <div class="turn-playback-controls" id="turn-playback-controls">
     <button type="button" class="btn btn-ghost" id="btn-playback-skip">スキップ</button>
@@ -2368,6 +2430,7 @@ svg path:focus-visible,
       <ol><li><b>メッセージを読む。</b>「トーク」の一覧から相手を選ぶ。検索と未読・国内・外交の絞り込みも使える。左上の矢印で一覧に戻る。</li><li><b>交渉する。</b>返信案は下書き。条件を編集し、自由文で送る。相手にも守るべき利益がある。</li><li><b>月末に裁定する。</b>「ターンを終える」で全交渉と未回答をGMが評価。結果は「歴史」で確認する。</li></ol>
       <p>非公開電報は相手とGMだけが読む。公式声明は他の勢力にも伝わる。矛盾した密約には代償がある。</p>
       <p>財政には収入と維持費がある。増強や救済には支出が伴う。目標・支持率・条約の期限は「国家」で確認する。</p>
+      <p>自国領の州を選ぶと「自治政府を設置」から植民地政庁・自治政府・軍閥政府を作れる。地図の色は自国のままで、行政だけを分離して扱う。自治度が低いほど税収が増えるが忠誠は下がりやすい。州パネルから中央政府への統合、他の自治政府への移管ができる。</p>
       <p>安定度か経済が8以下、財政が0、緊張度が95以上のいずれかが2か月続くと任期終了。</p>
       <p>会話と下書きは自動保存。ウィンドウを閉じても消えない。セーブの書き出しとAI設定は「メニュー」から。</p>
     </div>
@@ -5996,6 +6059,7 @@ function renderStateInspector(s) {
         <div class="insp-info-line"><span class="insp-info-label">指導者</span><span>${escapeHtml(info.ownerLeader)}</span></div>
         <div class="insp-info-line"><span class="insp-info-label">体制</span><span>${escapeHtml(info.ownerRegime)}</span></div>
         <div class="insp-info-line"><span class="insp-info-label">関係</span><span>${relation}</span></div>
+        ${info.localGovernment ? `<div class="insp-info-line"><span class="insp-info-label">現地政府</span><span>${escapeHtml(info.localGovernment.name)}（${escapeHtml(info.localGovernment.kindLabel)}・自治 ${info.localGovernment.autonomy}% / 忠誠 ${info.localGovernment.loyalty}%）</span></div>` : ''}
         ${info.originalOwnerName ? `<div class="insp-info-line"><span class="insp-info-label">元の領有国</span><span>${escapeHtml(info.originalOwnerName)}</span></div>` : ''}
       `;
     }
@@ -6036,7 +6100,113 @@ function renderStateInspector(s) {
   if (diploBtn) diploBtn.onclick = () => Orbis.openForeign(info.ownerId);
   if (warBtn) warBtn.onclick = () => Orbis.openWarPanel();
 
+  const adminRow = document.getElementById('insp-admin-row');
+  const adminNote = document.getElementById('insp-admin-note');
+  const createBtn = document.getElementById('btn-insp-admin-create');
+  const integrateBtn = document.getElementById('btn-insp-admin-integrate');
+  const transferBtn = document.getElementById('btn-insp-admin-transfer');
+  const localGov = info.localGovernment;
+  const canManage = Boolean(info.isOwn && !info.isSea);
+  if (adminRow) adminRow.hidden = !canManage;
+  if (createBtn) createBtn.hidden = !(canManage && !localGov);
+  if (integrateBtn) integrateBtn.hidden = !(canManage && localGov);
+  if (transferBtn) transferBtn.hidden = !(canManage && localGov);
+  if (adminNote) {
+    adminNote.hidden = !canManage;
+    if (canManage) {
+      adminNote.textContent = localGov
+        ? `${localGov.kindLabel}「${localGov.name}」の管轄（自治 ${localGov.autonomy}% / 忠誠 ${localGov.loyalty}% / 総督 ${localGov.governor || '—'}）`
+        : '中央政府の直轄領。自治政府を設置すると現地へ行政を委ね、税収と引き換えに自治度・忠誠の管理が必要になる。';
+    }
+  }
+  if (createBtn) createBtn.onclick = () => openLocalGovernmentCommand('create', s.id);
+  if (integrateBtn) integrateBtn.onclick = () => openLocalGovernmentCommand('integrate', s.id);
+  if (transferBtn) transferBtn.onclick = () => openLocalGovernmentCommand('transfer', s.id);
+
   card.classList.add('open');
+}
+
+let lgCommandState = { mode: 'create', stateId: null };
+
+function openLocalGovernmentCommand(mode, stateId) {
+  const info = Orbis.provincePanelData?.(stateId);
+  const body = document.getElementById('lg-admin-body');
+  const title = document.getElementById('lg-admin-title');
+  const hint = document.getElementById('lg-admin-hint');
+  const submit = document.getElementById('btn-lg-admin-submit');
+  if (!info || !body || !title || !hint || !submit) return;
+  lgCommandState = { mode, stateId };
+  const localGov = info.localGovernment;
+  submit.disabled = false;
+
+  if (mode === 'create') {
+    title.textContent = '行政コマンド · 自治政府の設置';
+    body.innerHTML = `
+      <p class="muted small">${escapeHtml(info.name)}を中央政府から切り離し、宗主権を保持したまま現地政府を設置します。</p>
+      <label for="lg-name-input">名称</label>
+      <input class="form-input" id="lg-name-input" maxlength="40" value="${escapeHtml(info.name)}自治政府">
+      <label for="lg-kind-select">種類</label>
+      <select class="form-select" id="lg-kind-select">
+        <option value="colonial">植民地政庁（自治18・税収2）</option>
+        <option value="autonomous" selected>自治政府（自治45・税収1）</option>
+        <option value="warlord">軍閥政府（自治78・税収0・不安定）</option>
+      </select>
+      <p class="muted small">地図上の色は自国のまま。自治度が低いほど税収が増え、忠誠が下がりやすい。</p>`;
+    hint.textContent = '費用: 財政 -3 / 威信 -1';
+    submit.textContent = '設置する';
+  } else if (mode === 'integrate') {
+    title.textContent = '行政コマンド · 中央政府へ統合';
+    body.innerHTML = `
+      <p class="muted small">${escapeHtml(info.name)}を自治政府の管轄から外し、中央政府の直轄領に戻します。</p>
+      <div class="insp-info-line"><span class="insp-info-label">自治政府</span><span>${escapeHtml(localGov?.name || '—')}（自治 ${localGov?.autonomy ?? 0}% / 忠誠 ${localGov?.loyalty ?? 0}%）</span></div>`;
+    hint.textContent = (localGov?.loyalty ?? 100) < 40 ? '現地の反発が見込まれる（安定度 -4）' : '平穏に統合できる見込み';
+    submit.textContent = '統合する';
+  } else {
+    title.textContent = '行政コマンド · 他の自治政府へ移管';
+    const targets = Orbis.localGovernmentsFor().filter(entry => entry.id !== localGov?.id);
+    if (!targets.length) {
+      body.innerHTML = '<p class="muted small">移管先の自治政府がありません。先に別の州で自治政府を設置してください。</p>';
+      hint.textContent = '移管先なし';
+      submit.disabled = true;
+    } else {
+      body.innerHTML = `
+        <p class="muted small">${escapeHtml(info.name)}を別の自治政府の管轄へ移します。</p>
+        <label for="lg-transfer-select">移管先</label>
+        <select class="form-select" id="lg-transfer-select">
+          ${targets.map(entry => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.name)}（${entry.stateIds.length}州）</option>`).join('')}
+        </select>`;
+      hint.textContent = '費用: 財政 -1';
+    }
+    submit.textContent = '移管する';
+  }
+  Orbis.openDialog('modal-lg-admin');
+}
+
+function submitLocalGovernmentCommand() {
+  const { mode, stateId } = lgCommandState;
+  let result = { ok: false, error: '不明な行政コマンドです。' };
+  if (mode === 'create') {
+    result = Orbis.createLocalGovernment(stateId, {
+      name: document.getElementById('lg-name-input')?.value || '',
+      kind: document.getElementById('lg-kind-select')?.value || 'autonomous'
+    });
+  } else if (mode === 'integrate') {
+    result = Orbis.integrateLocalGovernmentState(stateId);
+  } else if (mode === 'transfer') {
+    const targetId = document.getElementById('lg-transfer-select')?.value;
+    result = targetId ? Orbis.transferLocalGovernmentState(stateId, targetId) : { ok: false, error: '移管先を選択してください。' };
+  }
+  if (result?.ok) {
+    document.getElementById('modal-lg-admin')?.close();
+  } else {
+    const hint = document.getElementById('lg-admin-hint');
+    if (hint) hint.textContent = result?.error || '実行できませんでした。';
+  }
+}
+
+function initLocalGovernmentAdmin() {
+  const submit = document.getElementById('btn-lg-admin-submit');
+  if (submit) submit.addEventListener('click', submitLocalGovernmentCommand);
 }
 
 function showStateTooltip(s) {
@@ -6397,6 +6567,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-start-campaign').disabled = true;
     return;
   }
+  initLocalGovernmentAdmin();
   Orbis.boot();
 });
 
