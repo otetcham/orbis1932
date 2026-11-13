@@ -456,7 +456,8 @@ try {
     assert.equal(saved.territories[chineseRegion], 'japan');
     assert.ok(!Object.hasOwn(saved.territories, usRegion));
     assert.equal(saved.clients.manchukuo.autonomy, 29);
-    assert.equal(saved.clients.manchukuo.loyalty, 63);
+    // 自治度29の目標忠誠は44。交渉で63になった後、月次ドリフトで62へ。
+    assert.equal(saved.clients.manchukuo.loyalty, 62);
     assert.equal(saved.treaties.length, 0);
     assert.equal(vm.runInContext(`state.states.find(item => item.id === '${chineseRegion}').country`, context), 'japan');
     assert.equal(await api.restore(saved), true);
@@ -872,10 +873,10 @@ try {
     assert.ok(api.snapshot().briefing.telegrams.every(t => t.actorId !== 'ministry:atlantis'));
   });
 
-  await check('史実データ監査 (76カ国・Admin-1州・危機・歴史イベントの整合)', async () => {
+  await check('史実データ監査 (67カ国・Admin-1州・危機・歴史イベントの整合)', async () => {
     const { context } = harness();
     const audit = auditData(context);
-    assert.equal(audit.nations, 76);
+    assert.equal(audit.nations, 67);
     assert.ok(audit.land >= 900 && audit.land <= 2000, `陸上州数 ${audit.land}`);
     assert.ok(audit.land <= 1300, `ヨーロッパ集約後の州数上限目安 (${audit.land})`);
     assert.equal(audit.events, 9);
@@ -1165,6 +1166,69 @@ try {
     invalid.localGovernments.lg_bad = { id: 'lg_bad', name: '不正な政庁', parentId: 'japan', kind: 'autonomous', stateIds: ['france_fwa'], autonomy: 40, loyalty: 50, governor: '', createdAt: 0 };
     assert.equal(await api.restore(invalid), true);
     assert.ok(!api.localGovernmentsFor('japan').some(entry => entry.id === 'lg_bad'));
+  });
+
+  await check('中国軍閥は中華民国の行政レイヤー軍閥政府として扱う', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const names = api.localGovernmentsFor('china').map(entry => entry.name);
+    for (const name of ['晋系（山西）', '新広西派（広西）', '西南派（広東）', '四川軍（川軍）', '滇系（雲南）', '魯系（山東）', '新疆政権', '西北三馬（甘寧青）', '湘系（湖南）', '黔系（貴州）']) {
+      assert.ok(names.includes(name), name);
+    }
+    assert.equal(vm.runInContext("typeof SCENARIOS.era_1932.nations.shanxi", context), 'undefined');
+    assert.equal(api.provincePanelData('china_cn_sx').ownerId, 'china');
+    assert.equal(api.provincePanelData('china_cn_sx').localGovernment.name, '晋系（山西）');
+    assert.equal(api.provincePanelData('china_cn_cq').localGovernment.name, '四川軍（川軍）');
+    assert.equal(api.localGovernmentsFor('china').find(entry => entry.name === '四川軍（川軍）').kind, 'warlord');
+  });
+
+  await check('チベットは中国の保護国として独立した操作可能国', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(vm.runInContext("SCENARIOS.era_1932.nations.tibet.dependency.overlordId", context), 'china');
+    assert.equal(api.provincePanelData('china_cn_xz').ownerId, 'tibet');
+    const dependency = api.dependencyInfo('tibet');
+    assert.equal(dependency.kind, 'protectorate');
+    assert.equal(dependency.overlordId, 'china');
+    assert.ok(dependency.autonomy >= 80);
+  });
+
+  await check('従属国プレイ: 宗主国への宣戦不可・自治拡大・独立宣言', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'tibet', difficulty: 'standard', mandate: 'recovery', maxTurns: 24, replace: true }), true);
+    assert.equal(api.dependencyInfo('tibet').overlordId, 'china');
+    assert.equal(api.declareWar('china', '宗主国への反乱'), false);
+    const before = api.snapshot().prestige;
+    assert.equal(api.increaseAutonomy().ok, true);
+    assert.ok(api.snapshot().prestige < before);
+    const independence = api.declareIndependence();
+    assert.equal(independence.ok, true);
+    const snapshot = api.snapshot();
+    assert.equal(snapshot.clients.tibet.independent, true);
+    assert.ok(Object.values(snapshot.wars).some(war => war.attacker === 'china' && war.defender === 'tibet'));
+  });
+
+  await check('宗主国は低自治の従属国を威信を払って併合できる', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const manRegion = vm.runInContext("ORBIS_STATES_DB.find(region => region.country === 'manchukuo' && !region.isSea).id", context);
+    const prestige = api.snapshot().prestige;
+    const annex = api.annexDependency('manchukuo');
+    assert.equal(annex.ok, true);
+    assert.ok(api.snapshot().prestige < prestige);
+    assert.equal(api.snapshot().clients.manchukuo.annexed, true);
+    assert.equal(api.provincePanelData(manRegion).ownerId, 'japan');
+  });
+
+  await check('領土移管で旧所有者の請求権が記録される', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(api.declareWar('china', '国境紛争'), true);
+    const warId = Object.keys(api.snapshot().wars)[0];
+    assert.equal(api.signPeace(warId, ['cn_beijing'], []), true);
+    const panel = api.provincePanelData('cn_beijing');
+    assert.equal(panel.ownerId, 'japan');
+    assert.ok(panel.claims.some(claim => claim.nationId === 'china'), '中国の請求権');
   });
 
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
