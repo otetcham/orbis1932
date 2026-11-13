@@ -21,7 +21,7 @@ const Orbis = (() => {
   const KIND_LABELS = { adviser: '官房', domestic: '国内利益集団', ministry: '外務省', embassy: '大使館', client: '従属国・自治領', foreign_group: '国外利益集団' };
   const STANCES = { agree: '条件に合意', counter: '対案を提示', refuse: '提案を拒否', consider: '協議を継続' };
   const SHORT_NAMES = {
-    japan: '日本', china: '中国', manchukuo: '満洲国', mongolia: 'モンゴル', usa: '米国', uk: '英国', france: 'フランス', germany: 'ドイツ', tibet: 'チベット',
+    japan: '日本', china: '中国', manchukuo: '満洲国', mongolia: 'モンゴル', usa: '米国', uk: '英国', france: 'フランス', germany: 'ドイツ', tibet: 'チベット', shanxi: '晋系', guangxi: '桂系', guangdong: '粤系', sichuan: '川軍', yunnan: '滇系', shandong: '魯系', xinjiang: '新疆', ma_clique: '三馬', hunan: '湘系', guizhou: '黔系',
     russia: 'ソ連', italy: 'イタリア', poland: 'ポーランド', spain: 'スペイン', portugal: 'ポルトガル', turkey: 'トルコ', iran: 'ペルシア',
     saudi_arabia: 'サウジアラビア', egypt: 'エジプト', ethiopia: 'エチオピア', south_africa: '南アフリカ', india: '英領インド', dutch_indies: '蘭領東インド',
     australia: 'オーストラリア', new_zealand: 'ニュージーランド', canada: 'カナダ', mexico: 'メキシコ', brazil: 'ブラジル', argentina: 'アルゼンチン',
@@ -33,20 +33,36 @@ const Orbis = (() => {
     el_salvador: 'エルサルバドル', honduras: 'ホンジュラス', nicaragua: 'ニカラグア', costa_rica: 'コスタリカ', panama: 'パナマ', haiti: 'ハイチ', dominican: 'ドミニカ'
   };
   const CLIENTS = {
-    manchukuo: { sponsorId: 'japan', kind: 'puppet', autonomy: 25, loyalty: 65 },
-    mongolia: { sponsorId: 'russia', kind: 'satellite', autonomy: 45, loyalty: 70 },
-    india: { sponsorId: 'uk', kind: 'dominion', autonomy: 20, loyalty: 48 },
-    dutch_indies: { sponsorId: 'netherlands', kind: 'colony', autonomy: 15, loyalty: 50 },
-    tibet: { sponsorId: 'china', kind: 'protectorate', autonomy: 85, loyalty: 28 }
+    manchukuo: { sponsorId: 'japan', type: 'protectorate', autonomy: 25, loyalty: 65, legitimacy: 55, name: '満洲国', dissolved: false },
+    mongolia: { sponsorId: 'russia', type: 'protectorate', autonomy: 45, loyalty: 70, legitimacy: 50, name: 'モンゴル人民共和国', dissolved: false },
+    india: { sponsorId: 'uk', type: 'colony', autonomy: 20, loyalty: 48, legitimacy: 40, name: '英領インド帝国', dissolved: false },
+    dutch_indies: { sponsorId: 'netherlands', type: 'colony', autonomy: 15, loyalty: 50, legitimacy: 40, name: '蘭領東インド', dissolved: false },
+    tibet: { sponsorId: 'china', type: 'protectorate', autonomy: 85, loyalty: 28, legitimacy: 60, name: 'チベット', dissolved: false },
+    shanxi: { sponsorId: 'china', type: 'warlord', autonomy: 70, loyalty: 48, legitimacy: 30, name: '晋系（山西）', dissolved: false },
+    guangxi: { sponsorId: 'china', type: 'warlord', autonomy: 72, loyalty: 50, legitimacy: 30, name: '新広西派（広西）', dissolved: false },
+    guangdong: { sponsorId: 'china', type: 'warlord', autonomy: 76, loyalty: 42, legitimacy: 28, name: '西南派（広東）', dissolved: false },
+    sichuan: { sponsorId: 'china', type: 'warlord', autonomy: 68, loyalty: 52, legitimacy: 32, name: '四川軍（川軍）', dissolved: false },
+    yunnan: { sponsorId: 'china', type: 'warlord', autonomy: 78, loyalty: 50, legitimacy: 30, name: '滇系（雲南）', dissolved: false },
+    shandong: { sponsorId: 'china', type: 'warlord', autonomy: 66, loyalty: 54, legitimacy: 32, name: '魯系（山東）', dissolved: false },
+    xinjiang: { sponsorId: 'china', type: 'warlord', autonomy: 82, loyalty: 44, legitimacy: 26, name: '新疆政権', dissolved: false },
+    ma_clique: { sponsorId: 'china', type: 'warlord', autonomy: 80, loyalty: 46, legitimacy: 28, name: '西北三馬（甘寧青）', dissolved: false },
+    hunan: { sponsorId: 'china', type: 'warlord', autonomy: 64, loyalty: 56, legitimacy: 34, name: '湘系（湖南）', dissolved: false },
+    guizhou: { sponsorId: 'china', type: 'warlord', autonomy: 74, loyalty: 42, legitimacy: 26, name: '黔系（貴州）', dissolved: false }
   };
-  const DEPENDENCY_TYPES = { puppet: '傀儡国', satellite: '衛星国', dominion: '自治領', colony: '植民地', protectorate: '保護国' };
+  const DEPENDENCY_TYPES = { colony: '植民地', protectorate: '保護国', warlord: '軍閥', local: '現地政府', satellite: '衛星国', dominion: '自治領', puppet: '傀儡国' };
+  const DEPENDENCY_DEFAULTS = {
+    colony: { autonomy: 15, loyalty: 50, legitimacy: 40 },
+    protectorate: { autonomy: 30, loyalty: 60, legitimacy: 55 },
+    warlord: { autonomy: 70, loyalty: 40, legitimacy: 30 },
+    local: { autonomy: 10, loyalty: 45, legitimacy: 35 }
+  };
 
   // 自治政府（地方政権・植民地政庁・軍閥政府）。
   // 宗主国の領土のまま、行政だけを分離して扱う。地図色は宗主国と同一。
   const LOCAL_GOVERNMENT_KINDS = {
-    colonial: { label: '植民地政庁', badge: '植民地', autonomy: 18, loyalty: 64, tax: 2, unrest: 1 },
-    autonomous: { label: '自治政府', badge: '自治', autonomy: 45, loyalty: 60, tax: 1, unrest: 1 },
-    warlord: { label: '軍閥政府', badge: '軍閥', autonomy: 78, loyalty: 44, tax: 0, unrest: 2 }
+    colonial: { label: '植民地政庁', badge: '植民地', autonomy: 18, loyalty: 64, legitimacy: 40, tax: 2, unrest: 1 },
+    autonomous: { label: '自治政府', badge: '自治', autonomy: 45, loyalty: 60, legitimacy: 50, tax: 1, unrest: 1 },
+    warlord: { label: '軍閥政府', badge: '軍閥', autonomy: 78, loyalty: 44, legitimacy: 30, tax: 0, unrest: 2 }
   };
   const LOCAL_GOVERNMENT_PRESETS = [
     { slug: 'korea', parentId: 'japan', name: '朝鮮総督府', kind: 'colonial', stateIds: ['japan_empire_kor'], governor: '宇垣一成 総督' },
@@ -64,19 +80,8 @@ const Orbis = (() => {
     { slug: 'suriname', parentId: 'netherlands', name: '蘭領スリナム政庁', kind: 'colonial', stateIds: ['netherlands_suriname'], governor: 'パラマリボ総督' },
     { slug: 'africa', parentId: 'portugal', name: 'ポルトガル領アフリカ', kind: 'colonial', stateIds: ['portugal_angola', 'portugal_mozambique', 'portugal_guinea'], governor: 'ルアンダ総督' },
     { slug: 'timor', parentId: 'portugal', name: 'ポルトガル領ティモール', kind: 'colonial', stateIds: ['portugal_timor'], governor: 'ディリ総督' },
-    // 中華民国の行政レイヤーとしての地方軍閥（1932年3月）
-    { slug: 'shanxi', parentId: 'china', name: '晋系（山西）', kind: 'warlord', stateIds: ['china_cn_sx', 'china_suiyuan'], governor: '閻錫山 太原綏靖公署主任' },
-    { slug: 'guangxi', parentId: 'china', name: '新広西派（広西）', kind: 'warlord', stateIds: ['china_cn_gx'], governor: '李宗仁 / 白崇禧' },
-    { slug: 'guangdong', parentId: 'china', name: '西南派（広東）', kind: 'warlord', stateIds: ['china_cn_gd'], governor: '陳済棠 第八路軍総司令' },
-    { slug: 'sichuan', parentId: 'china', name: '四川軍（川軍）', kind: 'warlord', stateIds: ['china_cn_sc', 'china_cn_cq'], governor: '劉湘 四川善後督弁' },
-    { slug: 'yunnan', parentId: 'china', name: '滇系（雲南）', kind: 'warlord', stateIds: ['china_cn_yn'], governor: '龍雲 雲南省政府主席' },
-    { slug: 'shandong', parentId: 'china', name: '魯系（山東）', kind: 'warlord', stateIds: ['china_cn_sd'], governor: '韓復榘 山東省政府主席' },
-    { slug: 'xinjiang', parentId: 'china', name: '新疆政権', kind: 'warlord', stateIds: ['china_cn_xj'], governor: '金樹仁 新疆省政府主席' },
-    { slug: 'ma_clique', parentId: 'china', name: '西北三馬（甘寧青）', kind: 'warlord', stateIds: ['china_cn_qh', 'china_cn_nx', 'china_cn_gs'], governor: '馬麟 / 馬鴻賓 / 馬鴻逵' },
-    { slug: 'hunan', parentId: 'china', name: '湘系（湖南）', kind: 'warlord', stateIds: ['china_cn_hn'], governor: '何鍵 湖南省政府主席' },
-    { slug: 'guizhou', parentId: 'china', name: '黔系（貴州）', kind: 'warlord', stateIds: ['china_cn_gz'], governor: '王家烈 貴州省政府主席' }
   ];
-  const PERSONS = { japan: '佐伯 修一', china: '陳 文彬', manchukuo: '林 景文', tibet: 'テンジン ノルブ', usa: 'リチャード・ヘイル', uk: 'エドワード・ベネット', france: 'ピエール・ロラン', germany: 'カール・ヴェーバー', russia: 'アレクセイ・ペトロフ', italy: 'マルコ・リッチ', india: 'アニル・ラオ', mongolia: 'バト・エルデネ' };
+  const PERSONS = { japan: '佐伯 修一', china: '陳 文彬', manchukuo: '林 景文', tibet: 'テンジン ノルブ', shanxi: '趙 爾康', guangxi: '韋 建邦', guangdong: '馮 啟明', sichuan: '楊 文清', yunnan: '段 承志', shandong: '孫 樹德', xinjiang: '阿不都 拉合曼', ma_clique: '馬 世昌', hunan: '譚 明遠', guizhou: '周 子清', usa: 'リチャード・ヘイル', uk: 'エドワード・ベネット', france: 'ピエール・ロラン', germany: 'カール・ヴェーバー', russia: 'アレクセイ・ペトロフ', italy: 'マルコ・リッチ', india: 'アニル・ラオ', mongolia: 'バト・エルデネ' };
   const GROUP_PERSONAS = {
     ig_military: { short: '軍部連絡室', style: '端的で威厳ある軍人。面子と指揮系統を重視し、白紙委任も防衛費削減も嫌う。', redLine: '国境防衛能力と指揮権を失う条件には抵抗する。' },
     ig_industrialists: { short: '財界・産業界', style: '数字と信用を重んじる実務家。相手の弱みを見抜くが、通商と法的安定を好む。', redLine: '補償のない接収、資源輸入の遮断、採算のない無制限融資は拒む。' },
@@ -112,7 +117,7 @@ const Orbis = (() => {
   const decorate = value => globalThis.OrbisText?.decorate ? globalThis.OrbisText.decorate(value) : escapeHtml(value);
   const uid = prefix => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   const copy = value => JSON.parse(JSON.stringify(value));
-  const shortName = id => SHORT_NAMES[id] || SCENARIOS.era_1932.nations[id]?.name.split(/[（(・]/)[0] || id;
+  const shortName = id => SHORT_NAMES[id] || (nationMeta(id)?.name || '').split(/[（(・]/)[0] || id;
   const resolveCore = () => {
     const c = CORE();
     if (!c) throw new Error('ORBIS_CAMPAIGN (orbis_campaign_core.js) が読み込まれていません。');
@@ -144,7 +149,13 @@ const Orbis = (() => {
     const relations = {};
     const base = SCENARIOS.era_1932.nations;
     for (const [id, nation] of Object.entries(base)) {
-      nations[id] = { mil: nation.mil, eco: nation.eco, stb: nation.stb, tech: nation.tech, groups: Object.fromEntries(nation.interestGroups.map(group => [group.id, group.approval])) };
+      nations[id] = {
+        mil: nation.mil, eco: nation.eco, stb: nation.stb, tech: nation.tech,
+        groups: Object.fromEntries(nation.interestGroups.map(group => [group.id, group.approval])),
+        suzerain: nation.dependency?.overlordId || null,
+        vassalType: nation.dependency?.type || null,
+        dissolved: false
+      };
       relations[id] = Object.fromEntries(Object.values(base).map(other => [other.id, computeInitialRelation(nation, other)]));
     }
     const game = {
@@ -153,7 +164,7 @@ const Orbis = (() => {
       completedTurns: 0, phase: 'briefing', usedActions: 0, tension: 42, treasury: 65, prestige: 40,
       nations, relations, leaders: {}, actorState: {}, threads: {}, activeActorId: 'adviser',
       articles: [], briefing: null, turnActions: [], commitments: [], treaties: [], clients: copy(CLIENTS), territories: {},
-      localGovernments: {},
+      localGovernments: {}, dynamicNations: {},
       nationalAction: null, actionDraft: '', actionHistory: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, npcAgreements: [], occupations: {}, claims: {},
       establishedFacts: [], timelineFired: {}, turnPlaybackQueue: [], worldMemory: '', stress: { collapse: 0, bankruptcy: 0, war: 0, civil: 0 },
       globalWarHalves: 0, worldWarActive: false, lastResolutionIssues: [],
@@ -175,7 +186,8 @@ const Orbis = (() => {
       const id = `lg_${preset.parentId}_${preset.slug}`;
       game.localGovernments[id] = {
         id, name: preset.name, parentId: preset.parentId, kind: preset.kind, stateIds,
-        autonomy: kind.autonomy, loyalty: kind.loyalty, governor: preset.governor, createdAt: 0
+        autonomy: kind.autonomy, loyalty: kind.loyalty, legitimacy: kind.legitimacy ?? 40,
+        governor: preset.governor, createdAt: 0, unrestHalves: 0
       };
     }
   }
@@ -219,6 +231,21 @@ const Orbis = (() => {
       const target = 30 + Math.round(entry.autonomy * 0.5);
       if (entry.loyalty < target) entry.loyalty = Math.min(target, entry.loyalty + 2);
       else if (entry.loyalty > target) entry.loyalty = Math.max(target, entry.loyalty - 1);
+      entry.legitimacy = entry.legitimacy ?? 40;
+      const legitimacyTarget = entry.kind === 'colonial' ? 45 : entry.kind === 'warlord' ? 30 : 55;
+      if (entry.legitimacy < legitimacyTarget) entry.legitimacy = Math.min(legitimacyTarget, entry.legitimacy + 1);
+      else if (entry.legitimacy > legitimacyTarget) entry.legitimacy = Math.max(legitimacyTarget, entry.legitimacy - 1);
+      if (entry.legitimacy < 15) {
+        entry.unrestHalves = (entry.unrestHalves || 0) + 1;
+        if (entry.unrestHalves >= 2) {
+          delete game.localGovernments[entry.id];
+          parent.stb = Math.max(0, parent.stb - 3);
+          notes.push(`${entry.name}が正統性を失って崩壊し、${shortName(entry.parentId)}が直轄化（安定度 -3）。`);
+          continue;
+        }
+      } else {
+        entry.unrestHalves = 0;
+      }
       if (entry.loyalty < 30) {
         const penalty = LOCAL_GOVERNMENT_KINDS[entry.kind]?.unrest || 1;
         parent.stb = Math.max(0, parent.stb - penalty);
@@ -260,9 +287,9 @@ const Orbis = (() => {
     const id = uid('lg');
     campaign.localGovernments[id] = {
       id, name, parentId: playerId, kind: kindKey, stateIds: [stateId],
-      autonomy: kind.autonomy, loyalty: kind.loyalty,
+      autonomy: kind.autonomy, loyalty: kind.loyalty, legitimacy: kind.legitimacy ?? 40,
       governor: String(options.governor || '').trim().slice(0, 60) || '現地総督',
-      createdAt: campaign.completedTurns
+      createdAt: campaign.completedTurns, unrestHalves: 0
     };
     campaign.treasury -= 3;
     campaign.prestige = clamp(campaign.prestige - 1, 0, 100);
@@ -326,35 +353,195 @@ const Orbis = (() => {
     return { ok: true };
   }
 
+  function nationMeta(nationId, game = campaign) {
+    return SCENARIOS.era_1932.nations[nationId] || game?.dynamicNations?.[nationId] || null;
+  }
+
+  // 従属政権の領土は宗主国の色で描く（ゲーム内・ロビー共通）。
+  function colorNation(nationId, game = campaign) {
+    const client = game?.clients?.[nationId];
+    if (client && !client.dissolved && !client.independent && client.sponsorId) return client.sponsorId;
+    const nation = game?.nations?.[nationId];
+    if (nation?.suzerain && !nation.dissolved) return nation.suzerain;
+    if (!game) {
+      const meta = SCENARIOS.era_1932.nations[nationId]?.dependency;
+      if (meta?.overlordId) return meta.overlordId;
+    }
+    return nationId;
+  }
+
+  function defaultDependentGroups() {
+    return [
+      { id: 'ig_military', name: '現地軍・治安部隊', influence: 35, approval: 55, demand: '治安維持と装備の供給', bonusText: '支持70%+: 軍事+5 / 不満35%以下: 反乱' },
+      { id: 'ig_industrialists', name: '現地経済団体・資源業者', influence: 28, approval: 52, demand: '資源輸出とインフラ投資', bonusText: '支持70%+: 経済+5' },
+      { id: 'ig_parliament', name: '現地政庁・知識層', influence: 22, approval: 50, demand: '自治権の拡大と行政職の現地化', bonusText: '支持70%+: 安定度+6' },
+      { id: 'ig_labor', name: '農民・労働者', influence: 15, approval: 45, demand: '賦役の軽減と食糧価格の安定', bonusText: '支持70%+: 安定度+4' }
+    ];
+  }
+
+  function createDependent(sponsorId, vassalId, type, name, game = campaign) {
+    if (!game?.nations?.[sponsorId] || !game?.nations?.[vassalId]) return { ok: false, error: '宗主国または従属政権の国が存在しません。' };
+    if (sponsorId === vassalId) return { ok: false, error: '同じ国を宗主国にはできません。' };
+    if (!Object.hasOwn(DEPENDENCY_DEFAULTS, type)) return { ok: false, error: '従属政権の種類が不正です。' };
+    if (game.nations[sponsorId].suzerain) return { ok: false, error: '従属国は宗主国になれません（連鎖従属の禁止）。' };
+    const current = game.clients?.[vassalId];
+    if (current && !current.dissolved) return { ok: false, error: 'すでに従属政権です。' };
+    const defaults = DEPENDENCY_DEFAULTS[type];
+    game.clients = game.clients || {};
+    game.clients[vassalId] = {
+      sponsorId, type,
+      autonomy: defaults.autonomy,
+      loyalty: defaults.loyalty,
+      legitimacy: defaults.legitimacy,
+      name: name || nationMeta(vassalId, game)?.name || vassalId,
+      dissolved: false,
+      unrestHalves: 0
+    };
+    const nation = game.nations[vassalId];
+    nation.suzerain = sponsorId;
+    nation.vassalType = type;
+    nation.dissolved = false;
+    if (game.relations?.[vassalId]?.[sponsorId] !== undefined) {
+      game.relations[vassalId][sponsorId] = 60;
+      game.relations[sponsorId][vassalId] = 60;
+    }
+    return { ok: true };
+  }
+
+  function createDependentFromRegion(sponsorId, regionId, newId, name, type, game = campaign) {
+    if (!game?.nations?.[sponsorId]) return { ok: false, error: '宗主国が存在しません。' };
+    if (!Object.hasOwn(DEPENDENCY_DEFAULTS, type)) return { ok: false, error: '従属政権の種類が不正です。' };
+    const id = String(newId || '').trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_]{2,30}$/.test(id)) return { ok: false, error: '従属政権のIDが不正です。' };
+    if (game.nations[id] || SCENARIOS.era_1932.nations[id]) return { ok: false, error: 'その国IDはすでに使われています。' };
+    if (game.nations[sponsorId].suzerain) return { ok: false, error: '従属国は宗主国になれません。' };
+    const region = regionById(regionId);
+    if (!region || region.isSea || region.isSeaZone) return { ok: false, error: '陸上州を選択してください。' };
+    if ((game.territories[regionId] || region.country) !== sponsorId) return { ok: false, error: '自国が統治する州でのみ創設できます。' };
+    const sponsor = nationMeta(sponsorId, game) || {};
+    const base = game.nations[sponsorId];
+    const label = String(name || '').trim().slice(0, 40) || `${regionLabel(region)}政庁`;
+    const groups = defaultDependentGroups();
+    const meta = {
+      id, code: id.slice(0, 3).toUpperCase(), region: sponsor.region || '東アジア・太平洋', isMajor: false,
+      name: label, bloc: sponsor.bloc || 'neutral', blocName: sponsor.blocName || '宗主国の影響圏',
+      leader: `${label} 現地指導者`, ministry: `${label}政庁`,
+      mil: Math.max(10, Math.round(base.mil * 0.6)), eco: Math.max(10, Math.round(base.eco * 0.6)),
+      stb: Math.max(10, Math.round(base.stb * 0.6)), tech: Math.max(10, Math.round(base.tech * 0.6)),
+      gdpText: '—',
+      aiAgenda: '宗主国の承認の下で自治を拡大し、現地の安定と資源開発を進める',
+      summary: `${sponsor.name || sponsorId}の影響下で成立した現地政権。宗主国への義務と現地の自治要求の間で政策を迫られる。`,
+      interestGroups: groups,
+      cabinet: [
+        { role: '現地指導者', name: `${label} 指導者`, trait: '宗主国との協調 (+安定)' },
+        { role: '行政長官', name: '現地行政官', trait: '行政機構の整備 (+経済)' }
+      ],
+      dependency: { overlordId: sponsorId, type, ...DEPENDENCY_DEFAULTS[type] }
+    };
+    game.dynamicNations[id] = meta;
+    game.nations[id] = {
+      mil: meta.mil, eco: meta.eco, stb: meta.stb, tech: meta.tech,
+      groups: Object.fromEntries(groups.map(group => [group.id, group.approval])),
+      suzerain: sponsorId, vassalType: type, dissolved: false
+    };
+    game.relations[id] = {};
+    for (const otherId of Object.keys(game.nations)) {
+      if (otherId === id) continue;
+      const relation = otherId === sponsorId ? 60 : 10;
+      game.relations[id][otherId] = relation;
+      if (game.relations[otherId]) game.relations[otherId][id] = relation;
+    }
+    game.relations[id][id] = 100;
+    game.territories[regionId] = id;
+    createDependent(sponsorId, id, type, label, game);
+    return { ok: true, id };
+  }
+
+  function integrateDependent(vassalId, game = campaign) {
+    const client = game?.clients?.[vassalId];
+    if (!client || client.dissolved) return { ok: false, error: '従属政権が見つかりません。' };
+    if (!game.nations[client.sponsorId]) return { ok: false, error: '宗主国が見つかりません。' };
+    const sponsorId = client.sponsorId;
+    const regions = window.ORBIS_STATES_DB.filter(region => !region.isSea && !region.isSeaZone && (game.territories[region.id] || region.country) === vassalId);
+    for (const region of regions) game.territories[region.id] = sponsorId;
+    client.dissolved = true;
+    client.integratedInto = sponsorId;
+    client.unrestHalves = 0;
+    const nation = game.nations[vassalId];
+    if (nation) { nation.dissolved = true; nation.suzerain = null; nation.integratedInto = sponsorId; }
+    if (game.claims) for (const [stateId, list] of Object.entries(game.claims)) {
+      game.claims[stateId] = list.filter(claim => claim.nationId !== vassalId);
+      if (!game.claims[stateId].length) delete game.claims[stateId];
+    }
+    return { ok: true, sponsorId, regions: regions.length };
+  }
+
+  function transferDependent(vassalId, newSponsorId, game = campaign) {
+    const client = game?.clients?.[vassalId];
+    if (!client || client.dissolved) return { ok: false, error: '従属政権が見つかりません。' };
+    if (!game.nations[newSponsorId]) return { ok: false, error: '移管先の国が存在しません。' };
+    if (newSponsorId === client.sponsorId) return { ok: false, error: '同じ宗主国です。' };
+    if (game.nations[newSponsorId].suzerain) return { ok: false, error: '従属国へは移管できません。' };
+    const oldSponsorId = client.sponsorId;
+    client.sponsorId = newSponsorId;
+    client.loyalty = clamp(client.loyalty - 8, 0, 100);
+    const nation = game.nations[vassalId];
+    if (nation) nation.suzerain = newSponsorId;
+    if (game.relations?.[vassalId]) {
+      game.relations[vassalId][newSponsorId] = 50;
+      game.relations[newSponsorId][vassalId] = 50;
+      game.relations[vassalId][oldSponsorId] = clamp((game.relations[vassalId][oldSponsorId] ?? 0) - 20, -100, 100);
+      game.relations[oldSponsorId][vassalId] = game.relations[vassalId][oldSponsorId];
+    }
+    return { ok: true, from: oldSponsorId, to: newSponsorId };
+  }
+
+  function grantAutonomy(vassalId, autonomyDelta = 0, loyaltyDelta = 0, legitimacyDelta = 0, game = campaign) {
+    const client = game?.clients?.[vassalId];
+    if (!client || client.dissolved) return { ok: false, error: '従属政権が見つかりません。' };
+    client.autonomy = clamp(client.autonomy + Number(autonomyDelta || 0), 0, 100);
+    client.loyalty = clamp(client.loyalty + Number(loyaltyDelta || 0), 0, 100);
+    client.legitimacy = clamp((client.legitimacy ?? 50) + Number(legitimacyDelta || 0), 0, 100);
+    return { ok: true, autonomy: client.autonomy, loyalty: client.loyalty, legitimacy: client.legitimacy };
+  }
+
   function dependencyInfo(nationId, game = campaign) {
     const client = game?.clients?.[nationId];
-    const meta = SCENARIOS.era_1932.nations[nationId]?.dependency || null;
+    const meta = nationMeta(nationId, game)?.dependency || null;
     if (!client?.sponsorId && !meta) return null;
     const overlordId = client?.sponsorId || meta.overlordId;
     if (!overlordId) return null;
-    const kind = client?.kind || meta.type || 'puppet';
+    const type = client?.type || client?.kind || meta.type || 'protectorate';
     const autonomy = client?.autonomy ?? meta.autonomy ?? 50;
+    const dissolved = Boolean(client?.dissolved);
     return {
       overlordId,
       overlordName: shortName(overlordId),
-      kind,
-      kindLabel: DEPENDENCY_TYPES[kind] || '従属国',
+      kind: type,
+      type,
+      kindLabel: DEPENDENCY_TYPES[type] || '従属国',
+      name: client?.name || nationMeta(nationId, game)?.name || nationId,
       autonomy,
       loyalty: client?.loyalty ?? meta.loyalty ?? 50,
+      legitimacy: client?.legitimacy ?? meta.legitimacy ?? 50,
       independent: Boolean(client?.independent),
       annexed: Boolean(client?.annexed),
+      dissolved,
+      integratedInto: client?.integratedInto || null,
       isPlayer: game?.playerNationId === nationId,
-      tribute: Math.max(1, Math.round((100 - autonomy) / 50)),
-      canIndependence: Boolean(client && !client.independent && !client.annexed && (autonomy >= 55 || game.prestige >= 55))
+      tribute: dissolved || client?.independent ? 0 : Math.max(1, Math.round((100 - autonomy) / 50)),
+      canIndependence: Boolean(client && !client.independent && !client.annexed && !dissolved && (autonomy >= 55 || game.prestige >= 55))
     };
   }
 
   function tickDependencies(game, notes = []) {
     for (const [id, client] of Object.entries(game.clients || {})) {
-      if (!client.sponsorId || client.independent || client.annexed) continue;
+      if (!client.sponsorId || client.independent || client.annexed || client.dissolved) continue;
       const nation = game.nations[id];
       const overlord = game.nations[client.sponsorId];
       if (!nation || !overlord) continue;
+      const type = client.type || client.kind || 'protectorate';
+      client.legitimacy = client.legitimacy ?? 50;
       const target = 30 + Math.round(client.autonomy * 0.5);
       if (client.loyalty < target) client.loyalty = Math.min(target, client.loyalty + 2);
       else if (client.loyalty > target) client.loyalty = Math.max(target, client.loyalty - 1);
@@ -365,9 +552,52 @@ const Orbis = (() => {
       } else if (client.autonomy < 15 && client.loyalty >= 70 && relation >= 50) {
         client.autonomy = Math.min(100, client.autonomy + 1);
       }
-      if (client.loyalty < 25) {
-        overlord.stb = Math.max(0, overlord.stb - 1);
-        notes.push(`${shortName(id)}の不満が高まり、${shortName(client.sponsorId)}の安定度 -1。`);
+      const legitimacyTarget = type === 'local' ? 45 : type === 'warlord' ? 35 : 55;
+      if (client.legitimacy < legitimacyTarget) client.legitimacy = Math.min(legitimacyTarget, client.legitimacy + 1);
+      else if (client.legitimacy > legitimacyTarget) client.legitimacy = Math.max(legitimacyTarget, client.legitimacy - 1);
+      if (type === 'protectorate' && id !== game.playerNationId) {
+        for (const otherId of Object.keys(game.nations)) {
+          if (otherId === id || otherId === client.sponsorId || game.nations[otherId].dissolved) continue;
+          const targetRelation = game.relations[client.sponsorId]?.[otherId] ?? 0;
+          const current = game.relations[id]?.[otherId] ?? 0;
+          if (Math.abs(targetRelation - current) > 12) {
+            const next = clamp(current + Math.sign(targetRelation - current), -100, 100);
+            game.relations[id][otherId] = next;
+            game.relations[otherId][id] = next;
+          }
+        }
+      }
+
+      const unrest = (type === 'colony' && client.autonomy < 20 && client.loyalty < 30)
+        || (type === 'local' && client.legitimacy < 30)
+        || (type === 'warlord' && client.loyalty < 40);
+      if (unrest) {
+        client.unrestHalves = (client.unrestHalves || 0) + 1;
+        if (client.unrestHalves >= 2) {
+          client.unrestHalves = 0;
+          if (type === 'warlord') {
+            client.independent = true;
+            const warId = uid('war');
+            game.wars[warId] = { attacker: id, defender: client.sponsorId, startedTurn: game.completedTurns, status: 'active', reason: '軍閥の独立宣言' };
+            const next = clamp((game.relations[id]?.[client.sponsorId] ?? 0) - 60, -100, 100);
+            game.relations[id][client.sponsorId] = next;
+            game.relations[client.sponsorId][id] = next;
+            notes.push(`${shortName(id)}が${shortName(client.sponsorId)}からの独立を宣言。`);
+          } else if (type === 'local') {
+            const result = integrateDependent(id, game);
+            if (result.ok) notes.push(`${shortName(id)}の現地政府が転覆し、${shortName(client.sponsorId)}が直轄化。`);
+          } else {
+            overlord.stb = Math.max(0, overlord.stb - 2);
+            client.loyalty = clamp(client.loyalty + 10, 0, 100);
+            notes.push(`${shortName(id)}で反乱が発生し、${shortName(client.sponsorId)}の安定度 -2。`);
+          }
+        }
+      } else {
+        client.unrestHalves = 0;
+        if (client.loyalty < 25) {
+          overlord.stb = Math.max(0, overlord.stb - 1);
+          notes.push(`${shortName(id)}の不満が高まり、${shortName(client.sponsorId)}の安定度 -1。`);
+        }
       }
     }
   }
@@ -377,11 +607,10 @@ const Orbis = (() => {
     if (blocked) return { ok: false, error: blocked };
     const playerId = campaign.playerNationId;
     const info = dependencyInfo(playerId);
-    if (!info || info.independent || info.annexed) return { ok: false, error: '従属国ではありません。' };
+    if (!info || info.independent || info.annexed || info.dissolved) return { ok: false, error: '従属国ではありません。' };
     if (campaign.prestige < 3) return { ok: false, error: '威信が3未満です。' };
     const client = campaign.clients[playerId];
-    client.autonomy = clamp(client.autonomy + 5, 0, 100);
-    client.loyalty = clamp(client.loyalty + 2, 0, 100);
+    grantAutonomy(playerId, 5, 2, 2, campaign);
     campaign.prestige = clamp(campaign.prestige - 3, 0, 100);
     adminRefresh(`${shortName(playerId)}の自治度を${client.autonomy}%へ引き上げた（威信 -3）。`);
     return { ok: true, autonomy: client.autonomy };
@@ -392,7 +621,7 @@ const Orbis = (() => {
     if (blocked) return { ok: false, error: blocked };
     const playerId = campaign.playerNationId;
     const info = dependencyInfo(playerId);
-    if (!info || info.independent || info.annexed) return { ok: false, error: '従属国ではありません。' };
+    if (!info || info.independent || info.annexed || info.dissolved) return { ok: false, error: '従属国ではありません。' };
     if (info.autonomy < 55 && campaign.prestige < 55) return { ok: false, error: '独立には自治度55または威信55が必要です。' };
     const client = campaign.clients[playerId];
     client.independent = true;
@@ -415,19 +644,83 @@ const Orbis = (() => {
     const playerId = campaign.playerNationId;
     const client = campaign.clients?.[clientId];
     if (!client || client.sponsorId !== playerId) return { ok: false, error: '自国の従属国ではありません。' };
-    if (client.independent || client.annexed) return { ok: false, error: 'すでに独立または併合済みです。' };
+    if (client.independent || client.annexed || client.dissolved) return { ok: false, error: 'すでに独立または併合済みです。' };
     if (client.autonomy >= 60) return { ok: false, error: '自治度60未満の従属国のみ併合できます。' };
     if (campaign.prestige < 12) return { ok: false, error: '併合には威信12が必要です。' };
     const regions = window.ORBIS_STATES_DB.filter(region => !region.isSea && !region.isSeaZone && (campaign.territories[region.id] || region.country) === clientId);
     if (!regions.length) return { ok: false, error: '併合できる領土がありません。' };
-    for (const region of regions) campaign.territories[region.id] = playerId;
+    const result = integrateDependent(clientId, campaign);
+    if (!result.ok) return result;
     client.annexed = true;
     client.annexedAt = campaign.completedTurns;
     campaign.prestige = clamp(campaign.prestige - 12, 0, 100);
     campaign.tension = clamp(campaign.tension + 4, 0, 100);
     campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(playerId)}が${shortName(clientId)}を併合した`].slice(-400);
+    actors = buildActors(campaign);
     adminRefresh(`${shortName(clientId)}を併合した（威信 -12）。`);
     return { ok: true };
+  }
+
+  function createDependentCommand(vassalId, type, name) {
+    const blocked = adminBlocked();
+    if (blocked) return { ok: false, error: blocked };
+    const result = createDependent(campaign.playerNationId, vassalId, type, name, campaign);
+    if (!result.ok) return result;
+    actors = buildActors(campaign);
+    campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(vassalId)}を${shortName(campaign.playerNationId)}の${DEPENDENCY_TYPES[type] || '従属政権'}とした`].slice(-400);
+    adminRefresh(`${shortName(vassalId)}を${DEPENDENCY_TYPES[type] || '従属政権'}として登録した。`);
+    return result;
+  }
+
+  function createDependentRegionCommand(regionId, newId, name, type) {
+    const blocked = adminBlocked();
+    if (blocked) return { ok: false, error: blocked };
+    if (campaign.treasury < 3) return { ok: false, error: '財政余力が3未満です。' };
+    const result = createDependentFromRegion(campaign.playerNationId, regionId, newId, name, type, campaign);
+    if (!result.ok) return result;
+    campaign.treasury -= 3;
+    actors = buildActors(campaign);
+    const region = regionById(regionId);
+    campaign.establishedFacts = [...(campaign.establishedFacts || []), `${regionLabel(region)}に${name || newId}を創設した`].slice(-400);
+    adminRefresh(`${name || newId}を創設した（財政 -3）。`);
+    return result;
+  }
+
+  function integrateDependentCommand(vassalId) {
+    const blocked = adminBlocked();
+    if (blocked) return { ok: false, error: blocked };
+    const client = campaign.clients?.[vassalId];
+    if (!client || client.sponsorId !== campaign.playerNationId) return { ok: false, error: '自国の従属政権ではありません。' };
+    const result = integrateDependent(vassalId, campaign);
+    if (!result.ok) return result;
+    actors = buildActors(campaign);
+    campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(vassalId)}を${shortName(campaign.playerNationId)}へ統合した`].slice(-400);
+    adminRefresh(`${shortName(vassalId)}を統合した（${result.regions}州）。`);
+    return result;
+  }
+
+  function transferDependentCommand(vassalId, newSponsorId) {
+    const blocked = adminBlocked();
+    if (blocked) return { ok: false, error: blocked };
+    const client = campaign.clients?.[vassalId];
+    if (!client || client.sponsorId !== campaign.playerNationId) return { ok: false, error: '自国の従属政権ではありません。' };
+    const result = transferDependent(vassalId, newSponsorId, campaign);
+    if (!result.ok) return result;
+    actors = buildActors(campaign);
+    campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(vassalId)}の宗主国を${shortName(newSponsorId)}へ移管した`].slice(-400);
+    adminRefresh(`${shortName(vassalId)}を${shortName(newSponsorId)}へ移管した。`);
+    return result;
+  }
+
+  function grantAutonomyCommand(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) {
+    const blocked = adminBlocked();
+    if (blocked) return { ok: false, error: blocked };
+    const client = campaign.clients?.[vassalId];
+    if (!client || client.sponsorId !== campaign.playerNationId) return { ok: false, error: '自国の従属政権ではありません。' };
+    const result = grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign);
+    if (!result.ok) return result;
+    adminRefresh(`${shortName(vassalId)}の自治度を${result.autonomy}%、忠誠を${result.loyalty}%へ調整した。`);
+    return result;
   }
 
   function setLocalGovernmentAutonomy(lgId, delta) {
@@ -447,8 +740,7 @@ const Orbis = (() => {
   }
 
   function buildActors(game) {
-    const base = SCENARIOS.era_1932.nations;
-    const player = base[game.playerNationId];
+    const player = nationMeta(game.playerNationId, game) || SCENARIOS.era_1932.nations[game.playerNationId];
     const result = {};
     const add = actor => { result[actor.id] = actor; };
     add({ id: 'adviser', kind: 'adviser', nationId: player.id, name: '首席補佐官', person: '政策調整室・連絡主任', role: '内閣の実施担当', agenda: '国家目標の達成と閣内調整。発言を具体的な予算・施策へ落とし込む。', style: '率直で簡潔。空約束や実行不可能な命令には理由と代案を示す。', redLine: '予算も実施主体もない施策を実施済みとしない。', privateAgenda: '政権崩壊を防ぐため、ときに指導者の無謀な構想を制止したい。' });
@@ -457,17 +749,21 @@ const Orbis = (() => {
       const jpNames = { ig_military: '荒木 貞夫', ig_industrialists: '池田 成彬', ig_parliament: '斎藤 隆夫', ig_labor: '鈴木 文治' };
       add({ id: `domestic:${group.id}`, kind: 'domestic', nationId: player.id, groupId: group.id, name: persona.short, person: player.id === 'japan' ? jpNames[group.id] : `${PERSONS[player.id] || '現地代表'}・${persona.short}連絡役（架空）`, role: group.name, agenda: group.demand, style: persona.style, redLine: persona.redLine, privateAgenda: `組織の影響力${group.influence}%を守り、競合勢力への予算流出を抑えたい。` });
     }
-    for (const nation of Object.values(base)) {
-      if (nation.id === player.id) continue;
-      const person = PERSONS[nation.id] || `${shortName(nation.id)}担当連絡官`;
-      add({ id: `ministry:${nation.id}`, kind: 'ministry', nationId: nation.id, name: `${shortName(nation.id)}外務省`, person: `${person}（架空の外交連絡官）`, role: nation.ministry, agenda: nation.aiAgenda, style: '本国訓令を踏まえる交渉官。相手の提案を検討し、譲歩には見返りを要求する。', redLine: '国家主権と本国の安全保障を一方的に譲らない。', privateAgenda: '国内の反対派にも説明できる外交成果を確保したい。' });
-      add({ id: `embassy:${nation.id}`, kind: 'embassy', nationId: nation.id, name: `${shortName(nation.id)}大使館`, person: `${person}・政務参事官（架空）`, role: `駐${shortName(player.id)}公館・非公式協議窓口`, agenda: nation.aiAgenda, style: '外務省より率直な裏交渉を行う。ただし最終条約には本国承認が必要。', redLine: '大使館だけで本国政府に代わって無制限の軍事同盟を確約しない。', privateAgenda: '非公式な妥協案で危機を回避し、公館の影響力を高めたい。' });
-      const industry = nation.interestGroups.find(group => group.id === 'ig_industrialists');
-      add({ id: `foreign_group:${nation.id}`, kind: 'foreign_group', nationId: nation.id, name: `${shortName(nation.id)}産業界`, person: `${person}・対外事業代表（架空）`, role: industry?.name || '商工団体・対外委員会', agenda: industry?.demand || '輸出市場と安定した投資条件の確保', style: '国益と企業利益が一致するとは限らない。融資やロビー活動を材料に実務的に交渉する。', redLine: '自国政府に代わって領土や国家間条約を譲らない。', privateAgenda: '競争相手より有利な市場アクセスと利権を得たい。' });
+    for (const nationId of Object.keys(game.nations)) {
+      if (nationId === player.id) continue;
+      if (game.nations[nationId]?.dissolved) continue;
+      const nation = nationMeta(nationId, game);
+      if (!nation) continue;
+      const person = PERSONS[nationId] || `${shortName(nationId)}担当連絡官`;
+      add({ id: `ministry:${nationId}`, kind: 'ministry', nationId, name: `${shortName(nationId)}外務省`, person: `${person}（架空の外交連絡官）`, role: nation.ministry || '外務省', agenda: nation.aiAgenda, style: '本国訓令を踏まえる交渉官。相手の提案を検討し、譲歩には見返りを要求する。', redLine: '国家主権と本国の安全保障を一方的に譲らない。', privateAgenda: '国内の反対派にも説明できる外交成果を確保したい。' });
+      add({ id: `embassy:${nationId}`, kind: 'embassy', nationId, name: `${shortName(nationId)}大使館`, person: `${person}・政務参事官（架空）`, role: `駐${shortName(player.id)}公館・非公式協議窓口`, agenda: nation.aiAgenda, style: '外務省より率直な裏交渉を行う。ただし最終条約には本国承認が必要。', redLine: '大使館だけで本国政府に代わって無制限の軍事同盟を確約しない。', privateAgenda: '非公式な妥協案で危機を回避し、公館の影響力を高めたい。' });
+      const industry = (nation.interestGroups || []).find(group => group.id === 'ig_industrialists');
+      add({ id: `foreign_group:${nationId}`, kind: 'foreign_group', nationId, name: `${shortName(nationId)}産業界`, person: `${person}・対外事業代表（架空）`, role: industry?.name || '商工団体・対外委員会', agenda: industry?.demand || '輸出市場と安定した投資条件の確保', style: '国益と企業利益が一致するとは限らない。融資やロビー活動を材料に実務的に交渉する。', redLine: '自国政府に代わって領土や国家間条約を譲らない。', privateAgenda: '競争相手より有利な市場アクセスと利権を得たい。' });
     }
     for (const [id, client] of Object.entries(game.clients)) {
-      if (id === player.id || !base[id] || !client.sponsorId) continue;
-      add({ id: `client:${id}`, kind: 'client', nationId: id, name: `${shortName(id)}政府`, person: game.leaders[id] || base[id].leader, role: `${shortName(client.sponsorId)}の影響下にある政府`, agenda: `${base[id].aiAgenda}。自治権と援助を両立し、自国の住民と支配層の支持を守る。`, style: '強国に従うだけではない。援助の条件を交渉し、自国の自主性と威信を要求する。', redLine: '無制限の資源徴発と住民を犠牲にする命令は、忠誠を損なう。', privateAgenda: '宗主国の支援を利用しながら自治と外交裁量を拡大したい。' });
+      if (id === player.id || !game.nations[id] || !client.sponsorId || client.dissolved) continue;
+      const clientMeta = nationMeta(id, game) || {};
+      add({ id: `client:${id}`, kind: 'client', nationId: id, name: `${shortName(id)}政府`, person: game.leaders[id] || clientMeta.leader, role: `${shortName(client.sponsorId)}の影響下にある政府`, agenda: `${clientMeta.aiAgenda || ''}。自治権と援助を両立し、自国の住民と支配層の支持を守る。`, style: '強国に従うだけではない。援助の条件を交渉し、自国の自主性と威信を要求する。', redLine: '無制限の資源徴発と住民を犠牲にする命令は、忠誠を損なう。', privateAgenda: '宗主国の支援を利用しながら自治と外交裁量を拡大したい。' });
     }
     return result;
   }
@@ -507,7 +803,10 @@ const Orbis = (() => {
     const context = {
       date: dateOf(game), turn: game.completedTurns + 1, player: { id: player.id, name: player.name, leader: game.leaders[player.id] || player.leader, agenda: player.aiAgenda, ...game.nations[player.id], treasury: game.treasury, prestige: game.prestige },
       tension: game.tension, difficulty: game.difficulty, mandate: mandateInfo(game),
-      world: Object.entries(game.nations).map(([id, nation]) => ({ id, name: shortName(id), leader: game.leaders[id] || SCENARIOS.era_1932.nations[id].leader, mil: nation.mil, eco: nation.eco, stb: nation.stb, relation: game.relations[player.id][id], agenda: SCENARIOS.era_1932.nations[id].aiAgenda })),
+      world: Object.entries(game.nations).filter(([, nation]) => !nation.dissolved).map(([id, nation]) => {
+        const meta = nationMeta(id, game) || {};
+        return { id, name: shortName(id), leader: game.leaders[id] || meta.leader, mil: nation.mil, eco: nation.eco, stb: nation.stb, relation: game.relations[player.id][id], agenda: meta.aiAgenda, suzerain: nation.suzerain || null };
+      }),
       establishedFacts: (game.establishedFacts || []).slice(-24),
       recentNews: game.articles.filter(article => !article.private).slice(-8).map(article => ({ date: article.date, headline: article.headline, body: article.body })),
       publicStatements: publicStatements.slice(-12),
@@ -1321,7 +1620,20 @@ const Orbis = (() => {
       }),
       clientChanges: array(value.clientChanges || [], 'clientChanges', 3).map(item => {
         if (!game.clients[item.nationId] || !validAction(item.sourceActionId)) throw new Error('従属関係の国家ID・根拠発言が不正です。');
-        return { nationId: item.nationId, autonomyDelta: finite(item.autonomyDelta, -8, 8), loyaltyDelta: finite(item.loyaltyDelta, -6, 6), reason: requiredText(item.reason, '従属関係の変化', 450), sourceActionId: item.sourceActionId };
+        return { nationId: item.nationId, autonomyDelta: finite(item.autonomyDelta, -8, 8), loyaltyDelta: finite(item.loyaltyDelta, -6, 6), legitimacyDelta: finite(item.legitimacyDelta, -6, 6), reason: requiredText(item.reason, '従属関係の変化', 450), sourceActionId: item.sourceActionId };
+      }),
+      dependentChanges: array(value.dependentChanges || [], 'dependentChanges', 2).map(item => {
+        if (!['create', 'integrate', 'transfer'].includes(item.action)) throw new Error('従属政権の操作が不正です。');
+        if (!validAction(item.sourceActionId)) throw new Error('従属政権の操作に根拠発言がありません。');
+        if (item.action === 'create') {
+          const region = state.states.find(region => region.id === item.regionId && !region.isSea && !region.isSeaZone && region.type !== 'sea');
+          if (!region || !/^[a-z][a-z0-9_]{2,30}$/.test(String(item.vassalId || '')) || !Object.hasOwn(DEPENDENCY_DEFAULTS, item.type)) throw new Error('従属政権の創設条件が不正です。');
+          return { action: 'create', regionId: item.regionId, vassalId: item.vassalId, name: String(item.name || '').slice(0, 40), type: item.type, reason: requiredText(item.reason, '従属政権の創設理由', 450), sourceActionId: item.sourceActionId };
+        }
+        const client = game.clients[item.vassalId];
+        if (!client || client.dissolved) throw new Error('従属政権が見つかりません。');
+        if (item.action === 'transfer' && (!game.nations[item.newSponsorId] || game.nations[item.newSponsorId].suzerain)) throw new Error('従属政権の移管先が不正です。');
+        return { action: item.action, vassalId: item.vassalId, newSponsorId: item.newSponsorId || null, reason: requiredText(item.reason, '従属政権の操作理由', 450), sourceActionId: item.sourceActionId };
       }),
       npcEvents: array(value.npcEvents || [], 'npcEvents', 3).map(item => {
         if (!nationId(item.a) || !nationId(item.b) || item.a === item.b || !['relation', 'agreement', 'overture'].includes(item.kind)) throw new Error('NPC外交の国家・種類が不正です。');
@@ -1722,7 +2034,8 @@ nationalActionは自国の提出行動。ある場合はactionResultsに必ず1�
 actionResults.effectsはdeltaと同じ6指標の差分、relationsは相手国nationIdごと±8まで。行動の効果・費用はactionResultsだけに含め、delta・relations・他の欄に二重計上しない。行動は国力の無償上昇や他国の無条件服従を保証しない。
 npcEventsは自律外交を0〜3件。kindはrelation（関係変化）、agreement（NPC同士の非敵対的合意）、overture（働きかけ）。国家a,bと関係差分±8、公開見出しheadlineと本文bodyだけ。プレイヤーとの条約を勝手に締結せず、領土移管の効果も含めない。relations欄と二重計上しない。
 conflictChangesは地域ごとにstart/progress/endを最大3件。startにはattacker、地域stateId、理由reasonを指定。自国による開始には提出行動か交渉のsourceActionIdが必要。進行と停戦は既存紛争にだけ指定。既存紛争は記載がなくても毎月継続する。ゲーム側が地域所有国の経済・安定の消耗と緊張の下限55を処理するため、deltaに重複計上しない。自国領の紛争が6か月続くと敗北する。
-clientChangesは既存の従属国の自治/忠誠の変化のみ。宗主国か当該政府との交渉を根拠とする。勝手に従属先を変更しない。
+clientChangesは既存の従属国の自治/忠誠/正統性（legitimacyDelta）の変化のみ。宗主国か当該政府との交渉を根拠とする。勝手に従属先を変更しない。
+dependentChangesは従属政権の創設・統合・移管のみ最大2件。actionはcreate（自国領のregionId、新ID vassalId、name、type=colony|protectorate|warlord|local）、integrate（自国のvassalId）、transfer（自国のvassalIdとnewSponsorId）。いずれも交渉のsourceActionIdが必要。連鎖従属は禁止。
 他国にも独立した動機がある。プレイヤーと無関係の世界動向を2〜4本生成する。新聞に非公開電報の本文や秘密条件を転載しない。
 actorUpdatesは重要な変化がある人物だけ最大4人。memoryは各300字以内で、本人が知る会話・公開情報だけから更新する。他の人物の秘密を混入させない。
 memoryは、発生済みの分岐、持ち越す対立、合意とその条件を統合した世界の累積記憶（500〜700字）。
@@ -1738,7 +2051,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
 "treaties":[{"nationId":"相手国ID","type":"trade","title":"条約名","terms":"条件","duration":4,"sourceActionId":"発言ID"}],
 "commitments":[{"id":"既存IDか新規は空文字","actorId":"人物ID","status":"active|fulfilled|broken","title":"約束の件名","detail":"何を履行するか","dueIn":2,"sourceActionId":"発言ID"}],
 "territoryChanges":[{"stateId":"地域ID","to":"国家ID","basis":"negotiated|military","reason":"根拠","sourceActionId":"発言ID"}],
-"clientChanges":[{"nationId":"従属国ID","autonomyDelta":0,"loyaltyDelta":0,"reason":"根拠","sourceActionId":"発言ID"}],
+"clientChanges":[{"nationId":"従属国ID","autonomyDelta":0,"loyaltyDelta":0,"legitimacyDelta":0,"reason":"根拠","sourceActionId":"発言ID"}],
+"dependentChanges":[{"action":"create|integrate|transfer","regionId":"州ID","vassalId":"新ID","name":"名称","type":"colony|protectorate|warlord|local","newSponsorId":"移管先ID","reason":"根拠","sourceActionId":"発言ID"}],
 "npcEvents":[],"conflictChanges":[],
 "actionResults":[{"actionId":"提出行動ID","outcome":"success|fail|partial","text":"実施結果と制約","effects":{"mil":0,"eco":0,"stb":0,"treasury":0,"prestige":0,"tension":0},"relations":[],"evidence":["提出行動ID"]}],
 "leadershipChanges":[{"nationId":"国家ID","leader":"実際に交代した新指導者"}],"memory":"世界の累積記憶"}
@@ -1771,7 +2085,12 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const trade = Math.min(2, active.filter(treaty => treaty.type === 'trade').length);
     const defense = Math.min(2, active.filter(treaty => treaty.type === 'defense').length);
     const peace = Math.min(2, active.filter(treaty => treaty.type === 'nonaggression').length);
-    const subjects = Math.min(3, Object.values(game.clients).filter(client => client.sponsorId === game.playerNationId && !client.independent && !client.annexed && client.loyalty >= 50).length);
+    const subjects = Math.min(4, Object.values(game.clients).reduce((sum, client) => {
+      if (client.sponsorId !== game.playerNationId || client.independent || client.annexed || client.dissolved || client.loyalty < 50) return sum;
+      const type = client.type || client.kind;
+      if (type === 'warlord') return sum;
+      return sum + (type === 'colony' ? 2 : 1);
+    }, 0));
     const ownDependency = dependencyInfo(game.playerNationId, game);
     const tribute = ownDependency && !ownDependency.independent && !ownDependency.annexed ? ownDependency.tribute : 0;
     const admin = Math.min(2, localGovernmentTax(game, game.playerNationId));
@@ -1781,7 +2100,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   }
 
   function nationBaseline(nationId) {
-    return SCENARIOS.era_1932.nations[nationId] || { mil: 50, eco: 50, stb: 50 };
+    return nationMeta(nationId) || { mil: 50, eco: 50, stb: 50 };
   }
 
   function applyMeanReversion(game, notes = []) {
@@ -1997,7 +2316,25 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (already) continue;
       client.autonomy = clamp(client.autonomy + item.autonomyDelta, 0, 100);
       client.loyalty = clamp(client.loyalty + item.loyaltyDelta, 0, 100);
-      notes.push(`${shortName(item.nationId)}の自治 ${signed(item.autonomyDelta)}、忠誠 ${signed(item.loyaltyDelta)}。${item.reason}`);
+      client.legitimacy = clamp((client.legitimacy ?? 50) + (item.legitimacyDelta || 0), 0, 100);
+      notes.push(`${shortName(item.nationId)}の自治 ${signed(item.autonomyDelta)}、忠誠 ${signed(item.loyaltyDelta)}、正統性 ${signed(item.legitimacyDelta || 0)}。${item.reason}`);
+    }
+    for (const change of evaluation.dependentChanges || []) {
+      if (change.action === 'create') {
+        const result = createDependentFromRegion(game.playerNationId, change.regionId, change.vassalId, change.name, change.type, game);
+        if (result.ok) notes.push(`${change.name || change.vassalId}を${DEPENDENCY_TYPES[change.type]}として創設。${change.reason}`);
+        else notes.push(`従属政権の創設は不成立：${result.error}`);
+        continue;
+      }
+      const client = game.clients[change.vassalId];
+      if (!client || client.dissolved || client.sponsorId !== game.playerNationId) continue;
+      if (change.action === 'integrate') {
+        const result = integrateDependent(change.vassalId, game);
+        if (result.ok) notes.push(`${shortName(change.vassalId)}を統合。${change.reason}`);
+      } else if (change.action === 'transfer') {
+        const result = transferDependent(change.vassalId, change.newSponsorId, game);
+        if (result.ok) notes.push(`${shortName(change.vassalId)}を${shortName(change.newSponsorId)}へ移管。${change.reason}`);
+      }
     }
     const changedStates = new Set();
     for (const transfer of evaluation.territoryChanges) {
@@ -2707,7 +3044,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       const loyaltyColor = entry.loyalty >= 60 ? '#1f7a4d' : entry.loyalty < 30 ? '#c23b3b' : '#a0762d';
       return `<article class="lg-card">
         <div class="lg-card-head"><strong class="lg-card-name">${escapeHtml(entry.name)}</strong><span class="badge badge-brass" style="font-size:9px;">${kind.badge}</span><span class="lg-card-meta">${entry.stateIds.length}州</span></div>
-        <div class="lg-card-meta"><span>自治 ${entry.autonomy}%</span><span style="color:${loyaltyColor}">忠誠 ${entry.loyalty}%</span><span>税収 +${Math.max(0, kind.tax - Math.floor(entry.autonomy / 55))}</span></div>
+        <div class="lg-card-meta"><span>自治 ${entry.autonomy}%</span><span style="color:${loyaltyColor}">忠誠 ${entry.loyalty}%</span><span>正統性 ${entry.legitimacy ?? 40}%</span><span>税収 +${Math.max(0, kind.tax - Math.floor(entry.autonomy / 55))}</span></div>
         <div class="lg-bar"><span style="width:${entry.loyalty}%;background:${loyaltyColor}"></span></div>
         <div class="lg-card-meta">総督: ${escapeHtml(entry.governor || '—')}</div>
         <div class="lg-card-actions">
@@ -2720,9 +3057,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
 
     const dependencyCards = [];
     const ownDependency = dependencyInfo(campaign.playerNationId);
-    if (ownDependency && !ownDependency.independent && !ownDependency.annexed) {
+    if (ownDependency && !ownDependency.independent && !ownDependency.annexed && !ownDependency.dissolved) {
       dependencyCards.push(`<article class="dep-card">
-        <div class="dep-head"><strong>${escapeHtml(ownDependency.overlordName)}の${escapeHtml(ownDependency.kindLabel)}</strong><span class="dep-badge">自治 ${ownDependency.autonomy}% / 忠誠 ${ownDependency.loyalty}%</span></div>
+        <div class="dep-head"><strong>${escapeHtml(ownDependency.overlordName)}の${escapeHtml(ownDependency.kindLabel)}</strong><span class="dep-badge">自治 ${ownDependency.autonomy}% / 忠誠 ${ownDependency.loyalty}% / 正統性 ${ownDependency.legitimacy}%</span></div>
         <div class="dep-meta">月次貢納: 財政 -${ownDependency.tribute}　関係: ${signed(campaign.relations[campaign.playerNationId]?.[ownDependency.overlordId] ?? 0)}</div>
         <div class="lg-card-actions">
           <button class="btn" data-dep-autonomy>自治拡大（威信 -3）</button>
@@ -2731,12 +3068,16 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       </article>`);
     }
     for (const [clientId, client] of Object.entries(campaign.clients || {})) {
-      if (client.sponsorId !== campaign.playerNationId || client.independent || client.annexed) continue;
+      if (client.sponsorId !== campaign.playerNationId || client.independent || client.annexed || client.dissolved) continue;
+      const typeLabel = DEPENDENCY_TYPES[client.type || client.kind] || '従属国';
       dependencyCards.push(`<article class="dep-card">
-        <div class="dep-head"><strong>${escapeHtml(shortName(clientId))}</strong><span class="dep-badge">${escapeHtml(DEPENDENCY_TYPES[client.kind] || '従属国')} · 自治 ${client.autonomy}% / 忠誠 ${client.loyalty}%</span></div>
-        <div class="dep-meta">月次協力: ${client.loyalty >= 50 ? 'あり' : '不安定'}${client.autonomy < 60 ? '　併合可能' : '　自治度60未満で併合可能'}</div>
+        <div class="dep-head"><strong>${escapeHtml(shortName(clientId))}</strong><span class="dep-badge">${escapeHtml(typeLabel)} · 自治 ${client.autonomy}% / 忠誠 ${client.loyalty}% / 正統性 ${client.legitimacy ?? 50}%</span></div>
+        <div class="dep-meta">月次協力: ${client.loyalty >= 50 ? 'あり' : '不安定'}</div>
         <div class="lg-card-actions">
-          <button class="btn" data-dep-annex="${clientId}" ${client.autonomy < 60 ? '' : 'disabled'}>併合（威信 -12）</button>
+          <button class="btn" data-dep-grant="${clientId}">自治 +5</button>
+          <button class="btn" data-dep-revoke="${clientId}">自治 -5</button>
+          <button class="btn" data-dep-transfer="${clientId}">移管</button>
+          <button class="btn" data-dep-integrate="${clientId}">統合</button>
         </div>
       </article>`);
     }
@@ -3011,7 +3352,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const displayRegion = regionLabel(region);
     const playerId = campaign?.playerNationId || state.playerNationId;
     const ownerId = region.country;
-    const base = SCENARIOS.era_1932.nations[ownerId] || {};
+    const base = nationMeta(ownerId, campaign) || {};
     const ownerFaction = campaign?.factions?.[ownerId];
     const ownerFormalName = isSea ? '海洋プロビンス' : (ownerFaction?.label || globalThis.OrbisText?.countryName(ownerId, base.name) || base.name || ownerId || '不明');
     const ownerLeader = isSea ? '—' : (campaign?.leaders?.[ownerId] || base.leader || ownerFaction?.label || '不明');
@@ -3022,7 +3363,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       ? region.originalOwner
       : (campaign?.occupations?.[stateId] && campaign.occupations[stateId] !== ownerId ? campaign.occupations[stateId] : null);
     const originalOwnerName = occupiedBy
-      ? (globalThis.OrbisText?.countryName(occupiedBy, SCENARIOS.era_1932.nations[occupiedBy]?.name) || SCENARIOS.era_1932.nations[occupiedBy]?.name || occupiedBy)
+      ? (globalThis.OrbisText?.countryName(occupiedBy, nationMeta(occupiedBy, campaign)?.name) || nationMeta(occupiedBy, campaign)?.name || occupiedBy)
       : '';
     const conflict = campaign?.conflicts?.[stateId] || null;
     const localGov = campaign && !isSea ? localGovernmentForState(campaign, stateId) : null;
@@ -3037,7 +3378,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (ownerId === playerId) {
         actions.push({ id: 'policy', label: '施策を相談', kind: 'policy', enabled: true });
         actions.push({ id: 'defense', label: '防備・部隊展開', kind: 'defense', enabled: true });
-      } else if (ownerId && SCENARIOS.era_1932.nations[ownerId]) {
+      } else if (ownerId && nationMeta(ownerId, campaign)) {
         actions.push({ id: 'diplomacy', label: '統治国と外交交渉', kind: 'diplomacy', enabled: true });
       }
       if (warActive) actions.push({ id: 'war', label: '戦争・和平を開く', kind: 'war', enabled: true });
@@ -3071,10 +3412,14 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       canOwn: !isSea,
       ownerId,
       ownerFormalName,
-      ownerFlagHtml: isSea || !SCENARIOS.era_1932.nations[ownerId] ? '' : getCountryFlagSvg(ownerId),
+      ownerFlagHtml: isSea || !nationMeta(ownerId, campaign) ? '' : getCountryFlagSvg(ownerId),
       ownerLeader,
       ownerRegime,
       isOwn: ownerId === playerId,
+      vassalOf: (() => {
+        const dependency = dependencyInfo(ownerId, campaign);
+        return dependency && !dependency.dissolved ? { overlordId: dependency.overlordId, overlordName: dependency.overlordName, type: dependency.type, typeLabel: dependency.kindLabel } : null;
+      })(),
       localGovernment: localGov && localGov.parentId === ownerId ? {
         id: localGov.id,
         name: localGov.name,
@@ -3115,7 +3460,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   ];
 
   function countryCardData(nationId) {
-    const base = SCENARIOS.era_1932.nations[nationId];
+    const base = nationMeta(nationId, campaign);
     if (!base) return null;
     const live = campaign?.nations?.[nationId] || null;
     const playerId = campaign?.playerNationId || SCENARIOS.era_1932.defaultPlayer || nationId;
@@ -3226,7 +3571,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         <div class="insp-info-line"><span class="insp-info-label">指導者</span><span>${escapeHtml(data.leader)}</span></div>
         <div class="insp-info-line"><span class="insp-info-label">勢力圏</span><span>${escapeHtml(data.bloc || '—')}</span></div>
         <div class="insp-info-line"><span class="insp-info-label">外交</span><span>${escapeHtml(relation)}</span></div>
-        ${data.dependency ? `<div class="insp-info-line"><span class="insp-info-label">宗主国</span><span>${escapeHtml(data.dependency.overlordName)}の${escapeHtml(data.dependency.kindLabel)}（自治 ${data.dependency.autonomy}% / 忠誠 ${data.dependency.loyalty}%）</span></div>` : ''}
+        ${data.dependency && !data.dependency.dissolved ? `<div class="insp-info-line"><span class="insp-info-label">宗主国</span><span>${escapeHtml(data.dependency.overlordName)}の${escapeHtml(data.dependency.kindLabel)}（自治 ${data.dependency.autonomy}% / 忠誠 ${data.dependency.loyalty}% / 正統性 ${data.dependency.legitimacy}%）</span></div>` : ''}
         ${clientNote && !data.dependency ? `<div class="insp-info-line"><span class="insp-info-label">従属</span><span>${escapeHtml(clientNote)}</span></div>` : ''}
         ${data.occupiedRegions ? `<div class="insp-info-line"><span class="insp-info-label">占領地</span><span>${data.occupiedRegions}州</span></div>` : ''}
       </div>
@@ -3407,6 +3752,54 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const turnCap = saveTurnLimit(game);
     game.completedTurns = saveNumber(raw.completedTurns, '経過ターン', 0, turnCap);
     for (const key of ['treasury', 'prestige', 'tension']) game[key] = saveNumber(raw[key], key, 0, 100);
+    if (raw.dynamicNations && typeof raw.dynamicNations === 'object') {
+      for (const [id, meta] of Object.entries(raw.dynamicNations)) {
+        if (!/^[a-z][a-z0-9_]{2,30}$/.test(id) || game.nations[id]) continue;
+        requireObject(meta, '動的従属政権');
+        const name = requiredText(meta.name, '従属政権名', 80);
+        const groups = Array.isArray(meta.interestGroups) && meta.interestGroups.length === 4
+          ? meta.interestGroups.map(group => ({
+            id: String(group.id || '').slice(0, 40),
+            name: String(group.name || '').slice(0, 80),
+            influence: finite(group.influence, 0, 100),
+            approval: finite(group.approval, 0, 100),
+            demand: String(group.demand || '').slice(0, 200),
+            bonusText: String(group.bonusText || '').slice(0, 200)
+          }))
+          : defaultDependentGroups();
+        const dependency = meta.dependency && game.nations[meta.dependency.overlordId]
+          ? { overlordId: meta.dependency.overlordId, type: Object.hasOwn(DEPENDENCY_DEFAULTS, meta.dependency.type) ? meta.dependency.type : 'local' }
+          : undefined;
+        game.dynamicNations[id] = {
+          id,
+          code: String(meta.code || id.slice(0, 3).toUpperCase()).slice(0, 6),
+          region: String(meta.region || '東アジア・太平洋').slice(0, 40),
+          bloc: String(meta.bloc || 'neutral').slice(0, 20),
+          blocName: String(meta.blocName || '宗主国の影響圏').slice(0, 80),
+          isMajor: false,
+          name,
+          leader: String(meta.leader || `${name} 現地指導者`).slice(0, 140),
+          ministry: String(meta.ministry || `${name}政庁`).slice(0, 120),
+          mil: finite(meta.mil, 0, 100, 50),
+          eco: finite(meta.eco, 0, 100, 50),
+          stb: finite(meta.stb, 0, 100, 50),
+          tech: finite(meta.tech, 0, 100, 50),
+          gdpText: String(meta.gdpText || '—').slice(0, 20),
+          aiAgenda: String(meta.aiAgenda || '').slice(0, 400),
+          summary: String(meta.summary || '').slice(0, 800),
+          interestGroups: groups,
+          cabinet: Array.isArray(meta.cabinet) ? meta.cabinet.slice(0, 6).map(item => ({ role: String(item.role || '').slice(0, 60), name: String(item.name || '').slice(0, 60), trait: String(item.trait || '').slice(0, 120) })) : [],
+          dependency
+        };
+        game.nations[id] = {
+          mil: 50, eco: 50, stb: 50, tech: 50,
+          groups: Object.fromEntries(groups.map(group => [group.id, group.approval])),
+          suzerain: null, vassalType: null, dissolved: false
+        };
+        game.relations[id] = Object.fromEntries(Object.keys(game.nations).filter(otherId => otherId !== id).map(otherId => [otherId, 0]));
+        for (const otherId of Object.keys(game.nations)) if (otherId !== id) game.relations[otherId][id] = 0;
+      }
+    }
     requireObject(raw.nations, '国家データ');
     requireObject(raw.relations, '外交関係');
     for (const id of Object.keys(game.nations)) {
@@ -3427,14 +3820,38 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       for (const b of Object.keys(game.nations)) if (game.relations[a][b] !== game.relations[b][a]) throw new Error('セーブの外交関係が対称ではありません。');
     }
     requireObject(raw.clients, '従属国');
-    for (const [id, client] of Object.entries(game.clients)) {
-      const item = requireObject(raw.clients[id], '従属国の状態');
-      if (item.sponsorId !== client.sponsorId) throw new Error('従属先IDが不正です。');
-      client.autonomy = saveNumber(item.autonomy, '自治度', 0, 100);
-      client.loyalty = saveNumber(item.loyalty, '忠誠', 0, 100);
-      client.kind = Object.hasOwn(DEPENDENCY_TYPES, item.kind) ? item.kind : client.kind;
-      client.independent = Boolean(item.independent);
-      client.annexed = Boolean(item.annexed);
+    for (const [id, item] of Object.entries(raw.clients)) {
+      if (!game.nations[id]) continue;
+      requireObject(item, '従属国の状態');
+      const sponsorId = item.sponsorId;
+      if (sponsorId && (!game.nations[sponsorId] || sponsorId === id)) throw new Error('従属先IDが不正です。');
+      const rawType = item.type || item.kind;
+      const type = Object.hasOwn(DEPENDENCY_TYPES, rawType) ? rawType : (CLIENTS[id]?.type || 'protectorate');
+      game.clients[id] = {
+        sponsorId: sponsorId || CLIENTS[id]?.sponsorId || null,
+        type,
+        autonomy: saveNumber(item.autonomy, '自治度', 0, 100),
+        loyalty: saveNumber(item.loyalty, '忠誠', 0, 100),
+        legitimacy: saveNumber(item.legitimacy ?? 50, '正統性', 0, 100),
+        name: typeof item.name === 'string' && item.name.trim() ? item.name.slice(0, 80) : (nationMeta(id, game)?.name || CLIENTS[id]?.name || id),
+        dissolved: Boolean(item.dissolved),
+        integratedInto: item.integratedInto && game.nations[item.integratedInto] ? item.integratedInto : undefined,
+        independent: Boolean(item.independent),
+        annexed: Boolean(item.annexed),
+        unrestHalves: finite(item.unrestHalves, 0, 10)
+      };
+      const nation = game.nations[id];
+      nation.suzerain = game.clients[id].dissolved || !game.clients[id].sponsorId ? null : game.clients[id].sponsorId;
+      nation.vassalType = game.clients[id].dissolved ? null : type;
+      nation.dissolved = Boolean(item.dissolved);
+    }
+    for (const [id, seeded] of Object.entries(CLIENTS)) {
+      if (!game.clients[id]) game.clients[id] = { ...seeded, unrestHalves: 0 };
+      const nation = game.nations[id];
+      if (!nation) continue;
+      nation.suzerain = game.clients[id].dissolved || !game.clients[id].sponsorId ? null : game.clients[id].sponsorId;
+      nation.vassalType = game.clients[id].dissolved ? null : game.clients[id].type;
+      nation.dissolved = Boolean(game.clients[id].dissolved);
     }
     requireObject(raw.leaders, '指導者データ');
     for (const [id, leader] of Object.entries(raw.leaders)) if (game.nations[id]) game.leaders[id] = requiredText(leader, '指導者名', 140);
@@ -3532,8 +3949,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
           stateIds,
           autonomy: saveNumber(item.autonomy, '自治度', 0, 100),
           loyalty: saveNumber(item.loyalty, '忠誠', 0, 100),
+          legitimacy: saveNumber(item.legitimacy ?? 40, '正統性', 0, 100),
           governor: typeof item.governor === 'string' ? item.governor.slice(0, 60) : '',
-          createdAt: saveNumber(item.createdAt ?? 0, '自治政府の設置ターン', 0, turnCap)
+          createdAt: saveNumber(item.createdAt ?? 0, '自治政府の設置ターン', 0, turnCap),
+          unrestHalves: finite(item.unrestHalves, 0, 10)
         };
       }
       game.localGovernments = restored;
@@ -3758,6 +4177,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (button.hasAttribute('data-dep-independence')) declareIndependence();
       if (button.hasAttribute('data-situation-briefing')) globalThis.openSituationBriefing?.();
       if (data.depAnnex) annexDependency(data.depAnnex);
+      if (data.depGrant) grantAutonomyCommand(data.depGrant, 5, 2, 2);
+      if (data.depRevoke) grantAutonomyCommand(data.depRevoke, -5, -2, -2);
+      if (data.depIntegrate) integrateDependentCommand(data.depIntegrate);
+      if (data.depTransfer) globalThis.openDependentTransferDialog?.(data.depTransfer);
       if (data.draftChoice !== undefined) draftChoice(Number(data.draftChoice));
       if (data.panelOpen) openPanel(data.panelOpen);
       if (data.windowClose) closePanel(data.windowClose);
@@ -3843,5 +4266,13 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       turnsThroughCalendarMonth: (year, month, half = 'second') => core.halfTurnsThrough(year, month, half),
     };
   };
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, createLocalGovernment, integrateLocalGovernmentState, integrateLocalGovernment, transferLocalGovernmentState, setLocalGovernmentAutonomy, localGovernmentsFor, localGovernmentForState: stateId => localGovernmentForState(campaign, stateId), dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, listConflicts, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, createLocalGovernment, integrateLocalGovernmentState, integrateLocalGovernment, transferLocalGovernmentState, setLocalGovernmentAutonomy, localGovernmentsFor, localGovernmentForState: stateId => localGovernmentForState(campaign, stateId), dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
+colorNation, nationMeta: nationId => nationMeta(nationId),
+dependentsFor: nationId => Object.values(campaign?.clients || {}).filter(client => client.sponsorId === (nationId || campaign?.playerNationId) && !client.dissolved),
+createDependent: (sponsorId, vassalId, type, name) => createDependent(sponsorId, vassalId, type, name, campaign),
+integrateDependent: vassalId => integrateDependent(vassalId, campaign),
+transferDependent: (vassalId, newSponsorId) => transferDependent(vassalId, newSponsorId, campaign),
+grantAutonomy: (vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) => grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign),
+actorRoster: () => Object.keys(actors),
+createDependentCommand, createDependentRegionCommand, integrateDependentCommand, transferDependentCommand, grantAutonomyCommand, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, listConflicts, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();
