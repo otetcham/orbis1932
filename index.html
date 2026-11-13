@@ -1714,7 +1714,7 @@ svg path:focus-visible,
 .lobby-selected-title { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: #16283e; }
 .lobby-selected-meta { font-size: 10.5px; color: #7b8fa6; }
 .lobby-selected-agenda { font-size: 11px; color: #526b86; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.campaign-options { display: grid; grid-template-columns: 1fr 1fr 140px; gap: 10px; }
+.campaign-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .campaign-options label { color: var(--text-muted); font-size: 11px; display: grid; gap: 5px; }
 .filter-group-box { flex-wrap: wrap; background: #ffffff; border-color: #d3dfec; }
 .os-shell { height: 100dvh; width: 100%; }
@@ -2154,8 +2154,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
-  <script src="orbis_states.js?v=1932.8" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
-  <script src="orbis_map_meta.js?v=1932.8" defer></script>
+  <script src="orbis_states.js?v=1932.11" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
+  <script src="orbis_map_meta.js?v=1932.11" defer></script>
 </head>
 <body>
 
@@ -2207,6 +2207,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
 
       <div class="campaign-options">
         <label>難易度<select id="campaign-difficulty" class="form-select"><option value="story">対話重視 · 8交渉／月</option><option value="standard" selected>標準 · 6交渉／月</option><option value="hard">危機の時代 · 5交渉／月</option></select></label>
+        <label>会話レベル<select id="campaign-knowledge" class="form-select"><option value="doctor">博士 · 専門用語と因果分析</option><option value="professional">専門職 · 実務向け</option><option value="general" selected>一般 · やさしい</option><option value="student">学生 · 基礎から</option></select></label>
         <label>国家目標<select id="campaign-mandate" class="form-select"><option value="recovery">復興と憲政</option><option value="diplomacy">協調と影響力</option><option value="security">自立と安全保障</option></select></label>
         <label>キャンペーン<select id="campaign-length" class="form-select"><option value="unlimited" selected>無制限（1972年12月の節目まで推奨）</option><option value="140">1937年12月まで（140半月）</option><option value="980">1972年12月まで（980半月）</option><option value="48">1年（48半月）</option></select></label>
       </div>
@@ -2248,6 +2249,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
 
       <div class="header-date"><span class="clock-date" id="hud-date">1932年3月</span><span id="hud-turn">第 1 半月</span></div>
       <div class="topbar-right">
+        <button class="btn btn-ghost" id="btn-open-menu" data-panel-open="menu" aria-controls="window-menu" aria-expanded="false" title="メニュー">設定</button>
         <button class="btn btn-primary" id="btn-advance-month" title="今月の交渉を確認して、AIによる月次裁定へ">ターンを終える <span aria-hidden="true">→</span></button>
       </div>
     </header>
@@ -2452,6 +2454,16 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         <div class="window-titlebar" data-window-drag="menu" tabindex="0" title="ドラッグで移動 · Alt＋矢印キーでも移動"><span class="window-title" id="window-menu-title">メニュー</span><div class="window-controls"><button data-window-minimize="menu" aria-label="メニューを折りたたむ" aria-controls="window-menu-body" aria-expanded="true">−</button><button data-window-close="menu" aria-label="メニューを閉じる">×</button></div></div>
         <div class="window-body menu-content" id="window-menu-body">
           <button class="menu-row" id="btn-open-ai-settings"><span class="menu-row-icon" id="ai-status-dot"></span><span>AI接続設定<small id="ai-provider-label">AIを設定</small></span><span aria-hidden="true">›</span></button>
+          <div class="menu-row" style="cursor:default;">
+            <span class="menu-row-icon" aria-hidden="true">学</span>
+            <span>会話レベル<small id="knowledge-level-label">一般</small></span>
+            <select id="select-knowledge-level" class="form-select" style="max-width:130px;" aria-label="会話レベル">
+              <option value="doctor">博士</option>
+              <option value="professional">専門職</option>
+              <option value="general" selected>一般</option>
+              <option value="student">学生</option>
+            </select>
+          </div>
           <button class="menu-row" id="btn-export-save"><span class="menu-row-icon" aria-hidden="true">↓</span><span>セーブを書き出す<small>APIキーを含まないJSON</small></span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-menu-import"><span class="menu-row-icon" aria-hidden="true">↑</span><span>セーブを読み込む</span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-help"><span class="menu-row-icon" aria-hidden="true">?</span><span>遊び方</span><span aria-hidden="true">›</span></button>
@@ -2565,6 +2577,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
       <p>州パネルの「従属政権を創設」で、自国領から植民地・保護国・軍閥を動的に作れる。植民地は宗主国と同じ色、保護国は別の色で表示される。植民地が宗主国と陸続きの場合、国境線を太く表示する。宗主国側は自治度60未満の従属国を威信12で併合できる。領土を失った国は請求権を保持し、州パネルに表示される。</p>
       <p>中華民国のプレイヤーには「軍閥」タブが表示される。軍閥は自治・中立・独立の3状態に分かれ、自治は宗主国色、中立・独立は専用色で表示される。軍閥タブで複数を選んで招集すると、翌ターンに参加可否が決まり、参加した軍閥との会議チャットを開ける。</p>
       <p>安定度か経済が8以下、財政が0、緊張度が95以上のいずれかが2か月続くと任期終了。</p>
+      <p>会話の言葉づかいと説明量は「会話レベル」で選ぶ。博士は専門用語と因果分析、専門職は実務向け、一般は言い換え付き、学生は基礎から順に説明する。開始時に選択し、メニューからいつでも変更できる。ゲームの規則と難易度は変わらない。</p>
       <p>会話と下書きは自動保存。ウィンドウを閉じても消えない。セーブの書き出しとAI設定は「メニュー」から。</p>
     </div>
   </dialog>
@@ -6955,13 +6968,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
-<script src="orbis_events.js?v=1932.8"></script>
-<script src="orbis_region_labels.js?v=1932.8"></script>
-<script src="orbis_campaign_core.js?v=1932.8"></script>
-<script src="orbis_timeline_engine.js?v=1932.8"></script>
-<script src="orbis_turn_playback.js?v=1932.8"></script>
-<script src="orbis_text.js?v=1932.8"></script>
-<script src="orbis_game.js?v=1932.8"></script>
+<script src="orbis_events.js?v=1932.11"></script>
+<script src="orbis_region_labels.js?v=1932.11"></script>
+<script src="orbis_campaign_core.js?v=1932.11"></script>
+<script src="orbis_timeline_engine.js?v=1932.11"></script>
+<script src="orbis_turn_playback.js?v=1932.11"></script>
+<script src="orbis_text.js?v=1932.11"></script>
+<script src="orbis_game.js?v=1932.11"></script>
 
 </body>
 </html>
