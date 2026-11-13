@@ -20,7 +20,9 @@ export function auditData(context) {
     assert.equal(nations[id].id, id);
     const owned = regions.filter(region => region.country === id && !region.isSea);
     assert.ok(owned.length, `${id}: 領土なし`);
-    if (id !== 'luxembourg') assert.ok(owned.length >= 2, `${id}: 州数が少なすぎる (${owned.length})`);
+    // 単州国家: 欧州の小国と、1省のみを支配する中国地方軍閥。
+    const singleStateOk = new Set(['luxembourg', 'guangxi', 'guangdong', 'yunnan', 'shandong', 'xinjiang', 'hunan', 'guizhou']);
+    if (!singleStateOk.has(id)) assert.ok(owned.length >= 2, `${id}: 州数が少なすぎる (${owned.length})`);
     assert.equal(nations[id].interestGroups.length, 4, `${id}: 利益集団`);
     assert.ok(nations[id].cabinet?.length, `${id}: 内閣なし`);
     assert.ok(nations[id].leader && nations[id].name && nations[id].bloc, `${id}: 基本欄欠損`);
@@ -38,7 +40,7 @@ export function auditData(context) {
   for (const event of history) for (const dependency of event.depends_on || []) assert.ok(historyIds.has(dependency), `${event.id}: depends_on未解決 ${dependency}`);
   assert.equal(Math.min(...history.map(event => event.year)), 1932, '史実DBの開始年');
   assert.equal(Math.max(...history.map(event => event.year)), 1972, '史実DBの終了年');
-  assert.equal(ids.length, 66, '国家数 (1932年・66カ国体制)');
+  assert.equal(ids.length, 76, '国家数 (1932年・76カ国体制)');
   assert.ok(land.length >= 900, `陸上州数が少なすぎます (${land.length})`);
   assert.ok(land.length <= 2000, `陸上州数が多すぎます (${land.length})`);
   assert.ok((regions.filter(r => r.country === 'brazil').length) >= 20, 'ブラジルの州分割');

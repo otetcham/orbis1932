@@ -22,6 +22,7 @@ const Orbis = (() => {
   const STANCES = { agree: '条件に合意', counter: '対案を提示', refuse: '提案を拒否', consider: '協議を継続' };
   const SHORT_NAMES = {
     japan: '日本', china: '中国', manchukuo: '満洲国', mongolia: 'モンゴル', usa: '米国', uk: '英国', france: 'フランス', germany: 'ドイツ',
+    shanxi: '晋系', guangxi: '桂系', guangdong: '粤系', sichuan: '川軍', yunnan: '滇系', shandong: '魯系', xinjiang: '新疆', ma_clique: '三馬', hunan: '湘系', guizhou: '黔系',
     russia: 'ソ連', italy: 'イタリア', poland: 'ポーランド', spain: 'スペイン', portugal: 'ポルトガル', turkey: 'トルコ', iran: 'ペルシア',
     saudi_arabia: 'サウジアラビア', egypt: 'エジプト', ethiopia: 'エチオピア', south_africa: '南アフリカ', india: '英領インド', dutch_indies: '蘭領東インド',
     australia: 'オーストラリア', new_zealand: 'ニュージーランド', canada: 'カナダ', mexico: 'メキシコ', brazil: 'ブラジル', argentina: 'アルゼンチン',
@@ -33,7 +34,7 @@ const Orbis = (() => {
     el_salvador: 'エルサルバドル', honduras: 'ホンジュラス', nicaragua: 'ニカラグア', costa_rica: 'コスタリカ', panama: 'パナマ', haiti: 'ハイチ', dominican: 'ドミニカ'
   };
   const CLIENTS = { manchukuo: { sponsorId: 'japan', autonomy: 25, loyalty: 65 }, mongolia: { sponsorId: 'russia', autonomy: 45, loyalty: 70 }, india: { sponsorId: 'uk', autonomy: 20, loyalty: 48 }, dutch_indies: { sponsorId: 'netherlands', autonomy: 15, loyalty: 50 } };
-  const PERSONS = { japan: '佐伯 修一', china: '陳 文彬', manchukuo: '林 景文', usa: 'リチャード・ヘイル', uk: 'エドワード・ベネット', france: 'ピエール・ロラン', germany: 'カール・ヴェーバー', russia: 'アレクセイ・ペトロフ', italy: 'マルコ・リッチ', india: 'アニル・ラオ', mongolia: 'バト・エルデネ' };
+  const PERSONS = { japan: '佐伯 修一', china: '陳 文彬', manchukuo: '林 景文', shanxi: '趙 爾康', guangxi: '韋 建邦', guangdong: '馮 啟明', sichuan: '楊 文清', yunnan: '段 承志', shandong: '孫 樹德', xinjiang: '阿不都 拉合曼', ma_clique: '馬 世昌', hunan: '譚 明遠', guizhou: '周 子清', usa: 'リチャード・ヘイル', uk: 'エドワード・ベネット', france: 'ピエール・ロラン', germany: 'カール・ヴェーバー', russia: 'アレクセイ・ペトロフ', italy: 'マルコ・リッチ', india: 'アニル・ラオ', mongolia: 'バト・エルデネ' };
   const GROUP_PERSONAS = {
     ig_military: { short: '軍部連絡室', style: '端的で威厳ある軍人。面子と指揮系統を重視し、白紙委任も防衛費削減も嫌う。', redLine: '国境防衛能力と指揮権を失う条件には抵抗する。' },
     ig_industrialists: { short: '財界・産業界', style: '数字と信用を重んじる実務家。相手の弱みを見抜くが、通商と法的安定を好む。', redLine: '補償のない接収、資源輸入の遮断、採算のない無制限融資は拒む。' },
