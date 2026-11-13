@@ -1004,6 +1004,26 @@ body.turn-playback-active #game-toast { visibility: hidden !important; pointer-e
 .lg-card-actions { display: flex; gap: 4px; flex-wrap: wrap; }
 .lg-card-actions .btn { min-height: 24px; padding: 2px 8px; font-size: 10px; }
 .lg-empty { font-size: 10.5px; color: #7b8fa6; line-height: 1.6; }
+.dep-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 10px;
+  border: 1px solid #d7e4ee;
+  border-radius: 6px;
+  background: #f8fbfe;
+}
+.dep-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dep-head strong { font-size: 12px; color: #16283e; }
+.dep-badge {
+  font-size: 9.5px;
+  color: #2f5d7c;
+  background: #eaf4f9;
+  border: 1px solid #c9e0ec;
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.dep-meta { font-size: 10px; color: #6c829c; line-height: 1.5; }
 .insp-owner-detail,
 .insp-region-detail {
   display: flex;
@@ -1644,6 +1664,7 @@ svg path:focus-visible,
 .lobby-tier-count { margin-left: auto; font: 600 10px var(--font-mono); color: #8ba0b8; }
 .lobby-tier--major .lobby-tier-name { color: #8a5a12; }
 .lobby-tier--warlord .lobby-tier-name { color: #8a4b2a; }
+.lobby-tier--dependency .lobby-tier-name { color: #2f5d7c; }
 .lobby-tier-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .lobby-tier-grid.is-minor { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
 
@@ -1665,6 +1686,7 @@ svg path:focus-visible,
 .lobby-card-badge.is-mid { color: #1d4e8f; background: #eaf2fb; border: 1px solid #cfe0f2; }
 .lobby-card-badge.is-minor { color: #526b86; background: #f1f5fa; border: 1px solid #d9e4f0; }
 .lobby-card-badge.is-warlord { color: #8a4b2a; background: #fbf0e8; border: 1px solid #ecd7c4; }
+.lobby-card-badge.is-dependency { color: #2f5d7c; background: #eaf4f9; border: 1px solid #c9e0ec; }
 .lobby-card-leader { font-size: 10px; color: #526b86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lobby-card-agenda { font-size: 10px; color: #7b8fa6; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .lobby-card-stats { display: flex; gap: 8px; margin-top: 2px; font: 10px var(--font-mono); color: #7b8fa6; }
@@ -2171,6 +2193,12 @@ svg path:focus-visible,
             </div>
             <div id="local-governments-list" style="display:flex; flex-direction:column; gap:6px;"></div>
           </div>
+          <div>
+            <div style="font-size:11px; font-weight:700; color:var(--text-muted); margin:12px 0 6px; letter-spacing:0.04em;">
+              宗主国・従属国
+            </div>
+            <div id="dependency-panel" style="display:flex; flex-direction:column; gap:6px;"></div>
+          </div>
         </div>
 
         <!-- Tab 2: World Nations List & Quick Diplomacy -->
@@ -2415,6 +2443,7 @@ svg path:focus-visible,
   <dialog class="game-dialog wide-dialog" id="modal-war-panel" aria-labelledby="war-panel-title"><div class="modal-head"><strong id="war-panel-title">戦争・和平・紛争</strong><button class="btn btn-ghost" data-close-dialog="modal-war-panel">閉じる</button></div><div class="modal-body" id="war-panel-body"></div></dialog>
   <dialog class="game-dialog" id="modal-country-card" aria-labelledby="country-card-title"><div class="modal-window"><div class="modal-head"><strong id="country-card-title">国家情報</strong><button class="btn btn-ghost" data-close-dialog="modal-country-card" aria-label="国家情報を閉じる">閉じる</button></div><div class="modal-body" id="country-card-body"></div></div></dialog>
   <dialog class="game-dialog" id="modal-lg-admin" aria-labelledby="lg-admin-title"><div class="modal-window"><div class="modal-head"><strong id="lg-admin-title">行政コマンド</strong><button class="btn btn-ghost" data-close-dialog="modal-lg-admin">閉じる</button></div><div class="modal-body" id="lg-admin-body"></div><div class="modal-foot"><span class="muted small" id="lg-admin-hint"></span><button class="btn btn-primary" id="btn-lg-admin-submit">実行</button></div></div></dialog>
+  <dialog class="game-dialog wide-dialog" id="modal-briefing" aria-labelledby="briefing-title"><div class="modal-window"><div class="modal-head"><strong id="briefing-title">情勢分析</strong><button class="btn btn-ghost" data-close-dialog="modal-briefing">閉じる</button></div><div class="modal-body" id="briefing-body"></div></div></dialog>
   <div id="turn-playback-overlay" hidden></div>
   <div class="turn-playback-controls" id="turn-playback-controls">
     <button type="button" class="btn btn-ghost" id="btn-playback-skip">スキップ</button>
@@ -2431,6 +2460,7 @@ svg path:focus-visible,
       <p>非公開電報は相手とGMだけが読む。公式声明は他の勢力にも伝わる。矛盾した密約には代償がある。</p>
       <p>財政には収入と維持費がある。増強や救済には支出が伴う。目標・支持率・条約の期限は「国家」で確認する。</p>
       <p>自国領の州を選ぶと「自治政府を設置」から植民地政庁・自治政府・軍閥政府を作れる。地図の色は自国のままで、行政だけを分離して扱う。自治度が低いほど税収が増えるが忠誠は下がりやすい。州パネルから中央政府への統合、他の自治政府への移管ができる。</p>
+      <p>傀儡国・自治領・植民地・保護国は「従属国」グループから選択できる。宗主国には宣戦できず月次貢納を払うが、自治度を上げて独立を宣言できる。宗主国側は自治度60未満の従属国を威信12で併合できる。領土を失った国は請求権を保持し、州パネルに表示される。</p>
       <p>安定度か経済が8以下、財政が0、緊張度が95以上のいずれかが2か月続くと任期終了。</p>
       <p>会話と下書きは自動保存。ウィンドウを閉じても消えない。セーブの書き出しとAI設定は「メニュー」から。</p>
     </div>
@@ -2514,6 +2544,7 @@ const COUNTRY_MAP_COLORS = {
   japan: '#d9383a',          // 大日本帝国 (Imperial Crimson)
   manchukuo: '#eab308',      // 満洲国 (Imperial Yellow)
   china: '#3b82f6',          // 中華民国・南京国民政府 (Kuomintang Blue)
+  tibet: '#8a6b4f',          // チベット
   shanxi: '#c48a2c',         // 晋系（山西）
   guangxi: '#2e7d5b',        // 新広西派（広西）
   guangdong: '#d4694a',      // 西南派（広東）
@@ -2595,7 +2626,7 @@ const COUNTRY_MAP_COLORS = {
 // Dynamically switches Germany's flag if NSDAP takes power via event!
 const FLAG_IMAGE_DIR = './flags';
 const FLAG_IMAGE_CODES = {
-  japan: 'JAP', china: 'CHI', manchukuo: 'MAN', mongolia: 'MON', usa: 'USA', uk: 'ENG', france: 'FRA', germany: 'GER',
+  japan: 'JAP', china: 'CHI', manchukuo: 'MAN', mongolia: 'MON', tibet: 'TIB', usa: 'USA', uk: 'ENG', france: 'FRA', germany: 'GER',
   russia: 'SOV', italy: 'ITA', poland: 'POL', spain: 'SPR', portugal: 'POR', turkey: 'TUR', iran: 'IRN',
   saudi_arabia: 'SAU', egypt: 'EGY', ethiopia: 'ETH', south_africa: 'SAF', india: 'RAJ', dutch_indies: 'INS',
   australia: 'AST', new_zealand: 'NZL', ireland: 'IRE', siam: 'SIA', afghanistan: 'AFG', czechoslovakia: 'CZE',
@@ -2889,200 +2920,30 @@ const SCENARIOS = {
         ]
       },
 
-      // ==================== 中国地方軍閥（1932年3月） ====================
-      shanxi: {
-        id: 'shanxi', code: 'JIN', region: '東アジア・太平洋', isMajor: false,
-        name: '晋系（山西）', bloc: 'neutral', blocName: '山西自治・反蔣中立',
-        leader: '閻錫山 太原綏靖公署主任', ministry: '山西省政府・晋綏軍司令部',
-        mil: 58, eco: 54, stb: 70, tech: 56, gdpText: '¥0.6B',
-        aiAgenda: '山西の自治維持と同蒲鉄道・西北実業公司を軸とした重工業建設。南京・日本・共産党との等距離外交',
-        summary: '1930年の中原大戦で敗れながらも山西省と綏遠を保持する閻錫山の地方政権。同蒲鉄道の独自規格敷設と西北実業公司による製鉄・兵器生産で「模範省」を築き、蒋介石の中央集権と日本の華北進出の双方に警戒を怠らない。',
+      tibet: {
+        id: 'tibet', code: 'TIB', region: '東アジア・太平洋', isMajor: false,
+        name: 'チベット', bloc: 'neutral', blocName: 'チベット独立・政教一致体制',
+        dependency: { overlordId: 'china', type: 'protectorate', autonomy: 85, loyalty: 28 },
+        leader: 'トゥプテン・ギャツォ ダライ・ラマ13世 / 摂政 レティン・ギャツォ', ministry: 'ポタラ宮政庁・チベット軍司令部',
+        mil: 34, eco: 28, stb: 58, tech: 26, gdpText: '¥0.05B',
+        aiAgenda: 'ラサの政教一致体制を守り、中国・イギリス・モンゴルとの均衡で事実上の独立を維持する',
+        summary: '1913年以来、中国の名目的な宗主権を認めつつ事実上の独立を保つチベット。ダライ・ラマ13世と摂政のもと、ラサの政教一致体制、英国との交易、青海・西康との国境紛争を抱える。',
         interestGroups: [
-          { id: 'ig_military', name: '晋綏軍（閻錫山系）', influence: 36, approval: 70, demand: '晋綏軍の維持と太原兵工廠の拡張', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍内反乱' },
-          { id: 'ig_industrialists', name: '西北実業公司・山西財界', influence: 26, approval: 66, demand: '同蒲鉄道の延伸と製鉄・炭鉱への投資', bonusText: '支持70%+: 経済+6' },
-          { id: 'ig_parliament', name: '山西省政府・進歩党系官僚', influence: 22, approval: 62, demand: '省自治の維持と南京への服属回避', bonusText: '支持70%+: 政治力+5' },
-          { id: 'ig_labor', name: '晋北農民・炭鉱労働者', influence: 16, approval: 48, demand: '農村救済と塩・炭の価格安定', bonusText: '支持70%+: 安定度+8 / 不満35%以下: 農村騒擾' }
+          { id: 'ig_military', name: 'チベット軍・地方豪族', influence: 34, approval: 62, demand: '国境防備とラサ政庁の軍備維持', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 地方反乱' },
+          { id: 'ig_parliament', name: 'ガンデンポタン（政教庁）・高僧会議', influence: 32, approval: 66, demand: '政教一致体制の維持と巡礼路の安全', bonusText: '支持70%+: 安定度+8' },
+          { id: 'ig_industrialists', name: 'ラサ商人・英国系交易商', influence: 20, approval: 54, demand: 'インド経由の茶・毛皮交易の拡大', bonusText: '支持70%+: 経済+6' },
+          { id: 'ig_labor', name: '遊牧民・農奴層', influence: 14, approval: 44, demand: '賦役の軽減と寺院税の緩和', bonusText: '支持70%+: 安定度+5 / 不満35%以下: 農民騒擾' }
         ],
         cabinet: [
-          { role: '綏靖主任', name: '閻錫山', trait: '山西省自治・西北実業構想 (+経済・安定)' },
-          { role: '晋綏軍司令', name: '徐永昌', trait: '晋綏軍統制・省境防衛 (+軍事)' },
-          { role: '省政府主席', name: '趙戴文', trait: '省政運営・教育振興 (+安定)' }
-        ]
-      },
-      guangxi: {
-        id: 'guangxi', code: 'GXI', region: '東アジア・太平洋', isMajor: false,
-        name: '新広西派（広西）', bloc: 'neutral', blocName: '広西模範省・反蔣連合',
-        leader: '李宗仁 第四集団軍総司令 / 白崇禧', ministry: '広西省政府・第四集団軍司令部',
-        mil: 62, eco: 50, stb: 68, tech: 54, gdpText: '¥0.4B',
-        aiAgenda: '「三自政策（自治・自衛・自給）」による広西模範省建設と、広東と連携した反蔣連合の維持',
-        summary: '1929年の蒋桂戦争に敗れながら、李宗仁・白崇禧・黄紹竑の新桂系が広西で再建した軍事政権。民団制度と国民基礎学校による動員体制、錫・桐油の輸出で自立を図り、南京国民政府とは名目的な服属にとどめる。',
-        interestGroups: [
-          { id: 'ig_military', name: '桂軍（第四集団軍）', influence: 40, approval: 76, demand: '民団・予備役の拡充と軍需工場の整備', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍閥離反' },
-          { id: 'ig_industrialists', name: '広西省政府・鉱山交易業者', influence: 24, approval: 68, demand: '錫・マンガン輸出の拡大と省営工場の誘致', bonusText: '支持70%+: 経済+6' },
-          { id: 'ig_parliament', name: '新桂系官僚・国民基礎学校', influence: 22, approval: 64, demand: '三自政策の継続と省自治の堅持', bonusText: '支持70%+: 政治力+5・安定度+5' },
-          { id: 'ig_labor', name: '広西農民・瑶壮社会', influence: 14, approval: 52, demand: '地租軽減と治安維持', bonusText: '支持70%+: 安定度+8' }
-        ],
-        cabinet: [
-          { role: '総司令', name: '李宗仁', trait: '反蔣連合・広西自治 (+政治力)' },
-          { role: '副総司令', name: '白崇禧', trait: '桂軍近代化・民団動員 (+軍事)' },
-          { role: '省政府主席', name: '黄紹竑', trait: '三自政策・模範省建設 (+経済・安定)' }
-        ]
-      },
-      guangdong: {
-        id: 'guangdong', code: 'YUE', region: '東アジア・太平洋', isMajor: false,
-        name: '西南派（広東）', bloc: 'neutral', blocName: '西南政務委員会・反蔣連合',
-        leader: '陳済棠 第八路軍総司令 / 広東省政府主席', ministry: '広東省政府・西南政務委員会',
-        mil: 60, eco: 64, stb: 58, tech: 56, gdpText: '¥0.9B',
-        aiAgenda: '西南政務委員会を軸とした反蔣連合の維持と、広東の関税・賭博・塩収入を財源とした自立',
-        summary: '1931年の胡漢民軟禁事件を機に、陳済棠が広東で樹立した反蔣政権。西南政務委員会を設けて南京から事実上独立し、広州の貿易収入と香港華僑の送金で粤軍を養う。福建の十九路軍とも連携し、華南の政治力学を左右する。',
-        interestGroups: [
-          { id: 'ig_military', name: '粤軍（第八路軍）', influence: 38, approval: 72, demand: '空軍・海軍の拡充と広州防衛', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍内抗争' },
-          { id: 'ig_industrialists', name: '広東財界・香港華僑', influence: 28, approval: 68, demand: '広州港の交易振興と通貨安定', bonusText: '支持70%+: 経済+6' },
-          { id: 'ig_parliament', name: '西南政務委員会・国民党西南執行部', influence: 20, approval: 60, demand: '反蔣連合の維持と西南自治の承認', bonusText: '支持70%+: 外交成功率+15%' },
-          { id: 'ig_labor', name: '珠江デルタ労働者・農民', influence: 14, approval: 44, demand: '賃金改善と食糧価格の安定', bonusText: '支持70%+: 安定度+8 / 不満35%以下: ストライキ' }
-        ],
-        cabinet: [
-          { role: '第八路軍総司令', name: '陳済棠', trait: '反蔣連合・広東自治 (+政治力)' },
-          { role: '省政府主席', name: '林雲陔', trait: '広東財政・都市整備 (+経済)' },
-          { role: '西南政務委員', name: '蕭佛成', trait: '西南派の世論工作 (+安定)' }
-        ]
-      },
-      sichuan: {
-        id: 'sichuan', code: 'CHU', region: '東アジア・太平洋', isMajor: false,
-        name: '四川軍（川軍）', bloc: 'neutral', blocName: '四川軍閥連合・南京名目服属',
-        leader: '劉湘 四川善後督弁', ministry: '四川善後督办公署・重慶市政府',
-        mil: 58, eco: 56, stb: 46, tech: 50, gdpText: '¥0.9B',
-        aiAgenda: '四川の統一と劉文輝との抗争、長江交易路の確保、南京との名目的関係の維持',
-        summary: '成都の劉文輝と重慶の劉湘が四川を二分する軍閥国家。1932年は両者の対立が戦争へ向かう直前で、塩・アヘン・長江交易の利権をめぐる省内抗争が絶えない。豊富な米と兵員を抱え、抗日戦では大後方となる潜在力を持つ。',
-        interestGroups: [
-          { id: 'ig_military', name: '川軍（劉湘系）', influence: 40, approval: 68, demand: '川軍の統一と兵器廠の拡張', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 省軍の離反' },
-          { id: 'ig_industrialists', name: '重慶財界・塩業・長江交易', influence: 26, approval: 62, demand: '長江交易路の安全と塩税の安定', bonusText: '支持70%+: 経済+6' },
-          { id: 'ig_parliament', name: '四川善後督办公署・省参議会', influence: 20, approval: 52, demand: '劉文輝との和平と省政の安定', bonusText: '支持70%+: 政治力+5' },
-          { id: 'ig_labor', name: '四川農民・袍哥社会', influence: 14, approval: 40, demand: 'アヘン税の軽減と治安維持', bonusText: '支持70%+: 安定度+8 / 不満35%以下: 農民反乱' }
-        ],
-        cabinet: [
-          { role: '善後督弁', name: '劉湘', trait: '四川統一・長江交易 (+軍事)' },
-          { role: '省主席', name: '劉文輝', trait: '西康・成都支配 (+安定)' },
-          { role: '財政担当', name: '唐式遵', trait: '塩税・アヘン税の整理 (+経済)' }
-        ]
-      },
-      yunnan: {
-        id: 'yunnan', code: 'DIAN', region: '東アジア・太平洋', isMajor: false,
-        name: '滇系（雲南）', bloc: 'neutral', blocName: '雲南自治・仏印交易圏',
-        leader: '龍雲 雲南省政府主席', ministry: '雲南省政府・滇軍司令部',
-        mil: 54, eco: 44, stb: 66, tech: 46, gdpText: '¥0.3B',
-        aiAgenda: '滇軍の近代化とフランス領インドシナ・英領ビルマとの交易、南京からの自立維持',
-        summary: '1927年に龍雲が政変で雲南の支配を確立して以来、中央から自立した軍政を続ける。滇越鉄道でハノイと結ばれ、錫・アヘン・塩の交易で財源を確保。抗日戦では滇緬公路の要衝として戦略的価値が跳ね上がる。',
-        interestGroups: [
-          { id: 'ig_military', name: '滇軍', influence: 38, approval: 74, demand: '滇軍の装備近代化と国境防衛', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍内クーデター' },
-          { id: 'ig_industrialists', name: '雲南省政府・錫鉱山・交易商', influence: 26, approval: 64, demand: '滇越鉄道の維持と錫輸出の拡大', bonusText: '支持70%+: 経済+6' },
-          { id: 'ig_parliament', name: '龍雲政権の官僚・土司層', influence: 20, approval: 58, demand: '少数民族地域の自治尊重と治安維持', bonusText: '支持70%+: 安定度+8' },
-          { id: 'ig_labor', name: '雲南農民・少数民族', influence: 16, approval: 50, demand: '塩・米価の安定と賦役の軽減', bonusText: '支持70%+: 安定度+5' }
-        ],
-        cabinet: [
-          { role: '省政府主席', name: '龍雲', trait: '雲南自治・滇軍統制 (+安定・軍事)' },
-          { role: '民政長', name: '李宗黄', trait: '省政運営・教育 (+安定)' },
-          { role: '財政長', name: '陸崇仁', trait: '錫・塩交易の整理 (+経済)' }
-        ]
-      },
-      shandong: {
-        id: 'shandong', code: 'LU', region: '東アジア・太平洋', isMajor: false,
-        name: '魯系（山東）', bloc: 'neutral', blocName: '山東自治・華北緩衝',
-        leader: '韓復榘 山東省政府主席', ministry: '山東省政府・第三路軍司令部',
-        mil: 52, eco: 56, stb: 50, tech: 44, gdpText: '¥0.5B',
-        aiAgenda: '山東の治安維持と膠済鉄道・青島港の収益確保、日本との緊張回避と南京への従属回避',
-        summary: '旧西北軍の韓復榘が1930年に山東省主席へ転じ、以後は独自の軍事政権を敷く。膠済鉄道と青島の交易収入、塩・タバコ税を財源に第三路軍を維持し、華北に進出する日本と南京の間で綱渡りの外交を続ける。',
-        interestGroups: [
-          { id: 'ig_military', name: '第三路軍（韓復榘系）', influence: 36, approval: 70, demand: '第三路軍の維持と省防の強化', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍内反乱' },
-          { id: 'ig_industrialists', name: '青島財界・膠済鉄道利権', influence: 28, approval: 62, demand: '青島港の交易振興と鉄道収益の確保', bonusText: '支持70%+: 経済+6' },
-          { id: 'ig_parliament', name: '山東省政府・地方士紳', influence: 22, approval: 55, demand: '省政の安定と教育・治安の維持', bonusText: '支持70%+: 安定度+5' },
-          { id: 'ig_labor', name: '山東農民・労働者', influence: 14, approval: 42, demand: '匪賊鎮圧と食糧価格の安定', bonusText: '支持70%+: 安定度+8 / 不満35%以下: 農村騒擾' }
-        ],
-        cabinet: [
-          { role: '省政府主席', name: '韓復榘', trait: '山東自治・第三路軍統制 (+軍事)' },
-          { role: '民政庁長', name: '李樹春', trait: '省政運営・治安維持 (+安定)' },
-          { role: '財政庁長', name: '王向榮', trait: '塩・タバコ税の整理 (+経済)' }
-        ]
-      },
-      xinjiang: {
-        id: 'xinjiang', code: 'XIN', region: '東アジア・太平洋', isMajor: false,
-        name: '新疆政権', bloc: 'neutral', blocName: '新疆自治・ソ連交易圏',
-        leader: '金樹仁 新疆省政府主席', ministry: '新疆省政府・新疆辺防督办公署',
-        mil: 44, eco: 36, stb: 40, tech: 34, gdpText: '¥0.2B',
-        aiAgenda: 'ハミ叛乱の鎮圧とソ連・イギリス勢力の均衡、新疆の治安維持と対ソ交易の確保',
-        summary: '1928年に楊增新が暗殺された後、金樹仁が新疆省主席となったが、1931年からのハミ（クムル）叛乱と甘粛馬仲英の侵入で支配は動揺。ソ連の経済的影響力が強まり、1933年にはクーデターで盛世才が政権を奪う直前の状況にある。',
-        interestGroups: [
-          { id: 'ig_military', name: '新疆辺防軍（金樹仁系）', influence: 34, approval: 52, demand: 'ハミ叛乱の鎮圧と省防軍の増強', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍内クーデター' },
-          { id: 'ig_industrialists', name: '省政府・対ソ交易商', influence: 24, approval: 48, demand: 'ソ連との交易協定とウルムチの商業振興', bonusText: '支持70%+: 経済+6' },
-          { id: 'ig_parliament', name: 'ウイグル・カザフ首長層', influence: 24, approval: 32, demand: '民族自治と税負担の軽減', bonusText: '支持70%+: 安定度+8 / 不満35%以下: 民族叛乱' },
-          { id: 'ig_labor', name: 'オアシス農民・遊牧民', influence: 18, approval: 38, demand: '灌溉整備と食糧価格の安定', bonusText: '支持70%+: 安定度+5' }
-        ],
-        cabinet: [
-          { role: '省政府主席', name: '金樹仁', trait: '新疆自治・辺防軍統制 (+軍事)' },
-          { role: '督办公署参謀', name: '盛世才', trait: 'ソ連接近・軍事近代化 (+軍事)' },
-          { role: '財政庁長', name: '魯效祖', trait: '対ソ交易・省財政 (+経済)' }
-        ]
-      },
-      ma_clique: {
-        id: 'ma_clique', code: 'MAQ', region: '東アジア・太平洋', isMajor: false,
-        name: '西北三馬（甘寧青）', bloc: 'neutral', blocName: '馬家軍・西北イスラーム勢力',
-        leader: '馬麟 青海省政府主席 / 馬鴻賓・馬鴻逵', ministry: '甘寧青三省連絡会議・騎兵軍司令部',
-        mil: 50, eco: 36, stb: 62, tech: 38, gdpText: '¥0.2B',
-        aiAgenda: '甘寧青の支配維持と回族社会の安定、蒋介石の中央軍進出の阻止、ソ連・日本への警戒',
-        summary: '青海の馬麟・馬歩芳、寧夏の馬鴻逵、甘粛の馬鴻賓が一族で甘寧青を分掌する西北のイスラーム軍閥連合。精強な騎兵と宗教的権威で支配を固め、南京国民政府には名目的に従いつつ、中央政府の省政介入を徹底的に排除してきた。',
-        interestGroups: [
-          { id: 'ig_military', name: '馬家騎兵軍', influence: 44, approval: 78, demand: '騎兵の維持と甘寧青国境の防衛', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 一族抗争' },
-          { id: 'ig_industrialists', name: '回族宗教指導者・交易商', influence: 24, approval: 72, demand: '巡礼路と隊商交易の安全確保', bonusText: '支持70%+: 経済+6・安定度+5' },
-          { id: 'ig_parliament', name: '三省省政府・阿訇会議', influence: 18, approval: 60, demand: 'イスラーム慣习の尊重と省自治', bonusText: '支持70%+: 安定度+8' },
-          { id: 'ig_labor', name: '農牧民・諸民族', influence: 14, approval: 50, demand: '水資源と牧草地の配分の公正', bonusText: '支持70%+: 安定度+5' }
-        ],
-        cabinet: [
-          { role: '青海省主席', name: '馬麟', trait: '青海統治・回族融和 (+安定)' },
-          { role: '甘粛省主席', name: '馬鴻賓', trait: '甘粛統治・隊商保護 (+経済)' },
-          { role: '騎兵軍司令', name: '馬鴻逵', trait: '騎兵統制・寧夏軍政 (+軍事)' }
-        ]
-      },
-      hunan: {
-        id: 'hunan', code: 'XIANG', region: '東アジア・太平洋', isMajor: false,
-        name: '湘系（湖南）', bloc: 'neutral', blocName: '湖南自治・華中緩衝',
-        leader: '何鍵 湖南省政府主席', ministry: '湖南省政府・第四路軍司令部',
-        mil: 46, eco: 50, stb: 54, tech: 44, gdpText: '¥0.5B',
-        aiAgenda: '湖南の自治と粵漢鉄道沿線の商業振興、中央軍の省内進出阻止、共産軍への警戒',
-        summary: '1929年の蒋桂戦争で蒋介石側についた何鍵が湖南省主席に就任。粵漢鉄道と洞庭湖の米作を基盤に第四路軍を維持し、1930年代には長征中の紅軍との戦いで消耗する。中央と広西の間で自立を保つ華中の緩衝勢力。',
-        interestGroups: [
-          { id: 'ig_military', name: '第四路軍（湘軍）', influence: 38, approval: 68, demand: '湘軍の維持と省境防衛の強化', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍内反乱' },
-          { id: 'ig_industrialists', name: '湖南米穀商・銻鉱山', influence: 26, approval: 62, demand: '米価安定とアンチモン輸出の拡大', bonusText: '支持70%+: 経済+6' },
-          { id: 'ig_parliament', name: '湖南省政府・士紳層', influence: 22, approval: 58, demand: '省自治の維持と教育振興', bonusText: '支持70%+: 政治力+5' },
-          { id: 'ig_labor', name: '湖南農民・鉱夫', influence: 14, approval: 44, demand: '農民救済と共産軍への恐怖からの保護', bonusText: '支持70%+: 安定度+8' }
-        ],
-        cabinet: [
-          { role: '省政府主席', name: '何鍵', trait: '湖南自治・湘軍統制 (+軍事)' },
-          { role: '民政庁長', name: '曹伯聞', trait: '省政運営・治安維持 (+安定)' },
-          { role: '財政庁長', name: '張開璉', trait: '米穀・銻交易の整理 (+経済)' }
-        ]
-      },
-      guizhou: {
-        id: 'guizhou', code: 'QIAN', region: '東アジア・太平洋', isMajor: false,
-        name: '黔系（貴州）', bloc: 'neutral', blocName: '貴州軍閥・西南辺境',
-        leader: '王家烈 貴州省政府主席 / 第二十五軍軍長', ministry: '貴州省政府・第二十五軍司令部',
-        mil: 40, eco: 34, stb: 36, tech: 30, gdpText: '¥0.15B',
-        aiAgenda: '貴州軍の再建とアヘン交易の統制、四川・雲南・広西との均衡外交、中央軍の進出阻止',
-        summary: '1932年に王家烈が第二十五軍を率いて貴州省主席に就任したが、省内力は微弱で、アヘン栽培と交易が主要財源。四川・雲南・広西の諸軍閥と南京の間で絶えず寝返りを繰り返す、西南辺境の不安定な軍政国家。',
-        interestGroups: [
-          { id: 'ig_military', name: '第二十五軍（黔軍）', influence: 40, approval: 60, demand: '黔軍の再建と兵器・糧食の確保', bonusText: '支持70%+: 軍事+6 / 不満35%以下: 軍内クーデター' },
-          { id: 'ig_industrialists', name: 'アヘン交易商・省財政', influence: 26, approval: 50, demand: 'アヘン交易路の維持と税収確保', bonusText: '支持70%+: 経済+6' },
-          { id: 'ig_parliament', name: '貴州省政府・地方豪族', influence: 20, approval: 44, demand: '地方自治と治安維持', bonusText: '支持70%+: 安定度+5' },
-          { id: 'ig_labor', name: '貴州農民・少数民族', influence: 14, approval: 34, demand: 'アヘン税の軽減と食糧確保', bonusText: '支持70%+: 安定度+8 / 不満35%以下: 農民反乱' }
-        ],
-        cabinet: [
-          { role: '省政府主席', name: '王家烈', trait: '黔軍統制・アヘン交易 (+軍事・経済)' },
-          { role: '副軍長', name: '猶国才', trait: '黔軍再建・省境防衛 (+軍事)' },
-          { role: '民政庁長', name: '黄道彬', trait: '省政運営・治安維持 (+安定)' }
+          { role: 'ダライ・ラマ', name: 'トゥプテン・ギャツォ', trait: '政教一致・チベット独立 (+安定)' },
+          { role: '摂政', name: 'レティン・ギャツォ', trait: 'ラサ政庁・諸侯調整 (+政治力)' },
+          { role: 'チベット軍司令', name: 'ツァロン・ダサン', trait: '国境防衛・イギリス顧問 (+軍事)' }
         ]
       },
       manchukuo: {
         id: 'manchukuo', code: 'MAN', region: '東アジア・太平洋', isMajor: false,
         name: '満洲国 (奉天・新京政権)', bloc: 'revisionist', blocName: '日満経済ブロック',
+        dependency: { overlordId: 'japan', type: 'puppet', autonomy: 25, loyalty: 65 },
         leader: '愛新覚羅溥儀 執政（3月9日就任） / 駒井徳三 総務長官', ministry: '満洲国外交部・関東軍司令部',
         mil: 68, eco: 64, stb: 58, tech: 66, gdpText: '¥1.8B',
         aiAgenda: '3月1日建国宣言後の機構整備・日満議定書締結準備と治安確立・重工業開発',
@@ -3103,6 +2964,7 @@ const SCENARIOS = {
             mongolia: {
         id: 'mongolia', code: 'MON', region: '東アジア・太平洋', isMajor: false,
         name: 'モンゴル人民共和国', bloc: 'comintern', blocName: 'コミンテルン・ソ連相互援助圏',
+        dependency: { overlordId: 'russia', type: 'satellite', autonomy: 45, loyalty: 70 },
         leader: 'ペルジディーン・ゲンデン 首相 / チョイバルサン元帥', ministry: 'ウランバートル外務人民委員部',
         mil: 64, eco: 54, stb: 66, tech: 54, gdpText: '$0.4B',
         aiAgenda: 'ソ連赤軍との相互援助による満洲・内モンゴル国境の防衛と遊牧経済の安定',
@@ -3883,6 +3745,7 @@ const SCENARIOS = {
       india: {
         id: 'india', code: 'IND', region: 'アジア・オセアニア', isMajor: false,
         name: '英領インド帝国 (British Raj)', bloc: 'versailles', blocName: '大英帝国最大の宝玉・自治運動期',
+        dependency: { overlordId: 'uk', type: 'dominion', autonomy: 20, loyalty: 48 },
         leader: 'ウィリンドン総督 / マハトマ・ガンディー (国民会議派)', ministry: 'ニューデリー政庁外務部',
         mil: 76, eco: 72, stb: 56, tech: 64, gdpText: '$12.5B',
         aiAgenda: 'ロンドン円卓会議・1935年インド統治法による自治拡大とインド洋・ビルマ油田の防衛',
@@ -3901,6 +3764,7 @@ const SCENARIOS = {
       dutch_indies: {
         id: 'dutch_indies', code: 'INS', region: 'アジア・オセアニア', isMajor: false,
         name: '蘭領東インド (バタヴィア政庁)', bloc: 'democratic', blocName: '南洋最大産油・ゴム資源圏',
+        dependency: { overlordId: 'netherlands', type: 'colony', autonomy: 15, loyalty: 50 },
         leader: 'ボニファシウス・デ・ヨング 総督', ministry: 'バタヴィア総督府外務局',
         mil: 62, eco: 74, stb: 64, tech: 66, gdpText: '$3.1B',
         aiAgenda: 'パレンバン・ボルネオ大油田と天然ゴム・錫の輸出管理、日英米との通商バランス維持',
@@ -4116,32 +3980,7 @@ function computeInitialRelation(n1, n2) {
     'latvia_russia': -10,
     'lithuania_russia': -10,
     'china_russia': 15,
-    'china_shanxi': 10,
-    'china_guangxi': -25,
-    'china_guangdong': -35,
-    'china_sichuan': 10,
-    'china_yunnan': 5,
-    'china_shandong': 15,
-    'china_xinjiang': 0,
-    'china_ma_clique': 25,
-    'china_hunan': 5,
-    'china_guizhou': 10,
-    'guangdong_guangxi': 55,
-    'guangdong_hunan': 20,
-    'guangxi_guizhou': 20,
-    'guangxi_yunnan': 10,
-    'guizhou_sichuan': -10,
-    'sichuan_yunnan': 5,
-    'ma_clique_shanxi': 20,
-    'japan_shanxi': -15,
-    'japan_guangdong': -30,
-    'japan_shandong': -10,
-    'japan_xinjiang': -20,
-    'japan_ma_clique': -15,
-    'japan_sichuan': -20,
-    'japan_yunnan': -10,
-    'russia_xinjiang': 35,
-    'russia_ma_clique': -10,
+    'china_tibet': -10,
     'germany_poland': -40,
     'germany_russia': 25, // Rapallo Treaty still active in 1932!
     'italy_uk': 35,
@@ -4662,20 +4501,34 @@ const LOBBY_PORTRAITS = {
   russia: './portraits/russia.jpg'
 };
 
+const DEPENDENCY_KINDS = {
+  puppet: { label: '傀儡国', badge: '傀儡' },
+  satellite: { label: '衛星国', badge: '衛星' },
+  dominion: { label: '自治領', badge: '自治領' },
+  colony: { label: '植民地', badge: '植民地' },
+  protectorate: { label: '保護国', badge: '保護国' }
+};
+
 const LOBBY_TIER = {
   major: { name: '列強', note: '世界秩序を決める大国', badge: '列強' },
   mid: { name: '中堅国', note: '地域情勢を左右する国々', badge: '中堅' },
-  warlord: { name: '中国軍閥', note: '南京国民政府から分立した地方政権', badge: '軍閥' },
+  dependency: { name: '従属国・自治領', note: '宗主国の下で自立を図る国々', badge: '従属' },
   minor: { name: '小国', note: '生き残りを賭ける国々', badge: '小国' }
 };
 
-const CHINA_WARLORDS = new Set(['shanxi', 'guangxi', 'guangdong', 'sichuan', 'yunnan', 'shandong', 'xinjiang', 'ma_clique', 'hunan', 'guizhou']);
-
 function lobbyTierOf(nation) {
   if (nation.isMajor) return 'major';
-  if (CHINA_WARLORDS.has(nation.id)) return 'warlord';
+  if (nation.dependency) return 'dependency';
   const gdp = parseFloat(String(nation.gdpText || '').replace(/[^0-9.]/g, '')) || 0;
   return gdp >= 2.5 ? 'mid' : 'minor';
+}
+
+function dependencyLabel(nation) {
+  const dep = nation.dependency;
+  if (!dep) return '';
+  const overlord = SCENARIOS.era_1932.nations[dep.overlordId];
+  const type = DEPENDENCY_KINDS[dep.type]?.label || '従属国';
+  return `${overlord ? lobbyDisplayName(dep.overlordId, overlord) : dep.overlordId}の${type}`;
 }
 
 // カード幅に収めるための表示名。正式名称は選択後の詳細と国家情報カードで見せる。
@@ -4742,13 +4595,15 @@ function lobbyNationCard(id, base, tier) {
     card.className = `lobby-nation-card lobby-nation-card--${tier} ${isSelected ? 'selected' : ''}`;
     const badge = tier === 'major'
       ? `<span class="lobby-card-badge is-major">${LOBBY_TIER.major.badge}</span>`
-      : '';
-    const leadVisual = tier === 'warlord' ? getCountryFlagSvg(id, true) : lobbyPortraitMarkup(id, n);
+      : tier === 'dependency'
+        ? `<span class="lobby-card-badge is-dependency">${DEPENDENCY_KINDS[n.dependency.type]?.badge || '従属'}</span>`
+        : '';
+    const depNote = tier === 'dependency' ? ` · ${escapeHtml(dependencyLabel(n))}` : '';
     card.innerHTML = `
-      ${leadVisual}
+      ${lobbyPortraitMarkup(id, n)}
       <span class="lobby-card-body">
-        <span class="lobby-card-title">${tier === 'warlord' ? '' : getCountryFlagSvg(id)}<strong>${escapeHtml(lobbyDisplayName(id, n))}</strong>${badge}</span>
-        <span class="lobby-card-leader">${escapeHtml(n.leader || '')}</span>
+        <span class="lobby-card-title">${getCountryFlagSvg(id)}<strong>${escapeHtml(lobbyDisplayName(id, n))}</strong>${badge}</span>
+        <span class="lobby-card-leader">${escapeHtml(n.leader || '')}${depNote}</span>
         <span class="lobby-card-agenda">${escapeHtml(n.aiAgenda || n.summary || '')}</span>
         <span class="lobby-card-stats"><span>軍事 <b>${n.mil}</b></span><span>経済 <b>${n.eco}</b></span><span>安定 <b>${n.stb}</b></span></span>
       </span>
@@ -4772,7 +4627,7 @@ function renderLobbyNationsGrid() {
 
   const base = SCENARIOS.era_1932.nations;
   const filter = state.lobbyRegionFilter;
-  const groups = { major: [], mid: [], warlord: [], minor: [] };
+  const groups = { major: [], mid: [], dependency: [], minor: [] };
 
   for (const id of Object.keys(base)) {
     const n = base[id];
@@ -4787,10 +4642,10 @@ function renderLobbyNationsGrid() {
   const gdpOf = id => parseFloat(String(base[id].gdpText || '').replace(/[^0-9.]/g, '')) || 0;
   groups.major.sort((a, b) => (base[b].mil + base[b].eco) - (base[a].mil + base[a].eco));
   groups.mid.sort((a, b) => gdpOf(b) - gdpOf(a));
-  groups.warlord.sort((a, b) => (base[b].mil + base[b].eco) - (base[a].mil + base[a].eco));
+  groups.dependency.sort((a, b) => (base[a].dependency?.autonomy ?? 50) - (base[b].dependency?.autonomy ?? 50));
   groups.minor.sort((a, b) => String(base[a].name).localeCompare(String(base[b].name), 'ja'));
 
-  for (const tier of ['major', 'mid', 'warlord', 'minor']) {
+  for (const tier of ['major', 'mid', 'dependency', 'minor']) {
     const ids = groups[tier];
     if (!ids.length) continue;
     const section = document.createElement('section');
@@ -4840,7 +4695,8 @@ function updateLobbySelectedSummary() {
   const n = SCENARIOS.era_1932.nations[state.lobbyNationId];
   if (!n) return;
   const tier = lobbyTierOf(n);
-  const badgeCls = tier === 'major' ? 'is-major' : tier === 'mid' ? 'is-mid' : tier === 'warlord' ? 'is-warlord' : 'is-minor';
+  const badgeCls = tier === 'major' ? 'is-major' : tier === 'mid' ? 'is-mid' : tier === 'dependency' ? 'is-dependency' : 'is-minor';
+  const depLine = tier === 'dependency' ? ` · ${escapeHtml(dependencyLabel(n))}` : '';
   sumEl.innerHTML = `
     <div class="lobby-selected">
       ${lobbyPortraitMarkup(state.lobbyNationId, n)}
@@ -4850,7 +4706,7 @@ function updateLobbySelectedSummary() {
           <span class="lobby-card-badge ${badgeCls}">${LOBBY_TIER[tier].badge}</span>
           <button type="button" class="text-button" id="btn-lobby-deselect" style="font-size:11px; color:#2f6db8; text-decoration:underline;">解除</button>
         </div>
-        <div class="lobby-selected-meta">指導者: <strong>${escapeHtml(n.leader || '')}</strong> · ${escapeHtml(n.blocName || n.regime || '体制')}</div>
+        <div class="lobby-selected-meta">指導者: <strong>${escapeHtml(n.leader || '')}</strong> · ${escapeHtml(n.blocName || n.regime || '体制')}${depLine}</div>
         <div class="lobby-selected-agenda">${escapeHtml(n.aiAgenda || '')}</div>
       </div>
     </div>
@@ -6074,6 +5930,7 @@ function renderStateInspector(s) {
       <div class="insp-info-line"><span class="insp-info-label">地勢</span><span>${escapeHtml(info.terrainLabel)}</span></div>
       <div class="insp-info-line"><span class="insp-info-label">地域</span><span>${escapeHtml(info.regionGroup || info.regionLabel)}</span></div>
       <div class="insp-info-line"><span class="insp-info-label">規模</span><span>${escapeHtml(stats)}</span></div>
+      ${info.claims?.length ? `<div class="insp-info-line"><span class="insp-info-label">請求権</span><span>${info.claims.map(claim => `${escapeHtml(claim.nationName)}（${escapeHtml(claim.reason)}）`).join(' / ')}</span></div>` : ''}
     `;
   }
 
@@ -6127,6 +5984,36 @@ function renderStateInspector(s) {
 }
 
 let lgCommandState = { mode: 'create', stateId: null };
+
+function openSituationBriefing() {
+  const data = Orbis.situationBriefing?.();
+  const body = document.getElementById('briefing-body');
+  if (!data || !body) return;
+  const powers = data.topPowers.map((entry, index) => `<div class="insp-info-line"><span class="insp-info-label">${index + 1}位</span><span>${escapeHtml(entry.name)} <span class="muted">国力 ${entry.power}</span></span></div>`).join('');
+  const threats = data.threats.length
+    ? data.threats.map(entry => `<div class="insp-info-line"><span class="insp-info-label">${escapeHtml(entry.name)}</span><span>関係 ${entry.relation}</span></div>`).join('')
+    : '<p class="small muted">直接の敵対国はありません。</p>';
+  const dependency = data.dependency && !data.dependency.independent
+    ? `<div class="insp-info-line"><span class="insp-info-label">宗主国</span><span>${escapeHtml(data.dependency.overlordName)} の${escapeHtml(data.dependency.kindLabel)}（自治 ${data.dependency.autonomy}% / 忠誠 ${data.dependency.loyalty}% / 貢納 ${data.dependency.tribute}）</span></div>`
+    : '<p class="small muted">独立国として行動しています。</p>';
+  const subjects = data.subjects.length
+    ? data.subjects.map(entry => `<div class="insp-info-line"><span class="insp-info-label">${escapeHtml(entry.kind)}</span><span>${escapeHtml(entry.name)}（自治 ${entry.autonomy}% / 忠誠 ${entry.loyalty}%）</span></div>`).join('')
+    : '';
+  const localGovs = data.localGovernments.length
+    ? data.localGovernments.map(entry => `<div class="insp-info-line"><span class="insp-info-label">${escapeHtml(entry.kind)}</span><span>${escapeHtml(entry.name)}（${entry.states}州 / 自治 ${entry.autonomy}% / 忠誠 ${entry.loyalty}%）</span></div>`).join('')
+    : '';
+  body.innerHTML = `
+    <div class="country-card">
+      <div class="country-card-head"><div><strong>${escapeHtml(data.date)} の情勢</strong><span class="country-card-meta">国力 ${data.power} · ${data.rank} / ${data.total} 位</span></div></div>
+      <div class="country-card-section"><h3>国力上位</h3>${powers}</div>
+      <div class="country-card-section"><h3>脅威</h3>${threats}</div>
+      <div class="country-card-section"><h3>従属関係</h3>${dependency}${subjects}</div>
+      <div class="country-card-section"><h3>自治政府</h3>${localGovs || '<p class="small muted">自治政府はありません。</p>'}</div>
+      <div class="country-card-section"><h3>財政</h3><div class="insp-info-line"><span class="insp-info-label">収支</span><span>収入 ${data.budget.income} / 維持費 ${data.budget.upkeep} / 純収支 ${data.budget.net}${data.budget.tribute ? `（貢納 -${data.budget.tribute}）` : ''}</span></div><div class="insp-info-line"><span class="insp-info-label">戦争</span><span>${data.wars} 件</span></div></div>
+      <div class="country-card-section"><h3>助言</h3><ul style="margin:0; padding-left:18px;">${data.notes.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul></div>
+    </div>`;
+  Orbis.openDialog('modal-briefing');
+}
 
 function openLocalGovernmentCommand(mode, stateId) {
   const info = Orbis.provincePanelData?.(stateId);
