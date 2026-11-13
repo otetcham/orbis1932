@@ -1726,6 +1726,10 @@ svg path:focus-visible,
 .orbis-topbar .nation-plaque { padding: 6px 0; max-width: 100%; }
 .orbis-topbar .nation-plaque strong { font-size: 12px !important; max-width: min(27vw, 360px); }
 .header-brand { color: #8aa0b8; font: 8px var(--font-mono); letter-spacing: .08em; margin-left: 6px; }
+.topbar-suzerain { display: flex; align-items: center; gap: 5px; margin: 0 0 2px; color: #6c829c; font-size: 9.5px; font-weight: 600; line-height: 1.1; white-space: nowrap; }
+.topbar-suzerain[hidden] { display: none; }
+#topbar-suzerain-flag { display: inline-flex; flex: 0 0 auto; }
+#topbar-suzerain-flag .flag-badge { width: 14px; height: 10px; border-radius: 2px; }
 .header-date { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
 .header-date .clock-date { display: block; font-size: 12px; color: #1d5c96; }
 .header-date #hud-turn { font: 9px var(--font-mono); color: #6c829c; }
@@ -2154,8 +2158,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
-  <script src="orbis_states.js?v=1932.11" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
-  <script src="orbis_map_meta.js?v=1932.11" defer></script>
+  <script src="orbis_states.js?v=1932.12" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
+  <script src="orbis_map_meta.js?v=1932.12" defer></script>
 </head>
 <body>
 
@@ -2232,6 +2236,10 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         <button class="nation-plaque" id="btn-open-lobby" title="キャンペーンメニュー">
           <span id="topbar-player-flag"></span>
           <div>
+            <div class="topbar-suzerain" id="topbar-player-suzerain" hidden>
+              <span id="topbar-suzerain-flag"></span>
+              <span id="topbar-suzerain-label"></span>
+            </div>
             <div style="display:flex; align-items:center; gap:6px;">
               <strong id="topbar-player-name" style="font-size:13.5px; color:var(--text-primary);">大日本帝国</strong>
               <span class="header-brand">ORBIS</span>
@@ -6968,13 +6976,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
-<script src="orbis_events.js?v=1932.11"></script>
-<script src="orbis_region_labels.js?v=1932.11"></script>
-<script src="orbis_campaign_core.js?v=1932.11"></script>
-<script src="orbis_timeline_engine.js?v=1932.11"></script>
-<script src="orbis_turn_playback.js?v=1932.11"></script>
-<script src="orbis_text.js?v=1932.11"></script>
-<script src="orbis_game.js?v=1932.11"></script>
+<script src="orbis_events.js?v=1932.12"></script>
+<script src="orbis_region_labels.js?v=1932.12"></script>
+<script src="orbis_campaign_core.js?v=1932.12"></script>
+<script src="orbis_timeline_engine.js?v=1932.12"></script>
+<script src="orbis_turn_playback.js?v=1932.12"></script>
+<script src="orbis_text.js?v=1932.12"></script>
+<script src="orbis_game.js?v=1932.12"></script>
 
 </body>
 </html>

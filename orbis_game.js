@@ -3189,6 +3189,16 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     html('topbar-player-flag', getCountryFlagSvg(nation.id));
     text('topbar-player-name', nation.name);
     text('topbar-player-leader', nation.leader);
+    const dependency = dependencyInfo(campaign.playerNationId);
+    const suzerain = $('topbar-player-suzerain');
+    const underSuzerain = Boolean(dependency && !dependency.independent && !dependency.annexed && !dependency.dissolved);
+    if (suzerain) {
+      suzerain.hidden = !underSuzerain;
+      if (underSuzerain) {
+        html('topbar-suzerain-flag', getCountryFlagSvg(dependency.overlordId));
+        text('topbar-suzerain-label', `${dependency.overlordName}の${dependency.kindLabel}`);
+      }
+    }
     for (const key of ['mil', 'eco', 'stb']) {
       text(`hud-${key}`, `${nation[key]}${key === 'stb' ? '%' : ''}`);
       if ($(`bar-${key}`)) $(`bar-${key}`).style.width = `${Math.min(100, nation[key])}%`;
@@ -3204,7 +3214,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     text('hud-date', dateOf(campaign));
     text('hud-turn', hudTurnLabel(campaign));
     text('hud-actions', `交渉枠 ${RULES[campaign.difficulty].actions - campaign.usedActions} / ${RULES[campaign.difficulty].actions}`);
-    $('btn-open-lobby')?.setAttribute('title', `${nation.name} · ${nation.leader}`);
+    $('btn-open-lobby')?.setAttribute('title', underSuzerain
+      ? `${nation.name} · ${nation.leader}（${dependency.overlordName}の${dependency.kindLabel}）`
+      : `${nation.name} · ${nation.leader}`);
   }
 
   function renderDomestic() {
