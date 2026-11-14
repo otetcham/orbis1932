@@ -1,7 +1,7 @@
 'use strict';
 /** Half-turn event playback queue (map pan + cards). */
 window.ORBIS_PLAYBACK = (() => {
-  const state = { running: false, skip: false, speed: 1, queue: [] };
+  const state = { running: false, skip: false, speed: 1, queue: [], generation: 0 };
 
   function canDom() {
     return typeof document !== 'undefined' && typeof document.createElement === 'function' && document.body;
@@ -73,28 +73,47 @@ window.ORBIS_PLAYBACK = (() => {
   }
 
   async function runQueue() {
+    const generation = state.generation;
     state.running = true;
-  if (typeof document !== 'undefined') document.body?.classList.add('turn-playback-active');
+    if (typeof document !== 'undefined') document.body?.classList.add('turn-playback-active');
     const overlay = document.getElementById('turn-playback-overlay');
     if (overlay) overlay.hidden = false;
+    const controls = document.getElementById('turn-playback-controls');
+    if (controls) controls.hidden = false;
     while (state.queue.length) {
+      if (state.generation !== generation) return;
       if (state.skip) { state.queue = []; break; }
       const item = state.queue.shift();
       if (item.lon != null && item.lat != null) flyTo(item.lon, item.lat);
       if (item.stateId) pulseRegion(item.stateId);
       showCard(item);
       await new Promise(r => setTimeout(r, Math.round(1100 / state.speed)));
+      if (state.generation !== generation) return;
       hideCard();
     }
+    if (state.generation !== generation) return;
     state.running = false;
     state.skip = false;
     if (overlay) overlay.hidden = true;
+    if (controls) controls.hidden = true;
     document.body?.classList.remove('turn-playback-active');
     globalThis.Orbis?.flushDeferredToasts?.();
   }
 
   function setSpeed(mult) { state.speed = Math.min(4, Math.max(1, mult)); }
   function skipAll() { state.skip = true; }
+  function stop() {
+    state.generation++;
+    state.queue = [];
+    state.skip = false;
+    state.running = false;
+    hideCard();
+    const overlay = document.getElementById('turn-playback-overlay');
+    if (overlay) overlay.hidden = true;
+    const controls = document.getElementById('turn-playback-controls');
+    if (controls) controls.hidden = true;
+    document.body?.classList.remove('turn-playback-active');
+  }
 
-  return Object.freeze({ enqueue, setSpeed, skipAll, _state: state });
+  return Object.freeze({ enqueue, setSpeed, skipAll, stop, _state: state });
 })();

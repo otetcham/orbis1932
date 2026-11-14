@@ -973,6 +973,7 @@ body.dialog-open #turn-playback-overlay {
   background: rgba(12, 20, 34, 0.88);
   box-shadow: 0 6px 20px rgba(0,0,0,0.35);
 }
+.turn-playback-controls[hidden] { display: none; }
 body.turn-playback-active .map-dispatch-notice,
 body.turn-playback-active #game-toast { visibility: hidden !important; pointer-events: none !important; }
 .ending-timeline { margin: 12px 0 0; padding-left: 18px; max-height: 200px; overflow: auto; }
@@ -1826,6 +1827,19 @@ svg path:focus-visible,
 .header-date { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
 .header-date .clock-date { display: block; font-size: 12px; color: #1d5c96; }
 .header-date #hud-turn { font: 9px var(--font-mono); color: #6c829c; }
+.header-undo { min-height: 26px; height: 26px; padding: 0 8px; font-size: 10px; }
+.header-undo[hidden] { display: none; }
+.onboarding-lead { padding: 12px 14px; border: 1px solid #d9e4f0; border-radius: 10px; background: #f7fafc; }
+.onboarding-lead strong { display: block; font-size: 16px; margin-bottom: 6px; }
+.onboarding-lead p { margin: 0; }
+.onboarding-steps { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 8px; }
+.onboarding-steps li { padding: 9px 11px; border-left: 3px solid #d9e4f0; background: #ffffff; }
+.onboarding-steps li strong { display: block; font-size: 12px; margin-bottom: 3px; color: #6c829c; }
+.onboarding-steps li span { display: block; font-size: 12px; line-height: 1.5; }
+.onboarding-steps li.current { border-left-color: #1d5c96; background: #f0f6fc; }
+.onboarding-steps li.current strong { color: #1d5c96; }
+.onboarding-steps li.done strong { color: #1f7a4d; }
+.onboarding-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .orbis-topbar .topbar-right { justify-self: end; margin: 0; }
 .orbis-topbar #btn-advance-month { min-height: 34px; height: 34px; padding: 0 13px; font-size: 11px; }
 .topbar-gauges { display: flex; align-items: center; gap: 14px; min-width: 0; overflow: hidden; }
@@ -1891,7 +1905,7 @@ svg path:focus-visible,
 .window-resize-handle:hover::after, .window-resize-handle:focus-visible::after { border-color: #2f6db8; }
 .window-moving, .window-moving * { user-select: none !important; }
 @media (max-width: 1380px) and (min-width: 1101px) { .topbar-gauges { gap: 10px; } .gauge-pill { padding: 3px 7px; } .nation-plaque { max-width: 245px; } .nation-plaque strong { max-width: 205px; } }
-@media (max-width: 1100px) { .orbis-topbar { padding: 0 12px; gap: 10px; } .topbar-gauges { gap: 10px; } .gauge-pill { height: 31px; padding: 3px 7px; } .gauge-info { flex-direction: row; gap: 8px; align-items: center; } }
+@media (max-width: 1100px) { .orbis-topbar { padding: 0 12px; gap: 10px; } .topbar-gauges { gap: 10px; } .gauge-pill { height: 31px; padding: 3px 7px; } .gauge-info { flex-direction: row; gap: 8px; align-items: center; } .header-undo { display: none; } }
 .virtual-window .left-tabs-nav { flex-shrink: 0; background: none; }
 .left-tabs-nav { background: #f2f6fb; }
 .left-tab-btn.active { background: rgba(47, 109, 184, 0.08); }
@@ -2376,7 +2390,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         </div>
       </div>
 
-      <div class="header-date"><span class="clock-date" id="hud-date">1932年3月</span><span id="hud-turn">第 1 半月</span></div>
+      <div class="header-date"><span class="clock-date" id="hud-date">1932年3月</span><span id="hud-turn">第 1 半月</span><button class="btn btn-ghost header-undo" id="btn-undo-turn" data-undo-turn title="直前の半月を取り消す" hidden>取消</button></div>
       <div class="topbar-right">
         <button class="btn btn-ghost" id="btn-open-menu" data-panel-open="menu" aria-controls="window-menu" aria-expanded="false" title="メニュー">設定</button>
         <button class="btn btn-primary" id="btn-advance-month" title="今月の交渉を確認して、AIによる月次裁定へ">ターンを終える <span aria-hidden="true">→</span></button>
@@ -2598,6 +2612,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           <button class="menu-row" id="btn-export-save"><span class="menu-row-icon" aria-hidden="true">↓</span><span>セーブを書き出す<small>APIキーを含まないJSON</small></span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-menu-import"><span class="menu-row-icon" aria-hidden="true">↑</span><span>セーブを読み込む</span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-help"><span class="menu-row-icon" aria-hidden="true">?</span><span>遊び方</span><span aria-hidden="true">›</span></button>
+          <button class="menu-row" id="btn-open-onboarding" data-open-onboarding><span class="menu-row-icon" aria-hidden="true">導</span><span>導入案内<small>最初の半月の進め方</small></span><span aria-hidden="true">›</span></button>
+          <button class="menu-row" id="btn-undo-turn-menu" data-undo-turn><span class="menu-row-icon" aria-hidden="true">戻</span><span>直前の半月を取り消す<small id="undo-turn-status">取り消せる直前の半月はありません</small></span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-open-war-panel"><span class="menu-row-icon" aria-hidden="true">⚔</span><span>戦争・和平・紛争</span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-open-economy-panel" data-open-economy><span class="menu-row-icon" aria-hidden="true">工</span><span>動員・生産<small>兵力・装備・補給</small></span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-open-focus-panel" data-open-focus><span class="menu-row-icon" aria-hidden="true">策</span><span>国策<small>政治力で方針を進める</small></span><span aria-hidden="true">›</span></button>
@@ -2707,7 +2723,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   <dialog class="game-dialog wide-dialog" id="modal-adviser-briefing" aria-labelledby="adviser-briefing-title"><div class="modal-window"><div class="modal-head"><strong id="adviser-briefing-title">顧問の状況ブリーフィング</strong><button class="btn btn-ghost" data-close-dialog="modal-adviser-briefing">閉じる</button></div><div class="modal-body" id="adviser-briefing-body"></div></div></dialog>
   <dialog class="game-dialog" id="modal-dependent-admin" aria-labelledby="dependent-admin-title"><div class="modal-window"><div class="modal-head"><strong id="dependent-admin-title">従属政権</strong><button class="btn btn-ghost" data-close-dialog="modal-dependent-admin">閉じる</button></div><div class="modal-body" id="dependent-admin-body"></div><div class="modal-foot"><span class="muted small" id="dependent-admin-hint"></span><button class="btn btn-primary" id="btn-dependent-admin-submit">実行</button></div></div></dialog>
   <div id="turn-playback-overlay" hidden></div>
-  <div class="turn-playback-controls" id="turn-playback-controls">
+  <div class="turn-playback-controls" id="turn-playback-controls" hidden>
     <button type="button" class="btn btn-ghost" id="btn-playback-skip">スキップ</button>
     <button type="button" class="btn" id="btn-playback-speed">×2</button>
   </div>
@@ -2726,6 +2742,13 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
       <p>安定度か経済が8以下、財政が0、緊張度が95以上のいずれかが2か月続くと任期終了。</p>
       <p>会話の言葉づかいと説明量は「会話レベル」で選ぶ。博士は専門用語と因果分析、専門職は実務向け、一般は言い換え付き、学生は基礎から順に説明する。開始時に選択し、メニューからいつでも変更できる。ゲームの規則と難易度は変わらない。</p>
       <p>会話と下書きは自動保存。ウィンドウを閉じても消えない。セーブの書き出しとAI設定は「メニュー」から。</p>
+      <p>開始直後の「導入案内」は、情勢を読む、電報か国家の命令を出す、ターンを終える、の3段階を説明する。閉じてもメニューから見直せる。直前の半月は、ターン完了後に上部の「取消」またはメニューから一度だけ取り消せる。</p>
+    </div>
+  </dialog>
+  <dialog class="game-dialog" id="modal-onboarding" aria-labelledby="onboarding-title">
+    <div class="modal-window">
+      <div class="modal-head"><strong id="onboarding-title">最初の半月の案内</strong><button class="btn btn-ghost" data-close-dialog="modal-onboarding">閉じる</button></div>
+      <div class="modal-body" id="onboarding-body"></div>
     </div>
   </dialog>
   <input type="file" id="import-save-file" accept=".json,application/json" hidden>

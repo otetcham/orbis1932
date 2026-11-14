@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { auditData } from './orbis_data_audit.mjs';
+import { runLongRun } from './scripts/longrun_m6_1972.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
@@ -156,6 +157,34 @@ try {
     assert.equal(restored.snapshot().completedTurns, 1);
     assert.equal(restored.snapshot().treaties[0].title, '日米互恵通商協定');
     console.log(`  Data: ${vm.runInContext('Object.keys(SCENARIOS.era_1932.nations).length', context)} nations, ${vm.runInContext('ORBIS_STATES_DB.length', context)} regions`);
+  });
+
+  await check('導入案内を最初の数ターンで進め、閉じても再表示でき、完了後は自動表示しない', async () => {
+    const { api } = harness();
+    await begin(api);
+    const initial = api.onboardingInfo();
+    assert.equal(initial.done, false);
+    assert.equal(initial.step, 0);
+    assert.equal(initial.total, 3);
+    assert.equal(initial.lastShownTurn, 0, '開始直後に案内を表示');
+    assert.equal(initial.autoEligible, true);
+    assert.equal(api.dismissOnboarding(), true, '閉じられる');
+    assert.equal(await api.finishTurn(), true);
+    const afterTurn = api.onboardingInfo();
+    assert.equal(afterTurn.done, false);
+    assert.equal(afterTurn.lastShownTurn, 1, '未完了なら次の半月にも案内');
+    assert.equal(afterTurn.autoAvailable, false, '同じ半月では再表示しない');
+    assert.equal(api.advanceOnboarding(), true);
+    assert.equal(api.onboardingInfo().step, 1);
+    assert.equal(api.advanceOnboarding(), true);
+    assert.equal(api.onboardingInfo().step, 2);
+    assert.equal(api.completeOnboarding(), true);
+    const done = api.onboardingInfo();
+    assert.equal(done.done, true);
+    assert.equal(done.autoEligible, false);
+    assert.equal(api.maybeShowOnboarding(), false, '完了後は自動表示しない');
+    assert.equal(api.advanceOnboarding(), false, '完了後は進めない');
+    assert.equal(api.openOnboarding(), true, 'メニューから後で見直せる');
   });
 
   await check('秘密電報の視点分離と、公式声明の共有', async () => {
@@ -611,6 +640,54 @@ try {
     assert.equal(vm.runInContext('state.year', context), 1933);
     for (let i = 0; i < 4; i++) await api.finishTurn();
     assert.match(vm.runInContext('state.date', context), /1933年3月/);
+  });
+
+  await check('直前ターンのUndoで地図・戦争・命令・指標・日付が戻り、対象が無ければ拒否される', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(api.undoInfo().available, false, '開始直後は取り消す対象が無い');
+    assert.equal(api.undoLastTurn(), false, '対象が無いUndoは拒否');
+    const actionText = '沿岸防備の点検と予備役の招集準備を進める。';
+    assert.equal(await api.submitAction(actionText), true);
+    const before = api.snapshot();
+    const beforeDate = vm.runInContext('state.date', context);
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    assert.equal(after.completedTurns, 1);
+    assert.ok(after.undo?.state, '直前状態を1件保持');
+    assert.equal(after.undo.state.completedTurns, 0);
+    assert.equal(after.undo.state.nationalAction.text, actionText, '命令も保持');
+    assert.ok(after.articles.some(article => article.kind === 'resolution'), '取り消す前は裁定記事がある');
+    assert.ok(Object.values(after.threads).some(channel => channel.messages.some(message => message.turn === 2)), '取り消す前は翌月の電報がある');
+    assert.notEqual(vm.runInContext('state.date', context), beforeDate);
+    const undo = api.undoInfo();
+    assert.equal(undo.available, true);
+    assert.equal(undo.turn, 0);
+    assert.equal(api.undoLastTurn(), true);
+    const restored = api.snapshot();
+    assert.equal(restored.completedTurns, 0, '日付が戻る');
+    assert.equal(vm.runInContext('state.date', context), beforeDate);
+    assert.deepEqual(json(restored.territories), json(before.territories), '地図が戻る');
+    assert.deepEqual(json(restored.wars), json(before.wars), '戦争が戻る');
+    assert.deepEqual(json(restored.formations), json(before.formations), '部隊が戻る');
+    assert.deepEqual(json(restored.nations), json(before.nations), '指標が戻る');
+    assert.equal(restored.nationalAction.text, actionText, '命令が戻る');
+    assert.equal(restored.actionHistory.length, before.actionHistory.length);
+    assert.ok(!restored.articles.some(article => article.kind === 'resolution'), '取り消した裁定記事も戻る');
+    assert.equal(restored.articles[0].kind, 'opening');
+    assert.ok(Object.values(restored.threads).every(channel => channel.messages.every(message => message.turn <= 1)), '翌月の電報も戻る');
+    assert.equal(restored.undo, null, 'Undoは1回だけ');
+    assert.equal(api.undoInfo().available, false);
+    assert.equal(api.undoLastTurn(), false, '取り消し後は再度拒否');
+
+    const reloaded = harness().api;
+    assert.equal(await reloaded.restore(json(after)), true, '直前状態を含むセーブを読み込める');
+    assert.equal(reloaded.undoInfo().available, true, '再開後もUndoできる');
+    assert.equal(reloaded.undoLastTurn(), true);
+    const reloadedState = reloaded.snapshot();
+    assert.equal(reloadedState.completedTurns, 0);
+    assert.equal(reloadedState.nationalAction.text, actionText);
+    assert.ok(!reloadedState.articles.some(article => article.kind === 'resolution'));
   });
 
   await check('国家の行動は月1件、更新・保存・秘密の分離・裁定が成立', async () => {
@@ -1141,6 +1218,41 @@ try {
     assert.equal(hostile.seaControl, 'usa');
   });
 
+  await check('平和時、自国または中立の海路を持つ海外部隊は孤立しない', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const warm = api.snapshot();
+    const field = warm.formations.find(item => item.nationId === 'japan' && item.type === 'field');
+    assert.ok(field, '野戦部隊');
+    field.regionId = 'usa_pacific';
+    warm.territories.usa_pacific = 'japan';
+    warm.occupations.usa_pacific = 'usa';
+    const region = context.window.ORBIS_STATES_DB.find(item => item.id === 'usa_pacific');
+    assert.ok(region);
+    const zoneDistance = (a, b) => {
+      let dLon = Math.abs((Number(a.lon) || 0) - (Number(b.lon) || 0)) % 360;
+      if (dLon > 180) dLon = 360 - dLon;
+      return Math.hypot(dLon, (Number(a.lat) || 0) - (Number(b.lat) || 0));
+    };
+    const zone = context.window.ORBIS_STATES_DB
+      .filter(item => item.isSea || item.isSeaZone)
+      .sort((a, b) => zoneDistance(region, a) - zoneDistance(region, b))[0];
+    assert.ok(zone, '最寄りの海域');
+    warm.maritime = { navy: { japan: 100 }, air: { japan: 50 }, seaControl: {}, turn: 0 };
+    await api.restore(warm);
+    const neutral = api.formationSupply(field.id);
+    assert.equal(neutral.relation, 'neutral', '制海なしの中立海域');
+    assert.notEqual(neutral.status, 'isolated', '中立海域で孤立しない');
+    assert.ok(neutral.level >= 40, `中立海域の海路補給 ${neutral.level}`);
+    const friendlySnap = api.snapshot();
+    friendlySnap.maritime.seaControl[zone.id] = 'japan';
+    await api.restore(friendlySnap);
+    const friendly = api.formationSupply(field.id);
+    assert.equal(friendly.relation, 'friendly', '自国制海');
+    assert.notEqual(friendly.status, 'isolated', '自国海域で孤立しない');
+    assert.ok(friendly.level >= 40, `自国海域の海路補給 ${friendly.level}`);
+  });
+
   await check('平和時は第三国の制海を敵扱いせず、戦時だけ敵制海ペナルティを与える', async () => {
     const { api, context } = harness();
     await begin(api);
@@ -1170,8 +1282,8 @@ try {
     assert.equal(summary.hostile, 0, '敵制海に数えない');
     assert.equal(peaceful.seaControl, 'usa');
     assert.equal(peaceful.relation, 'foreign');
-    assert.equal(peaceful.status, 'isolated');
-    assert.ok(peaceful.level >= 10, `自国圏の海路が無いだけの補給 ${peaceful.level}`);
+    assert.notEqual(peaceful.status, 'isolated', '平和時の第三国制海で孤立しない');
+    assert.ok(peaceful.level >= 40, `平和時の第三国海域の補給 ${peaceful.level}`);
     const atWar = api.snapshot();
     atWar.wars['war-sea-peace-test'] = { attacker: 'japan', defender: 'usa', startedTurn: 0, status: 'active', reason: '制海テスト' };
     await api.restore(atWar);
@@ -2333,6 +2445,21 @@ try {
     assert.equal(oldFocus.current, null);
     assert.equal(oldApi.researchSummary().current, null);
     assert.ok(oldApi.researchSummary().branches.every(branch => branch.items.some(item => item.status === 'available')), '旧セーブでも研究を選べる');
+  });
+
+  await check('長時間ラン脚本は複数開始国で完走し、異常なくレポートを残す', async () => {
+    const reportPath = '/tmp/opencode/m6-longrun-smoke.json';
+    const report = await runLongRun({ totalHalves: 4, nations: ['japan', 'usa'], reportPath, log: () => {} });
+    assert.equal(report.ok, true);
+    assert.equal(report.runs.length, 2);
+    assert.ok(report.runs.every(run => run.reachedTarget && run.completedHalves === 4));
+    assert.ok(report.runs.every(run => run.anomalies.length === 0 && run.invariantFailures.length === 0));
+    assert.ok(report.runs.every(run => run.finalSaveBytes > 0));
+    assert.ok(report.runs.every(run => run.intervals.some(interval => interval.half === 4 && interval.topOwners.length)));
+    const saved = JSON.parse(await readFile(reportPath, 'utf8'));
+    assert.equal(saved.mode, 'mock-http');
+    assert.equal(saved.startedNations.length, 2);
+    assert.deepEqual(saved.totals.failures, []);
   });
 
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
