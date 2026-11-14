@@ -1491,6 +1491,9 @@ try {
     const target = snapshot.territories['china_cn_he'] || db('china_cn_he').country;
     assert.equal(target, 'china');
     assert.equal(ordered.api.setFormationOrder(field.id, { kind: 'offensive', targetRegionId: 'china_cn_he' }), true, ordered.api.formationOrderError());
+    const battle = json(ordered.api.snapshot());
+    battle.formations = battle.formations.filter(item => item.id === field.id);
+    assert.equal(await ordered.api.restore(battle), true);
     assert.equal(await ordered.api.finishTurn(), true);
     const after = ordered.api.snapshot();
     const moved = after.formations.find(item => item.id === field.id);
@@ -1515,6 +1518,127 @@ try {
     assert.equal(idleMoved.order, null, '命令のないプレイヤー部隊に自動命令は付かない');
     const idleGain = Object.entries(idleAfter.territories).filter(([id, owner]) => owner === 'japan' && !Object.hasOwn(idleBefore.territories, id)).length;
     assert.equal(idleGain, 0, 'プレイヤー側の新規占領は0');
+  });
+
+  await check('占領後、その州に敵味方の部隊が同居しない', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(api.declareWar('china', '満州国境の戦線'), true);
+    const isLand = region => region && !region.isSea && !region.isSeaZone && region.type !== 'sea';
+    const db = id => context.window.ORBIS_STATES_DB.find(region => region.id === id);
+    const base = json(api.snapshot());
+    const holder = region => base.territories[region.id] || region.country;
+    const sphere = new Set(['japan']);
+    for (const [id, client] of Object.entries(base.clients || {})) if (client.sponsorId === 'japan' && !client.dissolved) sphere.add(id);
+    const adjacency = api.landAdjacency();
+    let pair = null;
+    for (const region of context.window.ORBIS_STATES_DB) {
+      if (!isLand(region) || !sphere.has(holder(region))) continue;
+      const target = [...(adjacency.get(region.id) || [])].map(db).find(item => isLand(item) && holder(item) === 'china');
+      if (target) { pair = { origin: region, target }; break; }
+    }
+    assert.ok(pair, '日本陣営に隣接する中国領');
+    base.formations = [
+      { id: 'formation-test-attacker', nationId: 'japan', type: 'field', regionId: pair.origin.id, strength: 92, order: { kind: 'offensive', targetRegionId: pair.target.id, targetNationId: 'china' } },
+      { id: 'formation-test-defender', nationId: 'china', type: 'field', regionId: pair.target.id, strength: 70, order: { kind: 'defend' } }
+    ];
+    base.territories[pair.target.id] = 'china';
+    delete base.occupations[pair.origin.id];
+    delete base.conflicts[pair.origin.id];
+    delete base.occupations[pair.target.id];
+    delete base.conflicts[pair.target.id];
+    assert.equal(await api.restore(base), true);
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    assert.equal(after.territories[pair.target.id], 'japan', '攻勢側が対象州を占領する');
+    assert.ok(!after.formations.some(item => item.regionId === pair.target.id && item.nationId !== 'japan'), '占領州に敵部隊が残らない');
+    const resolution = after.articles.find(article => article.kind === 'resolution');
+    assert.ok(resolution.notes.some(note => note.includes('占領') || note.includes('奪還')), '占領がターン結果に残る');
+    assert.ok(resolution.notes.some(note => note.includes('退却') || note.includes('撃破または捕捉')), '退却または除去がターン結果に残る');
+  });
+
+  await check('隣接する自国・従属圏の陸州があれば防衛側はそこへ退却する', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(api.declareWar('china', '満州国境の戦線'), true);
+    const isLand = region => region && !region.isSea && !region.isSeaZone && region.type !== 'sea';
+    const db = id => context.window.ORBIS_STATES_DB.find(region => region.id === id);
+    const base = json(api.snapshot());
+    const holder = region => base.territories[region.id] || region.country;
+    const sphere = new Set(['japan']);
+    for (const [id, client] of Object.entries(base.clients || {})) if (client.sponsorId === 'japan' && !client.dissolved) sphere.add(id);
+    const chinaSphere = new Set(['china']);
+    for (const [id, client] of Object.entries(base.clients || {})) if (client.sponsorId === 'china' && !client.dissolved) chinaSphere.add(id);
+    const adjacency = api.landAdjacency();
+    let pair = null;
+    for (const region of context.window.ORBIS_STATES_DB) {
+      if (!isLand(region) || !sphere.has(holder(region))) continue;
+      const target = [...(adjacency.get(region.id) || [])].map(db).find(item => isLand(item) && holder(item) === 'china'
+        && [...(adjacency.get(item.id) || [])].map(db).some(next => isLand(next) && next.id !== region.id && chinaSphere.has(holder(next))));
+      if (target) { pair = { origin: region, target }; break; }
+    }
+    assert.ok(pair, '退却先となる中国側の隣接州がある前線');
+    base.formations = [
+      { id: 'formation-test-attacker', nationId: 'japan', type: 'field', regionId: pair.origin.id, strength: 92, order: { kind: 'offensive', targetRegionId: pair.target.id, targetNationId: 'china' } },
+      { id: 'formation-test-defender', nationId: 'china', type: 'field', regionId: pair.target.id, strength: 70, order: { kind: 'defend' } }
+    ];
+    base.territories[pair.target.id] = 'china';
+    delete base.occupations[pair.target.id];
+    delete base.conflicts[pair.target.id];
+    assert.equal(await api.restore(base), true);
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    const defender = after.formations.find(item => item.id === 'formation-test-defender');
+    assert.ok(defender, '防衛側部隊は退却して残る');
+    assert.notEqual(defender.regionId, pair.target.id, '占領州から離れる');
+    assert.ok((api.landAdjacency().get(pair.target.id) || new Set()).has(defender.regionId), '退却先は陸続きの隣接州');
+    const destinationHolder = after.territories[defender.regionId] || db(defender.regionId).country;
+    assert.ok(chinaSphere.has(destinationHolder), `退却先は自国または従属圏 (${destinationHolder})`);
+    assert.equal(defender.order.kind, 'defend', '退却後は防御へ切り替える');
+    const resolution = after.articles.find(article => article.kind === 'resolution');
+    assert.ok(resolution.notes.some(note => note.includes('退却') && note.includes('中国')), '退却先がターン結果に残る');
+  });
+
+  await check('退却先が無ければ防衛側部隊は撃破または捕捉され編成から除かれる', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(api.declareWar('china', '満州国境の戦線'), true);
+    const isLand = region => region && !region.isSea && !region.isSeaZone && region.type !== 'sea';
+    const db = id => context.window.ORBIS_STATES_DB.find(region => region.id === id);
+    const base = json(api.snapshot());
+    const holder = region => base.territories[region.id] || region.country;
+    const sphere = new Set(['japan']);
+    for (const [id, client] of Object.entries(base.clients || {})) if (client.sponsorId === 'japan' && !client.dissolved) sphere.add(id);
+    const adjacency = api.landAdjacency();
+    let pair = null;
+    for (const region of context.window.ORBIS_STATES_DB) {
+      if (!isLand(region) || !sphere.has(holder(region))) continue;
+      const target = [...(adjacency.get(region.id) || [])].map(db).find(item => isLand(item) && holder(item) === 'china');
+      if (target) { pair = { origin: region, target }; break; }
+    }
+    assert.ok(pair, '日本陣営に隣接する中国領');
+    for (const neighborId of adjacency.get(pair.target.id) || []) {
+      const neighbor = db(neighborId);
+      if (!isLand(neighbor)) continue;
+      base.territories[neighborId] = 'japan';
+      delete base.occupations[neighborId];
+      delete base.conflicts[neighborId];
+    }
+    base.formations = [
+      { id: 'formation-test-attacker', nationId: 'japan', type: 'field', regionId: pair.origin.id, strength: 92, order: { kind: 'offensive', targetRegionId: pair.target.id, targetNationId: 'china' } },
+      { id: 'formation-test-defender', nationId: 'china', type: 'field', regionId: pair.target.id, strength: 70, order: { kind: 'defend' } }
+    ];
+    base.territories[pair.target.id] = 'china';
+    delete base.occupations[pair.target.id];
+    delete base.conflicts[pair.target.id];
+    assert.equal(await api.restore(base), true);
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    assert.equal(after.territories[pair.target.id], 'japan', '攻勢側が対象州を占領する');
+    assert.ok(!after.formations.some(item => item.id === 'formation-test-defender'), '退却先のない防衛側部隊は編成から除かれる');
+    assert.ok(!after.formations.some(item => item.regionId === pair.target.id && item.nationId !== 'japan'), '占領州に敵部隊が残らない');
+    const resolution = after.articles.find(article => article.kind === 'resolution');
+    assert.ok(resolution.notes.some(note => note.includes('撃破または捕捉') && note.includes('中国')), '撃破または捕捉がターン結果に残る');
   });
 
   await check('満洲から江蘇省への攻勢は1ターンで飛ばず、隣接1州までに留まる', async () => {
@@ -1618,7 +1742,7 @@ try {
     await assert.rejects(oldApi.restore(broken), /部隊|配列/);
   });
 
-  await check('国際戦争中にNPCは自部隊へ命令を出し、プレイヤー部隊は自動命令されない', async () => {
+  await check('国際戦争中にNPCは自部隊へ命令を出し、プレイヤー部隊へ自動攻勢命令を出さない', async () => {
     const { api } = harness();
     await begin(api);
     assert.equal(api.declareWar('china', '満州国境の戦線'), true);
@@ -1635,8 +1759,13 @@ try {
     for (const formation of playerAfter) {
       const previous = playerBefore.find(item => item.id === formation.id);
       assert.ok(previous);
-      assert.equal(formation.order, null, 'プレイヤー部隊に自動命令が付かない');
-      assert.equal(formation.regionId, previous.regionId, 'プレイヤー部隊は自動で前進しない');
+      assert.notEqual(formation.order?.kind, 'offensive', 'プレイヤー部隊に自動攻勢命令が付かない');
+      if (formation.regionId !== previous.regionId) {
+        assert.equal(formation.order?.kind, 'defend', '占領された州から退却したプレイヤー部隊は防御へ切り替える');
+        assert.ok((api.landAdjacency().get(previous.regionId) || new Set()).has(formation.regionId), 'プレイヤー部隊の退却も隣接1州まで');
+      } else {
+        assert.equal(formation.order, null, 'その場に残るプレイヤー部隊に自動命令が付かない');
+      }
     }
     const chinaAfter = after.formations.filter(item => item.nationId === 'china');
     assert.ok(chinaAfter.every(item => ['defend', 'offensive'].includes(item.order?.kind)), 'NPC全部に防御か攻勢が付く');

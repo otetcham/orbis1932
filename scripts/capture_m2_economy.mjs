@@ -119,27 +119,28 @@ const npcResult = await page.evaluate(before => {
   const snapshot = Orbis.snapshot();
   const adjacency = Orbis.landAdjacency();
   const db = id => window.ORBIS_STATES_DB.find(region => region.id === id);
-  const playersMoved = snapshot.formations.filter(formation => {
-    if (formation.nationId !== 'japan') return false;
+  const beforeHolder = id => before.territories[id] || db(id)?.country;
+  const afterHolder = id => snapshot.territories[id] || db(id)?.country;
+  const movement = formation => {
     const previous = before.formations.find(item => item.id === formation.id);
-    return previous && previous.regionId !== formation.regionId;
-  });
-  const moved = snapshot.formations.filter(formation => {
-    if (formation.nationId === 'japan') return false;
-    const previous = before.formations.find(item => item.id === formation.id);
-    return previous && previous.regionId !== formation.regionId;
-  }).map(formation => {
-    const previous = before.formations.find(item => item.id === formation.id);
+    if (!previous || previous.regionId === formation.regionId) return null;
     return {
       id: formation.id,
       nationId: formation.nationId,
       from: previous.regionId,
       to: formation.regionId,
       adjacent: (adjacency.get(previous.regionId) || new Set()).has(formation.regionId),
+      fromHolderAfter: afterHolder(previous.regionId),
+      toHolderBefore: beforeHolder(formation.regionId),
+      toHolderAfter: afterHolder(formation.regionId),
+      order: formation.order,
       region: db(formation.regionId)
     };
-  });
-  const target = moved[0];
+  };
+  const moved = snapshot.formations.map(movement).filter(Boolean);
+  const playerAdvances = moved.filter(item => item.nationId === 'japan' && item.toHolderBefore !== 'japan' && item.toHolderAfter === 'japan');
+  const npcAdvances = moved.filter(item => item.nationId !== 'japan' && item.toHolderBefore !== item.nationId && item.toHolderAfter === item.nationId);
+  const target = npcAdvances[0];
   if (target) {
     state.globe.lon = target.region?.lon ?? state.globe.lon;
     state.globe.lat = target.region?.lat ?? state.globe.lat;
@@ -147,14 +148,38 @@ const npcResult = await page.evaluate(before => {
     updateMapVisuals();
     handleStateSelect(target.to);
   }
-  return { moved, playersMoved, target };
+  return { moved, playerAdvances, npcAdvances, target };
 }, npcBefore);
-if (npcResult.playersMoved.length) throw new Error('プレイヤー部隊が自動で前進しています。');
+if (npcResult.playerAdvances.length) throw new Error('プレイヤー部隊が自動で前進しています。');
 if (!npcResult.target) throw new Error('NPCの攻勢による前進がありませんでした。');
 if (!npcResult.target.adjacent) throw new Error('NPCが隣接しない州へ前進しています。');
 if (npcResult.target.to === 'china_cn_js') throw new Error('NPCが南京付近へ飛んでいます。');
-const movedPastOne = npcResult.moved.some(item => !item.adjacent);
+const movedPastOne = npcResult.npcAdvances.some(item => !item.adjacent);
 if (movedPastOne) throw new Error('NPCの前進が1州を超えています。');
+const npcTargetState = await page.evaluate(target => {
+  const snapshot = Orbis.snapshot();
+  const db = id => window.ORBIS_STATES_DB.find(region => region.id === id);
+  const region = db(target.to);
+  const holder = snapshot.territories[target.to] || region?.country;
+  const party = nationId => {
+    const ids = [nationId];
+    let current = nationId;
+    for (let depth = 0; depth < 6; depth++) {
+      const client = snapshot.clients?.[current];
+      if (!client || client.dissolved || client.independent || client.annexed || !client.sponsorId) break;
+      if (ids.includes(client.sponsorId)) break;
+      ids.push(client.sponsorId);
+      current = client.sponsorId;
+    }
+    return ids;
+  };
+  const atWar = (a, b) => Object.values(snapshot.wars || {}).some(war => war.status === 'active'
+    && ((war.attacker === a && war.defender === b) || (war.attacker === b && war.defender === a)));
+  const hostile = (a, b) => party(a).some(left => party(b).some(right => atWar(left, right)));
+  const occupants = snapshot.formations.filter(item => item.regionId === target.to).map(item => ({ id: item.id, nationId: item.nationId }));
+  return { holder, occupants, enemies: occupants.filter(item => item.nationId !== holder && hostile(holder, item.nationId)) };
+}, npcResult.target);
+if (npcTargetState.enemies.length) throw new Error(`占領州に敵部隊が同居しています: ${npcTargetState.enemies.map(item => item.id).join(', ')}`);
 await page.evaluate(() => {
   const toast = document.getElementById('game-toast');
   if (toast) toast.hidden = true;
@@ -163,9 +188,9 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(700);
 await page.screenshot({ path: `${artifactDir}/npc-offensive.png`, fullPage: false });
-console.log(`npc-offensive: ${npcResult.target.nationId} ${npcResult.target.from} -> ${npcResult.target.to} (${npcResult.target.region?.nameJa || ''})`);
+console.log(`npc-offensive: ${npcResult.target.nationId} ${npcResult.target.from} -> ${npcResult.target.to} (${npcResult.target.region?.nameJa || ''}), 支配 ${npcTargetState.holder}, 同居敵部隊 ${npcTargetState.enemies.length}`);
 
-// 3. 補給が伸びた部隊と孤立した部隊。占領地の連なりを作り、パネルに表示する。
+// 3. 補給の十分・伸びた・不足・孤立を並べ、明るいパネル上で読めることを確認する。
 const supplyPlan = await page.evaluate(() => {
   const snapshot = Orbis.snapshot();
   const adjacency = Orbis.landAdjacency();
@@ -176,56 +201,93 @@ const supplyPlan = await page.evaluate(() => {
   for (const [id, client] of Object.entries(snapshot.clients || {})) {
     if (client.sponsorId === 'japan' && !client.dissolved) sphere.add(id);
   }
-  let chain = null;
+  const chinaSphere = new Set(['china']);
+  for (const [id, client] of Object.entries(snapshot.clients || {})) {
+    if (client.sponsorId === 'china' && !client.dissolved) chinaSphere.add(id);
+  }
+  const preferred = region => chinaSphere.has(holder(region)) || region.country === 'china';
+  const firstCandidates = [];
   for (const region of window.ORBIS_STATES_DB) {
     if (!isLand(region) || !sphere.has(holder(region))) continue;
     for (const firstId of adjacency.get(region.id) || []) {
       const first = db(firstId);
-      if (!isLand(first) || holder(first) !== 'china') continue;
-      const previous = new Map([[firstId, null]]);
-      const queue = [[firstId, 1]];
-      let last = null;
-      while (queue.length) {
-        const [id, depth] = queue.shift();
-        if (depth >= 6) { last = id; break; }
-        for (const nextId of adjacency.get(id) || []) {
-          const next = db(nextId);
-          if (!isLand(next) || holder(next) !== 'china' || previous.has(nextId)) continue;
-          previous.set(nextId, id);
-          queue.push([nextId, depth + 1]);
-        }
-      }
-      if (!last) continue;
-      const path = [];
-      for (let current = last; current; current = previous.get(current)) path.unshift(current);
-      chain = path;
-      break;
+      if (!isLand(first) || sphere.has(holder(first)) || !preferred(first) || firstCandidates.includes(firstId)) continue;
+      firstCandidates.push(firstId);
     }
-    if (chain) break;
   }
-  if (!chain) return { ok: false };
+  let searchBudget = 240000;
+  const findChain = (firstId, targetLength) => {
+    const path = [firstId];
+    const visited = new Set([firstId]);
+    const dfs = () => {
+      if (path.length >= targetLength) return true;
+      if (--searchBudget < 0) return false;
+      const last = path[path.length - 1];
+      const options = [...(adjacency.get(last) || [])]
+        .map(db)
+        .filter(region => isLand(region) && !sphere.has(holder(region)) && !visited.has(region.id)
+          && !path.slice(0, -1).some(prevId => (adjacency.get(prevId) || new Set()).has(region.id)));
+      options.sort((a, b) => {
+        const preference = (preferred(a) ? 0 : 1) - (preferred(b) ? 0 : 1);
+        if (preference) return preference;
+        const degree = (adjacency.get(a.id)?.size || 0) - (adjacency.get(b.id)?.size || 0);
+        return degree || (a.lon || 0) - (b.lon || 0);
+      });
+      for (const next of options) {
+        visited.add(next.id);
+        path.push(next.id);
+        if (dfs()) return true;
+        path.pop();
+        visited.delete(next.id);
+        if (searchBudget < 0) return false;
+      }
+      return false;
+    };
+    return dfs() ? path.slice() : null;
+  };
+  let chain = null;
+  for (const targetLength of [12, 11, 10, 9]) {
+    for (const firstId of firstCandidates) {
+      chain = findChain(firstId, targetLength);
+      if (chain) break;
+      if (searchBudget < 0) break;
+    }
+    if (chain || searchBudget < 0) break;
+  }
+  if (!chain || chain.length < 6) return { ok: false };
   for (const id of chain) {
+    const originalHolder = holder(db(id));
     snapshot.territories[id] = 'japan';
-    snapshot.occupations[id] = 'china';
-    snapshot.conflicts[id] = { attacker: 'japan', defender: 'china', months: 1, reason: '補給線の突出' };
+    snapshot.occupations[id] = originalHolder;
+    snapshot.conflicts[id] = { attacker: 'japan', defender: originalHolder, months: 1, reason: '補給線の突出' };
   }
   const isolatedRegion = window.ORBIS_STATES_DB.find(region => isLand(region) && (snapshot.territories[region.id] || region.country) === 'china' && !chain.includes(region.id));
   if (!isolatedRegion) return { ok: false };
-  const stretchedRegion = chain[chain.length - 1];
-  snapshot.formations = snapshot.formations.filter(formation => !['formation-test-stretched', 'formation-test-isolated'].includes(formation.id));
+  const fullRegion = chain[0];
+  const stretchedRegion = chain[Math.min(5, chain.length - 1)];
+  const lowRegion = chain.length >= 9 ? chain[chain.length - 1] : null;
+  snapshot.formations = snapshot.formations.filter(formation => formation.nationId !== 'japan');
+  snapshot.formations.push({ id: 'formation-test-full', nationId: 'japan', type: 'field', regionId: fullRegion, strength: 90, order: { kind: 'defend' } });
   snapshot.formations.push({ id: 'formation-test-stretched', nationId: 'japan', type: 'field', regionId: stretchedRegion, strength: 82, order: { kind: 'defend' } });
+  if (lowRegion) snapshot.formations.push({ id: 'formation-test-low', nationId: 'japan', type: 'field', regionId: lowRegion, strength: 68, order: { kind: 'defend' } });
   snapshot.formations.push({ id: 'formation-test-isolated', nationId: 'japan', type: 'field', regionId: isolatedRegion.id, strength: 76, order: { kind: 'defend' } });
-  return { ok: true, snapshot, chain, stretchedRegion, isolatedRegion: isolatedRegion.id };
+  return { ok: true, snapshot, chain, fullRegion, stretchedRegion, lowRegion, isolatedRegion: isolatedRegion.id };
 });
 if (!supplyPlan.ok) throw new Error('補給の突出シナリオを作成できませんでした。');
+console.log(`supply-plan: 経路 ${supplyPlan.chain.length}州, 不足州 ${supplyPlan.lowRegion || 'なし'}`);
+console.log(`supply-chain: ${supplyPlan.chain.join(' -> ')}`);
 await page.evaluate(plan => Orbis.restore(plan.snapshot), supplyPlan);
 await page.waitForFunction(() => Orbis.snapshot()?.formations.some(item => item.id === 'formation-test-stretched'));
-const supplyState = await page.evaluate(() => ({
+const supplyState = await page.evaluate(hasLow => ({
+  full: Orbis.formationSupply('formation-test-full'),
   stretched: Orbis.formationSupply('formation-test-stretched'),
+  low: hasLow ? Orbis.formationSupply('formation-test-low') : null,
   isolated: Orbis.formationSupply('formation-test-isolated')
-}));
-if (supplyState.stretched.status === 'full') throw new Error('突出部隊の補給が十分のままです。');
-if (supplyState.isolated.status !== 'isolated') throw new Error('孤立部隊の補給が不足になっていません。');
+}), Boolean(supplyPlan.lowRegion));
+if (supplyState.full.status !== 'full') throw new Error(`十分の補給バッジを作れませんでした (${supplyState.full.status})`);
+if (supplyState.stretched.status !== 'stretched') throw new Error(`伸びた補給バッジを作れませんでした (${supplyState.stretched.status})`);
+if (supplyState.low && supplyState.low.status !== 'low') throw new Error(`不足の補給バッジを作れませんでした (${supplyState.low.status})`);
+if (supplyState.isolated.status !== 'isolated') throw new Error('孤立部隊の補給が孤立になっていません。');
 await page.evaluate(() => {
   document.querySelector('[data-close-dialog="modal-war-panel"]')?.click();
   document.getElementById('state-inspector')?.classList.remove('open');
@@ -233,16 +295,23 @@ await page.evaluate(() => {
 });
 await page.waitForFunction(() => document.getElementById('modal-economy')?.open);
 await page.waitForTimeout(400);
-const scrolled = await page.evaluate(() => {
-  const badge = [...document.querySelectorAll('#economy-panel-body .supply-badge')].find(node => node.textContent.includes('伸びた'));
+const scrolled = await page.evaluate(hasLow => {
+  const badge = [...document.querySelectorAll('#economy-panel-body .supply-badge')].find(node => node.textContent.includes(hasLow ? '不足' : '伸びた'));
   const card = badge?.closest('.formation-row');
   card?.scrollIntoView({ block: 'center' });
   return Boolean(card);
-});
-if (!scrolled) throw new Error('補給が伸びた部隊がパネルに表示されませんでした。');
+}, Boolean(supplyPlan.lowRegion));
+if (!scrolled) throw new Error('補給バッジがパネルに表示されませんでした。');
+const badgeContrast = await page.evaluate(() => [...document.querySelectorAll('#economy-panel-body .supply-badge')].map(node => {
+  const style = getComputedStyle(node);
+  return { className: node.className, text: node.textContent, color: style.color, background: style.backgroundColor, border: style.borderColor };
+}));
+if (badgeContrast.length < 4) throw new Error(`補給バッジが4状態そろっていません (${badgeContrast.length})`);
+await page.setViewportSize({ width: 1440, height: 1000 });
 await page.waitForTimeout(400);
 await page.screenshot({ path: `${artifactDir}/supply-stretched.png`, fullPage: false });
-console.log(`supply-stretched: 伸びた ${supplyState.stretched.label} (距離 ${supplyState.stretched.distance}), 孤立 ${supplyState.isolated.label}`);
+console.log(`supply-stretched: 十分 ${supplyState.full.label} (距離 ${supplyState.full.distance}), 伸びた ${supplyState.stretched.label} (距離 ${supplyState.stretched.distance}), 不足 ${supplyState.low?.label || 'なし'}, 孤立 ${supplyState.isolated.label}`);
+console.log(`badges: ${badgeContrast.map(item => `${item.text.replace(/\s+/g, ' ')} [${item.background} / ${item.color}]`).join(' / ')}`);
 
 if (consoleErrors.length) {
   console.error('Console errors:');

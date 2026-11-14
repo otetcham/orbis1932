@@ -1527,6 +1527,82 @@ const Orbis = (() => {
     return null;
   }
 
+  // 退却先として扱える自国・宗主国・従属圏を双方向にたどる。
+  function formationFriendlyNations(game, nationId) {
+    const ids = new Set([nationId]);
+    let current = nationId;
+    for (let depth = 0; depth < 6; depth++) {
+      const client = game?.clients?.[current];
+      if (!client || client.dissolved || client.independent || client.annexed || !client.sponsorId) break;
+      if (ids.has(client.sponsorId)) break;
+      ids.add(client.sponsorId);
+      current = client.sponsorId;
+    }
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [clientId, client] of Object.entries(game?.clients || {})) {
+        if (!client || client.dissolved || client.independent || client.annexed) continue;
+        if (ids.has(client.sponsorId) && !ids.has(clientId)) {
+          ids.add(clientId);
+          changed = true;
+        }
+      }
+    }
+    return ids;
+  }
+
+  function retreatRegionScore(game, formation, region, friendlies, adjacency) {
+    const supply = regionSupplyInfo(game, region.id, formation.nationId);
+    const hostileNeighbors = [...(adjacency.get(region.id) || [])].filter(id => {
+      const neighbor = regionById(id);
+      if (!isLandRegion(neighbor)) return false;
+      const holder = regionHolder(game, neighbor);
+      return !friendlies.has(holder) && warEnemyAgainst(game, formation.nationId, holder);
+    }).length;
+    const contested = game.formations.some(item => item && item !== formation && item.regionId === region.id
+      && item.nationId !== formation.nationId && warEnemyAgainst(game, formation.nationId, item.nationId));
+    return { supply, hostileNeighbors, contested };
+  }
+
+  function pickRetreatRegion(game, formation, capturedRegion) {
+    const friendlies = formationFriendlyNations(game, formation.nationId);
+    const adjacency = landAdjacency();
+    const candidates = [...(adjacency.get(capturedRegion.id) || [])]
+      .map(regionById)
+      .filter(region => region && region.id !== capturedRegion.id && isLandRegion(region) && friendlies.has(regionHolder(game, region)));
+    if (!candidates.length) return null;
+    return candidates
+      .map(region => ({ region, ...retreatRegionScore(game, formation, region, friendlies, adjacency) }))
+      .sort((a, b) => {
+        if (a.contested !== b.contested) return a.contested ? 1 : -1;
+        if (a.supply.level !== b.supply.level) return b.supply.level - a.supply.level;
+        if (a.hostileNeighbors !== b.hostileNeighbors) return a.hostileNeighbors - b.hostileNeighbors;
+        return (b.region.vp || 0) - (a.region.vp || 0);
+      })[0].region;
+  }
+
+  // 占領・奪還の副作用として、新しい支配者の敵部隊を隣接する友邦陸州へ退かす。
+  // 退却先がなければ捕捉・撃破して編成から除く。追加の占領は行わない。
+  function retreatEnemyFormations(game, region, newHolderId, notes = []) {
+    const defenders = game.formations.filter(formation => formation && formation.regionId === region.id
+      && formation.nationId !== newHolderId
+      && warEnemyAgainst(game, newHolderId, formation.nationId));
+    for (const formation of defenders) {
+      const destination = pickRetreatRegion(game, formation, region);
+      const label = `${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}`;
+      if (destination) {
+        formation.regionId = destination.id;
+        formation.order = { kind: 'defend' };
+        notes.push(`${label}は${regionLabel(region)}から${regionLabel(destination)}へ退却。`);
+      } else {
+        const index = game.formations.indexOf(formation);
+        if (index >= 0) game.formations.splice(index, 1);
+        notes.push(`${label}は${regionLabel(region)}で撃破または捕捉され、編成から除去。`);
+      }
+    }
+  }
+
   // 攻勢は目標そのものではなく、現在地に陸続きで隣接する敵陸州をたかだか1つ選ぶ。
   function pickFormationAdvance(game, formation, target, targetNation) {
     const candidates = adjacentLandRegions(formation.regionId)
@@ -1605,8 +1681,8 @@ const Orbis = (() => {
 
   function resolveFormationFronts(game, notes = []) {
     if (!Array.isArray(game.formations)) return;
-    for (const formation of game.formations) {
-      if (!formation) continue;
+    for (const formation of game.formations.slice()) {
+      if (!formation || !game.formations.includes(formation)) continue;
       const supply = formationSupplyInfo(game, formation);
       formation.supply = supply.level;
       formation.supplyStatus = supply.status;
@@ -1659,6 +1735,7 @@ const Orbis = (() => {
       formation.strength = Math.max(20, (formation.strength || 50) - 2 - (supply.level < 70 ? 1 : 0));
       notes.push(liberated ? `${regionLabel(step)}を${shortName(formation.nationId)}が奪還。` : `${regionLabel(step)}を${shortName(formation.nationId)}が占領。`);
       notes.push(`${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}が${regionLabel(step)}方面へ前進（戦力 ${formation.strength}）。`);
+      retreatEnemyFormations(game, step, formation.nationId, notes);
       if (target.id === step.id) {
         const next = adjacentLandRegions(formation.regionId)
           .filter(region => formationEnemyAt(game, formation, region))
