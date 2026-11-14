@@ -153,7 +153,7 @@ await browser.close();
 await server.close();
 
 const report = {
-  milestone: 'M7 製品化の下地',
+  milestone: 'M8c バランスとモック通しプレイ QA',
   version: dist.version,
   measuredAt: new Date().toISOString(),
   mock: {

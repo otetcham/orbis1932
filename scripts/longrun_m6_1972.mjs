@@ -29,7 +29,7 @@ const opening = () => ({
   telegrams: [{ actorId: 'adviser', subject: '情勢', text: '今半月の方針を確認します。', urgency: 'routine', choices: [{ label: '了承', text: '了解した。' }, { label: '保留', text: '検討する。' }] }],
 });
 
-function dateLabel(halfIndex) {
+export function dateLabel(halfIndex) {
   const index = Math.max(0, Math.floor(Number(halfIndex) || 0));
   const monthIndex = Math.floor(index / 2);
   const m0 = 2 + monthIndex;
@@ -39,7 +39,7 @@ function dateLabel(halfIndex) {
   return `${year}年${month}月（${half}）`;
 }
 
-async function startMockServer() {
+export async function startMockServer(options = {}) {
   const server = createServer(async (request, response) => {
     try {
       let raw = '';
@@ -48,7 +48,8 @@ async function startMockServer() {
       const texts = (body.messages || []).filter(item => item.role === 'user').map(item => item.content);
       const payload = texts.map(value => { try { return JSON.parse(value); } catch { return null; } }).find(value => value?.operation);
       const operation = payload?.operation;
-      const data = operation === 'BRIEFING' ? opening() : operation === 'RESOLUTION' ? evaluation() : { ok: true };
+      const resolution = typeof options.evaluation === 'function' ? options.evaluation(payload) : evaluation();
+      const data = operation === 'BRIEFING' ? opening() : operation === 'RESOLUTION' ? resolution : { ok: true };
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(data) }, finish_reason: 'stop' }] }));
     } catch (error) {
@@ -60,7 +61,7 @@ async function startMockServer() {
   return { server, endpoint: `http://127.0.0.1:${server.address().port}` };
 }
 
-function createContext(endpoint) {
+export function createContext(endpoint) {
   const storage = new Map();
   const document = {
     getElementById: () => null,
@@ -84,7 +85,7 @@ function createContext(endpoint) {
   return { context, storage, endpoint };
 }
 
-async function loadGame(endpoint) {
+export async function loadGame(endpoint) {
   const html = await readFile(new URL('../orbis_simulator.html', import.meta.url), 'utf8');
   const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
   const preload = ['orbis_states.js', 'orbis_map_meta.js', 'orbis_region_labels.js'];
@@ -98,7 +99,7 @@ async function loadGame(endpoint) {
   return { api, context, storage };
 }
 
-function ownerCounts(snapshot, landRegions, baseOwner) {
+export function ownerCounts(snapshot, landRegions, baseOwner) {
   const owners = new Map();
   const counts = new Map();
   for (const region of landRegions) {
@@ -109,15 +110,15 @@ function ownerCounts(snapshot, landRegions, baseOwner) {
   return { owners, counts };
 }
 
-function topOwners(counts, limit = 3) {
+export function topOwners(counts, limit = 3) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit).map(([nationId, landStates]) => ({ nationId, landStates }));
 }
 
-function ownerMap(snapshot, landRegions) {
+export function ownerMap(snapshot, landRegions) {
   return new Map(landRegions.map(region => [region.id, snapshot.territories[region.id] || region.country]));
 }
 
-function changedTerritoryCount(snapshot, landRegions, startOwners) {
+export function changedTerritoryCount(snapshot, landRegions, startOwners) {
   if (!startOwners) return 0;
   let changed = 0;
   for (const region of landRegions) {
@@ -128,7 +129,7 @@ function changedTerritoryCount(snapshot, landRegions, startOwners) {
   return changed;
 }
 
-function worldArcReport(snapshot) {
+export function worldArcReport(snapshot) {
   const log = Array.isArray(snapshot.worldArcs?.log) ? snapshot.worldArcs.log : [];
   const fired = log.filter(entry => entry.status === 'fired').map(entry => ({
     id: entry.id,
@@ -151,7 +152,7 @@ function worldArcReport(snapshot) {
   return { fired, states, total: fired.length };
 }
 
-function independenceReport(snapshot) {
+export function independenceReport(snapshot) {
   const ids = Object.entries(snapshot.nations || {})
     .filter(([, nation]) => nation && !nation.dissolved && !nation.suzerain)
     .map(([id]) => id)
@@ -163,7 +164,7 @@ function holderOf(snapshot, region) {
   return snapshot.territories?.[region.id] || region.country;
 }
 
-function nationLandCount(snapshot, landRegions, nationId) {
+export function nationLandCount(snapshot, landRegions, nationId) {
   return landRegions.reduce((sum, region) => sum + (holderOf(snapshot, region) === nationId ? 1 : 0), 0);
 }
 
@@ -201,7 +202,7 @@ function decolonizationReport(snapshot, landRegions, startOwners, startSuzerain 
   return result;
 }
 
-function postwarReport(snapshot, landRegions, startOwners, startSuzerain = {}) {
+export function postwarReport(snapshot, landRegions, startOwners, startSuzerain = {}) {
   const countByCountry = countryId => landRegions.filter(region => region.country === countryId).length;
   const restoredHeld = countryId => landRegions.filter(region => region.country === countryId && holderOf(snapshot, region) === countryId).length;
   const germanyHeldBy = countryId => landRegions.filter(region => region.country === countryId && holderOf(snapshot, region) === 'germany').length;
@@ -276,7 +277,7 @@ function postwarReport(snapshot, landRegions, startOwners, startSuzerain = {}) {
   };
 }
 
-function warStats(snapshot) {
+export function warStats(snapshot) {
   const wars = Object.values(snapshot.wars || {});
   return {
     activeWars: wars.filter(war => war.status === 'active').length,
@@ -286,7 +287,7 @@ function warStats(snapshot) {
   };
 }
 
-function checkInvariants(snapshot, label) {
+export function checkInvariants(snapshot, label) {
   const failures = [];
   const finiteNonNegative = (value, name) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) failures.push(`${label}: ${name}=${String(value)}`);

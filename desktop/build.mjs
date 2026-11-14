@@ -14,7 +14,7 @@ const desktopDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(desktopDir, '..');
 const appDir = path.join(desktopDir, 'app');
 const releaseDir = path.join(desktopDir, 'release');
-const verifyDir = '/workspace/pm/orbis1932/m7';
+const verifyDir = '/workspace/pm/orbis1932/m8c';
 
 const dist = await buildDist({ root });
 await rm(appDir, { recursive: true, force: true });

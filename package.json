@@ -1,11 +1,13 @@
 {
   "name": "orbis1932",
-  "version": "0.7.0",
+  "version": "1.0.0-rc1",
   "private": true,
   "type": "module",
   "scripts": {
     "build:dist": "node scripts/build_dist.mjs",
     "test": "node orbis_simulator.test.mjs",
+    "playthrough:m8c": "node scripts/playthrough_m8c_1972.mjs",
+    "capture:m8c": "node scripts/capture_m8c_qa.mjs",
     "perf:m7": "node scripts/measure_m7_perf.mjs",
     "capture:m7": "node scripts/capture_m7_productization.mjs"
   },
