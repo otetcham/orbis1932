@@ -56,7 +56,7 @@ const ctx = vm.createContext({
 ctx.window = ctx;
 for (const f of ['orbis_states.js', 'orbis_map_meta.js']) vm.runInContext(await readFile(new URL(`../${f}`, import.meta.url), 'utf8'), ctx);
 for (const s of inlineScripts) if (s.trim()) vm.runInContext(s, ctx);
-for (const f of ['orbis_region_labels.js', 'orbis_events.js', 'orbis_campaign_core.js', 'orbis_timeline_engine.js', 'orbis_turn_playback.js', 'orbis_game.js']) {
+for (const f of ['orbis_region_labels.js', 'orbis_events.js', 'orbis_campaign_core.js', 'orbis_timeline_engine.js', 'orbis_turn_playback.js', 'orbis_focus.js', 'orbis_game.js']) {
   vm.runInContext(await readFile(new URL(`../${f}`, import.meta.url), 'utf8'), ctx);
 }
 const api = vm.runInContext('Orbis', ctx);

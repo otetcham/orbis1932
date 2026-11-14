@@ -38,7 +38,7 @@ const endpoint = `http://127.0.0.1:${server.address().port}`;
 
 const html = await readFile(new URL('../orbis_simulator.html', import.meta.url), 'utf8');
 const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
-const files = ['orbis_states.js', 'orbis_map_meta.js', 'orbis_events.js', 'orbis_campaign_core.js', 'orbis_timeline_engine.js', 'orbis_turn_playback.js', 'orbis_game.js'];
+const files = ['orbis_states.js', 'orbis_map_meta.js', 'orbis_events.js', 'orbis_campaign_core.js', 'orbis_timeline_engine.js', 'orbis_turn_playback.js', 'orbis_focus.js', 'orbis_game.js'];
 const ctx = vm.createContext({
   console, fetch, URL, Blob, AbortController, crypto: webcrypto,
   setTimeout, clearTimeout, setInterval, clearInterval,

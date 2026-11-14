@@ -896,6 +896,42 @@ html, body {
 .focus-branch { margin-top: 18px; }
 .focus-branch h3 { margin-bottom: 4px; font-size: 13px; color: #16283e; }
 .focus-branch > p { margin-bottom: 8px; }
+#modal-focus { width: min(1280px, calc(100vw - 24px)); }
+.focus-graph-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.focus-graph-head > p { margin: 0; }
+.focus-legend { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 9.5px; color: #3d5570; }
+.focus-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.focus-legend-item i { width: 18px; height: 4px; border-radius: 999px; background: #94a3b8; display: inline-block; }
+.focus-legend-item.path-historical i { background: #1f7a4d; }
+.focus-legend-item.path-alt1 i { background: #b45309; }
+.focus-legend-item.path-alt2 i { background: #7c3aed; }
+.focus-legend-item.path-common i { background: #64748b; }
+.focus-graph-scroll { position: relative; overflow: auto; max-height: 60dvh; border: 1px solid #d3dfec; border-radius: 9px; background: #f8fafd; padding: 6px; }
+.focus-graph { position: relative; background-image: linear-gradient(#e7eef7 1px, transparent 1px), linear-gradient(90deg, #e7eef7 1px, transparent 1px); background-size: 24px 24px; background-color: #fbfdff; border-radius: 6px; }
+.focus-graph-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.focus-edge { fill: none; stroke: #94a3b8; stroke-width: 1.7; opacity: 0.82; }
+.focus-edge.path-historical { stroke: #1f7a4d; }
+.focus-edge.path-alt1 { stroke: #b45309; }
+.focus-edge.path-alt2 { stroke: #7c3aed; }
+.focus-edge.path-common { stroke: #64748b; }
+.focus-node { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; padding: 8px 9px; border-left-width: 4px; overflow: hidden; }
+.focus-node.path-common { border-left-color: #64748b; }
+.focus-node.path-historical { border-left-color: #1f7a4d; }
+.focus-node.path-alt1 { border-left-color: #b45309; }
+.focus-node.path-alt2 { border-left-color: #7c3aed; }
+.focus-node.is-locked { opacity: 0.78; }
+.focus-node .focus-card-head { gap: 4px; align-items: center; }
+.focus-node .focus-card-head strong { font-size: 11px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.focus-node .focus-badge { font-size: 8px; padding: 0 5px; }
+.focus-node-meta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 8.5px; line-height: 1.25; color: #566d86; }
+.focus-exclusive-badge { padding: 0 4px; border-radius: 999px; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; font-size: 8px; font-weight: 700; }
+.focus-node .focus-desc { font-size: 9px; line-height: 1.32; color: #3d5570; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.focus-node .focus-lock { font-size: 8.5px; line-height: 1.25; color: #8a4b16; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.focus-node .focus-effects { margin: 0; padding: 2px 4px; font-size: 8px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.focus-node-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.focus-node-foot .focus-meta { font-size: 8px; }
+.focus-node-foot .btn { padding: 2px 6px; font-size: 8.5px; line-height: 1.2; }
+.focus-node-done { font-size: 8px; color: #1f7a4d; }
 .research-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 12px; }
 .research-branch { border: 1px solid #d3dfec; border-radius: 9px; background: #f8fafd; padding: 11px 12px; }
 .research-branch h3 { font-size: 13px; color: #16283e; margin-bottom: 3px; }
@@ -7572,6 +7608,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="orbis_timeline_engine.js?v=1932.17"></script>
 <script src="orbis_turn_playback.js?v=1932.17"></script>
 <script src="orbis_text.js?v=1932.17"></script>
+<script src="orbis_focus.js?v=1932.17"></script>
 <script src="orbis_game.js?v=1932.17"></script>
 
 </body>

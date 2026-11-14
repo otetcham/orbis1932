@@ -10,6 +10,7 @@ import { auditData } from './orbis_data_audit.mjs';
 import { buildDist } from './scripts/build_dist.mjs';
 import { runM7aLongRun } from './scripts/longrun_m7a_1972.mjs';
 import { runM7bLongRun } from './scripts/longrun_m7b_1972.mjs';
+import { runM8aLongRun } from './scripts/longrun_m8a_1972.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
@@ -17,6 +18,7 @@ const mapMetaSource = await readFile(new URL('./orbis_map_meta.js', import.meta.
 const coreSource = await readFile(new URL('./orbis_campaign_core.js', import.meta.url), 'utf8');
 const timelineSource = await readFile(new URL('./orbis_timeline_engine.js', import.meta.url), 'utf8');
 const playbackSource = await readFile(new URL('./orbis_turn_playback.js', import.meta.url), 'utf8');
+const focusSource = await readFile(new URL('./orbis_focus.js', import.meta.url), 'utf8');
 const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), 'utf8');
 const regionLabelsSource = await readFile(new URL('./orbis_region_labels.js', import.meta.url), 'utf8');
 const eventsSource = await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8');
@@ -99,6 +101,7 @@ function harness(provider = 'custom', sharedStorage = null) {
   vm.runInContext(coreSource, context, { timeout: 4000 });
   vm.runInContext(timelineSource, context, { timeout: 4000 });
   vm.runInContext(playbackSource, context, { timeout: 4000 });
+  vm.runInContext(focusSource, context, { timeout: 4000 });
   vm.runInContext(gameSource, context, { timeout: 4000 });
   const api = vm.runInContext('Orbis', context);
   const apiEndpoint = provider === 'gemini' ? `${endpoint}/gemini/v1beta` : `${endpoint}/${provider}`;
@@ -2583,10 +2586,15 @@ try {
     assert.equal(holder(land.find(region => region.id === 'japan_empire_twn')), 'china', '台湾が中国へ戻る');
     assert.equal(after.nations.manchukuo.dissolved, true, '満洲国が解体される');
     assert.equal(land.filter(region => holder(region) === 'manchukuo').length, 0, '満洲国の州が残らない');
-    assert.equal(after.clients.col_italy_libya.independent, true, 'イタリア領リビアが独立する');
-    assert.equal(after.clients.col_italy_eastafrica.independent, true, 'イタリア領東アフリカが独立する');
+    assert.equal(after.clients.col_italy_libya.independent, false, 'リビアは1951年まで独立しない');
+    assert.equal(after.clients.libya.trusteeship, true, 'リビアは信託統治へ移る');
+    assert.equal(holder(land.find(region => region.id === 'italy_libya')), 'libya', 'リビアはイタリア主権を失う');
+    assert.equal(after.clients.col_italy_eastafrica.independent, false, 'ソマリアは1960年まで独立しない');
+    assert.equal(after.clients.col_italy_eastafrica.trusteeship, true, 'ソマリアはイタリア信託統治');
     assert.equal(after.nations.ethiopia.dissolved, false, 'エチオピアが復活する');
     assert.ok(statesOf('ethiopia').every(region => holder(region) === 'ethiopia'), 'エチオピアの州がイタリアから戻る');
+    assert.equal(holder(land.find(region => region.id === 'italy_eritrea')), 'ethiopia', 'エリトリアはエチオピアへ移管');
+    assert.notEqual(holder(land.find(region => region.id === 'italy_somalia')), 'ethiopia', 'ソマリアはエチオピアへ渡さない');
   });
 
   await check('枢軸勝利の逸脱では征服結果を地図に残し、敗戦用の再編を適用しない', async () => {
@@ -2804,6 +2812,202 @@ try {
     assert.equal(saved.mode, 'mock-http');
     assert.equal(saved.startedNations.length, 2);
     assert.deepEqual(saved.totals.failures, []);
+  });
+
+  await check('8主要国の国策はそれぞれ25ノード以上ある', async () => {
+    const { api } = harness();
+    const trees = api.focusTrees();
+    for (const nationId of ['japan', 'usa', 'uk', 'france', 'germany', 'italy', 'russia', 'china']) {
+      const tree = trees[nationId];
+      assert.ok(tree, `${nationId} の国策ツリーがある`);
+      assert.ok(tree.focuses.length >= 25, `${nationId} の国策が25件以上 (${tree.focuses.length})`);
+      assert.equal(new Set(tree.focuses.map(focus => focus.id)).size, tree.focuses.length, `${nationId} の国策IDが一意`);
+      for (const focus of tree.focuses) {
+        assert.ok(focus.name && focus.desc && focus.effects, `${nationId}/${focus.id} の表示項目`);
+        for (const dependency of focus.requires || []) {
+          assert.ok(tree.focuses.some(item => item.id === dependency), `${nationId}/${focus.id} の前提 ${dependency} が存在`);
+        }
+      }
+    }
+  });
+
+  await check('各国に史実経路と2本の代替経路があり、戦後・冷戦ノードまでつながる', async () => {
+    const { api } = harness();
+    const trees = api.focusTrees();
+    for (const nationId of ['japan', 'usa', 'uk', 'france', 'germany', 'italy', 'russia', 'china']) {
+      const focuses = trees[nationId].focuses;
+      for (const path of ['historical', 'alt1', 'alt2']) {
+        const nodes = focuses.filter(focus => focus.path === path);
+        assert.ok(nodes.length >= 5, `${nationId}/${path} の経路ノード (${nodes.length})`);
+        assert.ok(nodes.some(focus => focus.era === 'postwar' || focus.era === 'coldwar'), `${nationId}/${path} が戦後・冷戦へ到達`);
+        const roots = nodes.filter(focus => (focus.requires || []).every(id => !nodes.some(node => node.id === id)));
+        assert.ok(roots.some(focus => focus.exclusive), `${nationId}/${path} に排他分岐の起点がある`);
+      }
+      const groups = new Set(focuses.filter(focus => focus.exclusive).map(focus => focus.exclusive));
+      for (const group of groups) {
+        assert.ok(focuses.filter(focus => focus.exclusive === group).length >= 2, `${nationId}/${group} が排他分岐`);
+        const paths = new Set(focuses.filter(focus => focus.exclusive === group).map(focus => focus.path));
+        assert.ok(paths.size >= 2, `${nationId}/${group} が複数経路に分かれる`);
+      }
+    }
+  });
+
+  await check('国策画面の描画データに前提を結ぶエッジがある', async () => {
+    const { api } = harness();
+    await begin(api);
+    const summary = api.focusSummary();
+    assert.ok(summary.graph && Array.isArray(summary.graph.edges));
+    assert.ok(summary.graph.edges.length > 0, '前提エッジがある');
+    assert.ok(summary.graph.edges.some(edge => edge.from === 'jp_manchukuo' && edge.to === 'jp_league_withdrawal'));
+    const ids = new Set(summary.focuses.map(focus => focus.id));
+    assert.ok(summary.graph.edges.every(edge => ids.has(edge.from) && ids.has(edge.to)), 'エッジの両端が実在する');
+    assert.ok(summary.focuses.every(focus => focus.pathLabel && focus.eraLabel), '経路と時代のタグがある');
+  });
+
+  await check('NPCは未分岐なら史実経路を選び、戦時の装備偏重で幹を捨てない', async () => {
+    const { api } = harness();
+    await begin(api);
+    const base = json(api.snapshot());
+    base.nationalFocus.uk.completed = ['uk_imperial_preference', 'uk_rearmament'];
+    base.nationalFocus.uk.current = null;
+    base.nationalFocus.uk.politicalPower = 300;
+    base.wars = { npc_focus_test: { attacker: 'uk', defender: 'germany', status: 'active', startedTurn: 0, reason: 'テスト戦争', goals: { attacker: [], defender: [] } } };
+    assert.equal(await api.restore(base), true);
+    assert.equal(await api.finishTurn(), true);
+    assert.equal(api.snapshot().nationalFocus.uk.current.id, 'uk_collective_security', '未分岐のNPCは史実経路を選ぶ');
+
+    const branched = json(base);
+    branched.nationalFocus.uk.completed = ['uk_imperial_preference', 'uk_appeasement'];
+    branched.nationalFocus.uk.current = null;
+    assert.equal(await api.restore(branched), true);
+    assert.equal(await api.finishTurn(), true);
+    assert.equal(api.snapshot().nationalFocus.uk.current.id, 'uk_negotiated_peace', '代替経路に入ったNPCはその経路を続ける');
+  });
+
+  await check('日本敗戦後、台湾は中華民国に残り、中国内戦の解決後も共産党側・反乱側にならない', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(api.forceWorldArc('ww2_end_pacific').status, 'fired');
+    let after = api.snapshot();
+    assert.equal(after.territories.japan_empire_twn, 'china', '敗戦処理で台湾は中華民国へ');
+    const civil = json(after);
+    civil.civilWars.china = { factionId: 'china_communist', label: '中国共産党', status: 'active', startedTurn: 0, halves: 0, holdUntil: 9999 };
+    civil.factions.china_communist = { parent: 'china', label: '中国共産党', color: '#c2410c' };
+    civil.briefing = {
+      headline: '中国内戦の進行', briefing: '台湾の帰属を確認するためのテスト用概況。',
+      telegrams: [
+        { actorId: 'adviser', subject: '内戦', text: '中国内戦の推移を確認します。', urgency: 'important', choices },
+        { actorId: 'domestic:ig_military', subject: '防衛', text: '台湾の防衛体制を協議します。', urgency: 'important', choices },
+        { actorId: 'ministry:usa', subject: '東アジア', text: '台湾海峡の安定について協議します。', urgency: 'important', choices }
+      ]
+    };
+    civil.phase = 'playing';
+    for (const regionId of ['cn_beijing', 'china_cn_sh', 'china_cn_js']) civil.territories[regionId] = 'china_communist';
+    assert.equal(await api.restore(civil), true);
+    for (let turn = 0; turn < 6; turn++) {
+      assert.equal(await api.finishTurn(), true);
+      assert.equal(api.snapshot().territories.japan_empire_twn, 'china', '内戦の進行中も台湾は中華民国保有');
+    }
+    assert.equal(api.forceWorldArc('china_civil_end').status, 'fired');
+    after = api.snapshot();
+    assert.equal(after.territories.japan_empire_twn, 'china', '内戦解決後も台湾は中華民国');
+    assert.notEqual(after.territories.japan_empire_twn, 'china_communist');
+
+    const rebels = json(after);
+    rebels.civilWars.china = { factionId: 'china_rebels', label: '中国反乱軍', status: 'active', startedTurn: after.completedTurns, halves: 0, holdUntil: 9999 };
+    rebels.factions.china_rebels = { parent: 'china', label: '中国反乱軍', color: '#c2410c' };
+    rebels.briefing = {
+      headline: '中国内戦の進行', briefing: '台湾の帰属を確認するためのテスト用概況。',
+      telegrams: [
+        { actorId: 'adviser', subject: '内戦', text: '中国内戦の推移を確認します。', urgency: 'important', choices },
+        { actorId: 'domestic:ig_military', subject: '防衛', text: '台湾の防衛体制を協議します。', urgency: 'important', choices },
+        { actorId: 'ministry:usa', subject: '東アジア', text: '台湾海峡の安定について協議します。', urgency: 'important', choices }
+      ]
+    };
+    rebels.phase = 'playing';
+    rebels.territories.japan_empire_twn = 'china_rebels';
+    for (const regionId of ['cn_beijing', 'china_cn_sh']) rebels.territories[regionId] = 'china_rebels';
+    assert.equal(await api.restore(rebels), true);
+    assert.equal(api.forceWorldArc('china_civil_end', { refire: true }).status, 'fired');
+    assert.equal(api.snapshot().territories.japan_empire_twn, 'china', '反乱側の支配州も台湾は中華民国へ戻す');
+  });
+
+  await check('イタリア敗戦後の植民地はリビア1951年独立、ソマリア信託統治と1960年統合、エリトリアはエチオピアへ', async () => {
+    const { api } = harness();
+    await begin(api);
+    const prewar = json(api.snapshot());
+    prewar.territories.italy_somalia = 'ethiopia';
+    assert.equal(await api.restore(prewar), true);
+    assert.equal(api.forceWorldArc('ww2_end_europe').status, 'fired');
+    let after = api.snapshot();
+    assert.equal(after.postwarSettlement.europe.italySettlement.eritreaToEthiopia, true);
+    assert.equal(after.territories.italy_eritrea, 'ethiopia', 'エリトリアはエチオピア保有');
+    assert.notEqual(after.territories.italy_libya, 'italy', 'リビアはイタリア主権を失う');
+    assert.equal(after.territories.italy_libya, 'libya');
+    assert.equal(after.clients.libya.trusteeship, true);
+    assert.notEqual(after.clients.libya.independent, true, 'リビアは1951年まで独立しない');
+    assert.notEqual(after.territories.italy_somalia, 'ethiopia', 'ソマリアをエチオピアへ渡さない');
+    assert.equal(after.territories.italy_somalia, 'col_italy_eastafrica', 'ソマリアはイタリア信託統治へ戻す');
+    assert.equal(after.clients.col_italy_eastafrica.trusteeship, true, 'ソマリアはイタリア信託統治');
+    assert.notEqual(after.clients.col_italy_eastafrica.independent, true);
+
+    assert.equal(api.forceWorldArc('libya_independence').status, 'fired');
+    after = api.snapshot();
+    assert.equal(after.clients.libya.independent, true, '1951年にリビアが独立');
+    assert.equal(after.nations.libya.suzerain, null);
+    assert.equal(after.territories.italy_libya, 'libya');
+
+    assert.equal(api.forceWorldArc('somalia_independence').status, 'fired');
+    after = api.snapshot();
+    assert.equal(after.clients.col_italy_eastafrica.independent, true, '1960年にソマリアが独立');
+    assert.equal(after.territories.italy_somalia, 'col_italy_eastafrica');
+    assert.equal(after.territories.uk_somaliland, 'col_italy_eastafrica', '英領ソマリランドと統合');
+    assert.equal(after.nations.ethiopia.dissolved, false);
+    assert.notEqual(after.territories.italy_somalia, 'ethiopia');
+
+    const { api: victoryApi } = harness();
+    await begin(victoryApi);
+    const victory = json(victoryApi.snapshot());
+    victory.territories.russia_ru_mow = 'germany';
+    assert.equal(await victoryApi.restore(victory), true);
+    assert.equal(victoryApi.forceWorldArc('ww2_end_europe').status, 'fired');
+    const won = victoryApi.snapshot();
+    assert.equal(won.postwarSettlement.europe.outcome, 'axis_victory');
+    assert.equal(won.territories.italy_libya, 'col_italy_libya', '枢軸勝利ではリビア植民地を維持');
+    assert.equal(won.territories.italy_somalia, 'col_italy_eastafrica');
+    assert.equal(won.clients.col_italy_libya.independent, false);
+    assert.equal(won.clients.col_italy_eastafrica.independent, false);
+  });
+
+  await check('ドイツ敗戦後は西ドイツへプレイヤーを引き継ぎ、戦後国策を続けられる', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'germany', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    assert.equal(api.forceWorldArc('ww2_end_europe').status, 'fired');
+    const after = api.snapshot();
+    assert.equal(after.playerNationId, 'west_germany', 'プレイヤーは西ドイツを継承');
+    assert.equal(after.nations.west_germany.suzerain, null);
+    assert.equal(after.nations.east_germany.suzerain, null);
+    const summary = api.focusSummary();
+    assert.equal(summary.treeLabel, '西ドイツ');
+    assert.ok(summary.focuses.some(focus => focus.id === 'wg_basic_law' && focus.status === 'available'), '戦後国策を選択できる');
+    assert.ok(summary.focuses.some(focus => focus.era === 'coldwar'));
+    const { api: resumed } = harness();
+    assert.equal(await resumed.restore(json(after)), true, '西ドイツ継承後も保存と再開ができる');
+    assert.equal(resumed.snapshot().playerNationId, 'west_germany');
+    assert.equal(resumed.focusSummary().treeLabel, '西ドイツ');
+  });
+
+  await check('M8a長時間ラン脚本はモックで完走し、台湾とイタリア植民地の検証項目を記録する', async () => {
+    const reportPath = '/tmp/opencode/m8a-longrun-smoke.json';
+    const report = await runM8aLongRun({ totalHalves: 4, nations: ['usa'], reportPath, requireArcs: false, postwarChecks: false, m8aChecks: false, checkpointHalves: [4], log: () => {} });
+    assert.equal(report.ok, true);
+    assert.equal(report.mode, 'mock-http');
+    assert.equal(report.runs.length, 1);
+    const run = report.runs[0];
+    assert.ok(run.reachedTarget);
+    assert.ok(run.postwar && run.postwar.japan.taiwanHolder && run.postwar.italy.libyaHolder, '台湾・イタリアの検証データ');
+    const saved = JSON.parse(await readFile(reportPath, 'utf8'));
+    assert.equal(saved.mode, 'mock-http');
   });
 
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
