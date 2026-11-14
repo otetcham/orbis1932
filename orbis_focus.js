@@ -139,7 +139,19 @@ globalThis.ORBIS_FOCUS_GRAPH = (() => {
     return [...new Set(hits)];
   }
 
-  return Object.freeze({ DEFAULTS, layout, routeEdge, pointInRect, segmentIntersectsRect, edgeCrossesNodes });
+  // 初期表示でグラフ全体をビューポートに収める倍率。横幅を優先しつつ、
+  // 縦にも収まるならさらに縮小する。既存のズーム下限 0.55 は維持する。
+  function fitScale({ viewportWidth, viewportHeight = 0, width, height = 0, min = 0.55, max = 1 }) {
+    const availableWidth = Math.max(1, Number(viewportWidth) || 0);
+    const availableHeight = Math.max(0, Number(viewportHeight) || 0);
+    const graphWidth = Math.max(1, Number(width) || 0);
+    const graphHeight = Math.max(1, Number(height) || 0);
+    const widthScale = availableWidth / graphWidth;
+    const heightScale = availableHeight > 0 ? availableHeight / graphHeight : widthScale;
+    return Math.min(max, Math.max(min, Math.min(widthScale, heightScale)));
+  }
+
+  return Object.freeze({ DEFAULTS, layout, routeEdge, pointInRect, segmentIntersectsRect, edgeCrossesNodes, fitScale });
 })();
 
 // 主要8カ国の国策ツリー。1930年代から戦中、戦後、1972年頃の冷戦までを、

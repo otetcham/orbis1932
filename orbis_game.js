@@ -2309,7 +2309,31 @@ const Orbis = (() => {
     return setFocusGraphView({ x: focusGraphViewState.x + (Number(dx) || 0), y: focusGraphViewState.y + (Number(dy) || 0) });
   }
 
+  function fitFocusGraphView() {
+    if (typeof document === 'undefined') return focusGraphView();
+    const viewport = $('focus-graph-viewport');
+    const graph = $('focus-graph');
+    if (!viewport || !graph) return focusGraphView();
+    const width = graph.offsetWidth || Number.parseFloat(graph.style.width) || 0;
+    const height = graph.offsetHeight || Number.parseFloat(graph.style.height) || 0;
+    if (!width || !height) return focusGraphView();
+    const next = globalThis.ORBIS_FOCUS_GRAPH.fitScale({
+      viewportWidth: Math.max(1, viewport.clientWidth - 2),
+      viewportHeight: Math.max(1, viewport.clientHeight - 2),
+      width,
+      height
+    });
+    focusGraphViewState.scale = next;
+    focusGraphViewState.x = 0;
+    focusGraphViewState.y = 0;
+    applyFocusGraphTransform();
+    return focusGraphView();
+  }
+
   function resetFocusGraphView() {
+    if (typeof document !== 'undefined' && $('focus-graph-viewport') && $('focus-graph')) {
+      return fitFocusGraphView();
+    }
     focusGraphViewState.scale = 1;
     focusGraphViewState.x = 0;
     focusGraphViewState.y = 0;
@@ -2451,12 +2475,11 @@ const Orbis = (() => {
             : `<button class="btn btn-primary" data-focus-select="${escapeHtml(focus.id)}" ${summary.current ? 'disabled' : ''}>${summary.current ? '別の国策を進行中' : 'この国策を選ぶ'}</button>`;
       const pathClass = `path-${focus.path || 'common'}`;
       const exclusive = focus.exclusive ? '<span class="focus-exclusive-badge">排他</span>' : '';
-      const lock = focus.status === 'locked' ? `<p class="focus-lock">${escapeHtml(focus.reason)}</p>` : `<p class="focus-desc">${escapeHtml(focus.desc)}</p>`;
+      const lock = focus.status === 'locked' ? `<p class="focus-lock">${escapeHtml(focus.reason)}</p>` : '';
       return `<article class="focus-card focus-node is-${focus.status} ${pathClass}" data-focus-node="${escapeHtml(focus.id)}" data-focus-detail-id="${escapeHtml(focus.id)}" tabindex="0" style="left:${position.x}px;top:${position.y}px;width:${cardWidth}px;height:${cardHeight}px" title="${escapeHtml(`${focus.name} / ${focus.pathLabel} / ${focus.eraLabel} / ${focus.desc} / ${focus.effectText}`)}">
         <div class="focus-card-head"><strong>${escapeHtml(focus.name)}</strong><span class="focus-badge ${badgeClass}">${statusLabel}</span></div>
         <p class="focus-node-meta">${escapeHtml(focus.pathLabel)}${exclusive} · ${escapeHtml(focus.eraLabel)} · 第${focus.tier}段階</p>
         ${lock}
-        <p class="focus-effects">${escapeHtml(focus.effectText)}</p>
         <div class="focus-node-foot"><span class="focus-meta">費用 ${focus.cost}</span>${button}</div>
       </article>`;
     }).join('');
@@ -2490,6 +2513,7 @@ const Orbis = (() => {
     focusGraphViewState.y = 0;
     openDialog('modal-focus');
     bindFocusGraph(summary);
+    fitFocusGraphView();
   }
 
   function renderResearchPanel() {
@@ -4958,7 +4982,7 @@ const Orbis = (() => {
         <div class="economy-card"><span>空軍力</span><strong>${summary.air}</strong><small>航空優勢と補給妨害に影響</small></div>
       </div>
       <ul class="sea-control-list">${rows}</ul>
-      <p class="small muted">海軍力は支配陸州の海軍施設（nic）、空軍力は航空施設（air）から簡易集計する。敵が制海する海を隔てた部隊は補給が悪化し、敵航空優勢は前線の補給と攻勢を妨害する。陸続きの補給は従来どおり。</p>
+      <p class="small muted">海軍力は支配陸州の軍港、空軍力は飛行場から簡易集計する。敵が制海する海を隔てた部隊は補給が悪化し、敵航空優勢は前線の補給と攻勢を妨害する。陸続きの補給は従来どおり。</p>
       <ul class="sea-control-list sea-impact-list">${impactRows}</ul>
     </section>`;
   }
@@ -9200,5 +9224,5 @@ transferDependent: (vassalId, newSponsorId) => transferDependent(vassalId, newSp
 grantAutonomy: (vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) => grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign),
 actorRoster: () => Object.keys(actors),
 createDependentCommand, createDependentRegionCommand, integrateDependentCommand, transferDependentCommand, grantAutonomyCommand,
-warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, onboardingInfo, openOnboarding, maybeShowOnboarding, advanceOnboarding, previousOnboarding, completeOnboarding, dismissOnboarding, undoInfo, undoLastTurn, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, focusDetail, focusGraphView, setFocusGraphView, zoomFocusGraph, panFocusGraph, resetFocusGraphView, showFocusDetail, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, worldArcStatus, worldArcList, worldArcLog, forceWorldArc, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, onboardingInfo, openOnboarding, maybeShowOnboarding, advanceOnboarding, previousOnboarding, completeOnboarding, dismissOnboarding, undoInfo, undoLastTurn, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, focusDetail, focusGraphView, setFocusGraphView, zoomFocusGraph, panFocusGraph, resetFocusGraphView, fitFocusGraphView, showFocusDetail, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, worldArcStatus, worldArcList, worldArcLog, forceWorldArc, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();

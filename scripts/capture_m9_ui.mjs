@@ -94,6 +94,27 @@ for (const size of sizes) {
   });
   await page.waitForTimeout(300);
   await shoot(page, size, 'map-default');
+  const defaultCheck = await page.evaluate(() => {
+    const labels = [...document.querySelectorAll('#labels-layer .map-label-country')].map(node => node.textContent);
+    const rects = [...document.querySelectorAll('#labels-layer .map-label-country')].map(node => ({ text: node.textContent, rect: node.getBoundingClientRect() }));
+    const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    const blockers = ['.orbis-topbar', '#shell-dock', '.shell-nav', '.map-toolbar']
+      .map(selector => document.querySelector(selector))
+      .filter(element => element && !element.hidden && getComputedStyle(element).display !== 'none' && getComputedStyle(element).visibility !== 'hidden')
+      .map(element => element.getBoundingClientRect());
+    const required = ['大日本帝国', '中華民国', 'ソビエト連邦', 'アメリカ合衆国', '大英帝国', 'フランス共和国', 'ドイツ国', 'イタリア王国', 'カナダ自治領', 'ブラジル合衆国', '英領インド帝国', 'オーストラリア連邦', 'ベルギー領コンゴ総督府'];
+    const forbidden = ['晋系', '西北三馬', '四川軍', '滇系', 'スイス連邦', 'ラトビア共和国', '南アフリカ連邦', 'チリ共和国', 'ペルー共和国'];
+    return {
+      labels,
+      missing: required.filter(text => !labels.includes(text)),
+      forbiddenPresent: forbidden.filter(text => labels.includes(text)),
+      chromeOverlaps: rects.filter(item => blockers.some(blocker => overlaps(item.rect, blocker))).map(item => item.text)
+    };
+  });
+  if (defaultCheck.labels.length > 18) throw new Error(`既定ズームの国名が多すぎます: ${defaultCheck.labels.join(',')}`);
+  if (defaultCheck.missing.length) throw new Error(`既定ズームの主要国名がありません: ${defaultCheck.missing.join(',')}`);
+  if (defaultCheck.forbiddenPresent.length) throw new Error(`既定ズームで小国・軍閥名が出ています: ${defaultCheck.forbiddenPresent.join(',')}`);
+  if (defaultCheck.chromeOverlaps.length) throw new Error(`既定ズームの国名が UI と重なっています: ${defaultCheck.chromeOverlaps.join(',')}`);
 
   await page.evaluate(({ lon, lat, scale }) => {
     const vp = document.getElementById('map-viewport');
@@ -117,19 +138,24 @@ for (const size of sizes) {
   await page.waitForTimeout(250);
   const europeCheck = await page.evaluate(() => {
     const cityCount = document.querySelectorAll('#labels-layer .map-label-city').length;
-    const countryLabels = [...document.querySelectorAll('#labels-layer .map-label-country')].map(node => node.textContent);
-    const soviet = [...document.querySelectorAll('#labels-layer .map-label-country')].find(node => node.textContent === 'ソビエト連邦');
+    const labels = [...document.querySelectorAll('#labels-layer .map-label-country')].map(node => ({ text: node.textContent, rect: node.getBoundingClientRect() }));
+    const countryLabels = labels.map(item => item.text);
+    const soviet = labels.find(item => item.text === 'ソビエト連邦');
     const overlaps = (a, b) => Boolean(a && b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top);
-    const target = soviet?.getBoundingClientRect();
     const blockers = ['.orbis-topbar', '#shell-dock', '.shell-nav', '.map-toolbar']
       .map(selector => document.querySelector(selector))
-      .filter(element => element && !element.hidden && getComputedStyle(element).visibility !== 'hidden')
+      .filter(element => element && !element.hidden && getComputedStyle(element).display !== 'none' && getComputedStyle(element).visibility !== 'hidden')
       .map(element => element.getBoundingClientRect());
-    return { cityCount, countryLabels, hasSoviet: Boolean(soviet), sovietOverlapsChrome: blockers.some(rect => overlaps(target, rect)) };
+    return {
+      cityCount,
+      countryLabels,
+      hasSoviet: Boolean(soviet),
+      chromeOverlaps: labels.filter(item => blockers.some(rect => overlaps(item.rect, rect))).map(item => item.text)
+    };
   });
   if (europeCheck.cityCount !== 0) throw new Error(`欧州ズームで都市名が出ています: ${europeCheck.cityCount}`);
   if (!europeCheck.hasSoviet) throw new Error(`欧州ズームでソビエト連邦の国名が見つかりません: ${europeCheck.countryLabels.join(',')}`);
-  if (europeCheck.sovietOverlapsChrome) throw new Error('ソビエト連邦の国名が UI と重なっています。');
+  if (europeCheck.chromeOverlaps.length) throw new Error(`欧州ズームの国名が UI と重なっています: ${europeCheck.chromeOverlaps.join(',')}`);
   await shoot(page, size, 'map-europe');
 
   await page.evaluate(() => {
@@ -163,6 +189,24 @@ for (const size of sizes) {
   await page.waitForSelector('#modal-focus[open]', { timeout: 30000 });
   await page.waitForTimeout(250);
   await shoot(page, size, 'focus');
+  const focusCheck = await page.evaluate(() => {
+    const viewport = document.getElementById('focus-graph-viewport');
+    const vr = viewport?.getBoundingClientRect();
+    const cards = [...document.querySelectorAll('.focus-node')];
+    const clipped = vr ? cards.filter(card => {
+      const rect = card.getBoundingClientRect();
+      return rect.left < vr.left - 1 || rect.right > vr.right + 1;
+    }).map(card => card.getAttribute('data-focus-node')) : ['viewport-missing'];
+    const textOverflow = [...document.querySelectorAll('.focus-node .focus-card-head strong, .focus-node .focus-badge, .focus-node-meta, .focus-node .focus-lock, .focus-node-foot .btn')]
+      .filter(element => element.scrollWidth > element.clientWidth + 1)
+      .map(element => element.textContent.trim());
+    const verticalOverflow = cards.filter(card => card.scrollHeight > card.clientHeight + 1).map(card => card.getAttribute('data-focus-node'));
+    return { scale: Orbis.focusGraphView().scale, zoomLabel: document.getElementById('focus-zoom-label')?.textContent, clipped, textOverflow, verticalOverflow };
+  });
+  if (focusCheck.clipped.length) throw new Error(`国策カードが横にはみ出しています: ${focusCheck.clipped.join(',')}`);
+  if (focusCheck.textOverflow.length) throw new Error(`国策カード内の文字が切れています: ${focusCheck.textOverflow.join(' / ')}`);
+  if (focusCheck.verticalOverflow.length) throw new Error(`国策カード内の縦が溢れています: ${focusCheck.verticalOverflow.join(',')}`);
+  if (!(focusCheck.scale < 1)) throw new Error(`国策グラフの初期表示がフィットしていません: ${focusCheck.scale}`);
   await page.evaluate(() => document.getElementById('modal-focus')?.close());
 
   const peaceReady = await page.evaluate(() => {
@@ -184,6 +228,15 @@ for (const size of sizes) {
   await page.evaluate(() => Orbis.openSettings());
   await page.waitForSelector('#modal-ai-settings[open]', { timeout: 30000 });
   await page.waitForTimeout(200);
+  const settingsCheck = await page.evaluate(() => {
+    const body = document.querySelector('#modal-ai-settings .modal-body');
+    const mute = document.getElementById('toggle-audio-muted')?.closest('label');
+    if (!body || !mute) return { muteVisible: false, bodyScrollTop: null };
+    const br = body.getBoundingClientRect();
+    const mr = mute.getBoundingClientRect();
+    return { muteVisible: mr.top >= br.top && mr.bottom <= br.bottom, bodyScrollTop: body.scrollTop };
+  });
+  if (!settingsCheck.muteVisible || settingsCheck.bodyScrollTop !== 0) throw new Error('1280/1920 の設定初期表示でミュートにスクロールせず届きません。');
   const keyCheck = await page.evaluate(() => ({
     inputValue: document.getElementById('input-api-key')?.value || '',
     visibleText: document.getElementById('modal-ai-settings')?.innerText || ''
@@ -205,7 +258,7 @@ for (const size of sizes) {
     await browser.close();
     throw new Error(`コンソールエラーが ${errors.length} 件あります。`);
   }
-  report.sizes.push({ ...size, europe: europeCheck, consoleErrors: 0 });
+  report.sizes.push({ ...size, europe: europeCheck, defaultMap: defaultCheck, focus: focusCheck, settings: settingsCheck, consoleErrors: 0 });
   await context.close();
 }
 

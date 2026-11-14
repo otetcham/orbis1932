@@ -3114,13 +3114,13 @@ try {
     assert.equal(blocked.hidden, true, '逃げ場がなければバッジを隠す');
   });
 
-  await check('主要国と領土の大きい国の国名は画面端や都市ラベルとの衝突でも落とさない（ソ連を含む）', async () => {
+  await check('主要国と面積の大きい国の国名は画面端や都市ラベルとの衝突でも落とさない（ソ連を含む）', async () => {
     const { context } = harness();
     const labels = vm.runInContext('ORBIS_MAP_LABELS', context);
     const names = vm.runInContext('COUNTRY_LABEL_NAMES', context);
     assert.equal(names.russia, 'ソビエト連邦', 'ソ連の国名データがある');
-    assert.equal(labels.countryLabelVisible({ span: 4, zoom: 1, isMajor: false, isLarge: true }), true, '領土の大きい国は常に表示対象');
-    assert.equal(labels.countryLabelVisible({ span: 4, zoom: 1, isMajor: true }), true, '主要国は常に表示対象');
+    assert.equal(labels.countryLabelVisible({ country: 'brazil', span: 364, zoom: 1, isMajor: false }), true, '面積の大きい国は既定ズームでも表示対象');
+    assert.equal(labels.countryLabelVisible({ country: 'japan', span: 4, zoom: 1, isMajor: true }), true, '主要国は常に表示対象');
 
     const viewport = { minX: 0, maxX: 500, minY: 0, maxY: 300 };
     const candidates = [
@@ -3167,6 +3167,36 @@ try {
       mustShow: false
     });
     assert.equal(small.visible, false, '衝突する小国名は従来通り抑制できる');
+  });
+
+  await check('M9: 既定ズームの国名は主要国と面積の大きい塊だけに絞る', async () => {
+    const { context } = harness();
+    const labels = vm.runInContext('ORBIS_MAP_LABELS', context);
+    for (const country of ['japan', 'china', 'usa', 'uk', 'france', 'germany', 'italy', 'russia', 'canada', 'brazil', 'argentina', 'australia', 'india', 'col_belgium_congo']) {
+      assert.equal(labels.countryLabelVisible({ country, span: 200, zoom: 1, isMajor: ['japan', 'china', 'usa', 'uk', 'france', 'germany', 'italy', 'russia'].includes(country) }), true, `${country} は既定ズームで表示対象`);
+    }
+    for (const country of ['shanxi', 'yunnan', 'ma_clique', 'manchukuo', 'switzerland', 'latvia', 'lithuania', 'south_africa', 'chile', 'peru', 'colombia']) {
+      assert.equal(labels.countryLabelVisible({ country, span: 200, zoom: 1, isMajor: false }), false, `${country} は既定ズームで出さない`);
+    }
+    assert.equal(labels.countryLabelVisible({ country: 'switzerland', span: 25, zoom: 3.2, isMajor: false }), true, '欧州ズームでは可視の小国名も出す');
+    assert.equal(labels.countryLabelVisible({ country: 'luxembourg', span: 6, zoom: 3.2, isMajor: false }), false, '欧州ズームでも極小国は出さない');
+  });
+
+  await check('M9: 国策グラフは初期表示で全体が収まり、カードの日本語を途中で切らない', async () => {
+    const { context } = harness();
+    const fit = vm.runInContext('ORBIS_FOCUS_GRAPH.fitScale', context);
+    assert.equal(fit({ viewportWidth: 1204, viewportHeight: 384, width: 1908, height: 716 }), 0.55, '1280幅では下限まで縮小して全体を収める');
+    const desktop = fit({ viewportWidth: 1238, viewportHeight: 480, width: 1908, height: 716 });
+    assert.ok(desktop > 0.55 && desktop < 1, '1920幅でも初期表示をフィットさせる');
+    assert.equal(fit({ viewportWidth: 2000, viewportHeight: 900, width: 1200, height: 500 }), 1, '余裕があるときは等倍を超えない');
+    assert.doesNotMatch(htmlSource, /\.focus-node \.focus-card-head strong\s*\{[^}]*line-clamp/);
+    assert.doesNotMatch(htmlSource, /\.focus-node \.focus-effects\s*\{[^}]*text-overflow:\s*ellipsis/);
+    assert.ok(htmlSource.indexOf('効果音をミュートする') < htmlSource.indexOf('AI接続'), '設定はサウンド欄が先頭にあり、1280でもスクロールなしで届く');
+  });
+
+  await check('M9: 軍事パネルの本文に英語略記 nic/air を残さない', async () => {
+    assert.doesNotMatch(gameSource, /海軍施設（nic）|航空施設（air）/);
+    assert.match(gameSource, /海軍力は支配陸州の軍港、空軍力は飛行場/);
   });
 
   await check('ミュート中は効果音を再生せず、音源の自作クレジットがある', async () => {
