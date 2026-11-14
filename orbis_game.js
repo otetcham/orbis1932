@@ -364,6 +364,8 @@ const Orbis = (() => {
       establishedFacts: [], timelineFired: {}, turnPlaybackQueue: [], worldMemory: '', stress: { collapse: 0, bankruptcy: 0, war: 0, civil: 0 },
       globalWarHalves: 0, worldWarActive: false, lastResolutionIssues: [],
       cumulative: { treaties: 0, fulfilled: 0, broken: 0 }, ending: null, savedAt: null,
+      onboarding: { done: false, step: 0, lastShownTurn: -1 },
+      undo: null,
       warlordConference: null
     };
     seedColonialDependents(game);
@@ -1209,6 +1211,20 @@ const Orbis = (() => {
   const FORMATION_TYPE_LABELS = { field: '野戦部隊', garrison: '守備隊' };
   const MOBILIZATION_LABELS = ['平時', '警戒', '動員', '総動員'];
   const SUPPLY_LABELS = { full: '十分', stretched: '伸びた', low: '不足', isolated: '孤立' };
+  const ONBOARDING_STEPS = [
+    {
+      title: '情勢を読む',
+      body: 'まずは「歴史」の今月の情勢と電報を読みます。地図では自国の位置と、紛争・戦争の赤枠を確認できます。'
+    },
+    {
+      title: '電報または国家の命令を出す',
+      body: '「外交」で相手を選んで電報を送るか、「行動」で今半月の国家命令を提出します。交渉枠は半月ごとに回復します。'
+    },
+    {
+      title: 'ターンを終える',
+      body: '準備ができたら右上の「ターンを終える」を押します。裁定が終わると次の半月へ進み、直前の半月は「取消」で一度だけ戻せます。'
+    }
+  ];
   const RECRUIT_MANPOWER_COST = 30;
   const RECRUIT_EQUIPMENT_COST = 20;
   let lastFormationOrderError = '';
@@ -1362,15 +1378,18 @@ const Orbis = (() => {
     const controller = state.seaControl[pick.zone.id] || null;
     const relation = seaControlRelation(game, nationId, controller);
     const supplyBonus = nationalModifiers(game, nationId).supplyBonus;
-    if (relation === 'friendly') {
-      const level = clamp(58 - Math.round(pick.distance / 6) + supplyBonus, 25, 70);
-      const status = level >= 70 ? 'full' : level >= 40 ? 'stretched' : 'low';
-      return { level, status, label: SUPPLY_LABELS[status], distance: null, seaZoneId: pick.zone.id, seaControl: controller, relation };
-    }
+    // 平和時の自国圏・中立・非戦国の第三国海域は通常の海路を使える。
+    // 孤立するのは、進行中戦争の敵が制海権を持つ場合と、海路自体が無い場合だけ。
     if (relation === 'hostile') {
       return { level: 8, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: pick.zone.id, seaControl: controller, relation };
     }
-    return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: pick.zone.id, seaControl: controller, relation };
+    const friendly = relation === 'friendly';
+    const base = friendly ? 72 : 68;
+    const distanceCost = Math.round(pick.distance / (friendly ? 5 : 6));
+    // 通常の海路は最低でも「伸びた」に留め、平和時に孤立・不足へ落とさない。
+    const level = clamp(base - distanceCost + supplyBonus, 40, 100);
+    const status = level >= 70 ? 'full' : 'stretched';
+    return { level, status, label: SUPPLY_LABELS[status], distance: null, seaZoneId: pick.zone.id, seaControl: controller, relation };
   }
 
   function airCombatModifier(game, attackerId, defenderId) {
@@ -3310,9 +3329,169 @@ const Orbis = (() => {
     <section style="margin-top:16px"><h3>動員</h3><div class="form-row">${mobilizationButtons}</div><p class="small muted">段階を上げると兵力の増加が伸びる。財政と安定度に軽い負担がかかる。現在の部隊数 ${summary.formations}。</p></section>
     <section style="margin-top:16px"><h3>生産配分</h3><label for="economy-military-share">軍需 ${share}% / 民用 ${100 - share}%</label><input type="range" id="economy-military-share" min="0" max="100" step="5" value="${share}"><div class="economy-split-row"><button class="btn btn-ghost" data-economy-split="25">民用寄り 25%</button><button class="btn btn-ghost" data-economy-split="50">折半 50%</button><button class="btn btn-ghost" data-economy-split="75">軍需寄り 75%</button><button class="btn btn-ghost" data-economy-split="100">総軍需 100%</button></div><p class="small muted">軍需を増やすほど装備の生産と補充が増え、民用を残すと国庫をわずかに支える。${escapeHtml(last)}</p></section>
     <section style="margin-top:16px"><h3>新編制</h3><p class="small">兵力 ${RECRUIT_MANPOWER_COST} と装備 ${RECRUIT_EQUIPMENT_COST} を消費し、首都または後方の支配陸州に野戦部隊を編成する。</p><button class="btn btn-primary" data-economy-recruit ${canRecruit ? '' : 'disabled'}>野戦部隊を編成</button></section>
-    <section style="margin-top:16px"><h3>部隊と補給</h3><p class="small muted">補給は本国・従属圏の支配領から陸続きで辿った距離で決まる。海を隔てた部隊は制海が自国側なら海路で補給され、敵制海下では孤立する。孤立・不足の部隊は攻勢が停滞する。</p>${formations}</section>
+    <section style="margin-top:16px"><h3>部隊と補給</h3><p class="small muted">補給は本国・従属圏の支配領から陸続きで辿った距離で決まる。海を隔てた部隊も、自国圏・中立・戦争していない第三国の海域なら海路で補給される。孤立するのは、進行中戦争の敵が海路を制している場合と、海路が無い場合だけ。孤立・不足の部隊は攻勢が停滞する。</p>${formations}</section>
     ${maritimeSectionHtml()}`);
     openDialog('modal-economy');
+  }
+
+  function onboardingInfo() {
+    const saved = campaign?.onboarding || { done: false, step: 0, lastShownTurn: -1 };
+    const step = clamp(Math.round(Number(saved.step) || 0), 0, ONBOARDING_STEPS.length - 1);
+    const done = Boolean(saved.done);
+    const autoEligible = Boolean(campaign && !done && campaign.phase === 'playing' && campaign.completedTurns <= 2);
+    return {
+      done,
+      step,
+      total: ONBOARDING_STEPS.length,
+      title: ONBOARDING_STEPS[step].title,
+      body: ONBOARDING_STEPS[step].body,
+      lastShownTurn: Number.isInteger(saved.lastShownTurn) ? saved.lastShownTurn : -1,
+      autoEligible,
+      autoAvailable: autoEligible && Number(saved.lastShownTurn) !== campaign.completedTurns
+    };
+  }
+
+  function renderOnboarding() {
+    if (!campaign) return;
+    const info = onboardingInfo();
+    const steps = ONBOARDING_STEPS.map((step, index) => `<li class="${index === info.step ? 'current' : index < info.step ? 'done' : ''}"><strong>${escapeHtml(step.title)}</strong><span>${escapeHtml(step.body)}</span></li>`).join('');
+    const nextLabel = info.step >= info.total - 1 ? '案内を完了' : '次へ';
+    html('onboarding-body', `<p class="eyebrow">${escapeHtml(dateOf(campaign))} · 最初の半月</p><div class="onboarding-lead"><strong>${escapeHtml(info.title)}</strong><p>${escapeHtml(info.body)}</p></div><ol class="onboarding-steps">${steps}</ol><p class="small muted">閉じても、メニューの「導入案内」からいつでも見直せます。完了後は自動で表示しません。</p><div class="onboarding-actions">${info.step > 0 ? '<button class="btn btn-ghost" data-onboarding-prev>戻る</button>' : ''}<button class="btn btn-primary" data-onboarding-next>${escapeHtml(nextLabel)}</button><button class="btn btn-ghost" data-onboarding-complete>案内を完了</button></div>`);
+  }
+
+  function openOnboarding() {
+    if (!campaign) return false;
+    renderOnboarding();
+    openDialog('modal-onboarding');
+    return true;
+  }
+
+  function maybeShowOnboarding(force = false) {
+    if (!campaign) return false;
+    const state = campaign.onboarding;
+    if (!state) campaign.onboarding = { done: false, step: 0, lastShownTurn: -1 };
+    const info = onboardingInfo();
+    if (!force && (info.done || !info.autoEligible || info.lastShownTurn === campaign.completedTurns)) return false;
+    campaign.onboarding.lastShownTurn = campaign.completedTurns;
+    saveCampaign();
+    renderOnboarding();
+    openDialog('modal-onboarding');
+    return true;
+  }
+
+  function advanceOnboarding() {
+    if (!campaign?.onboarding || campaign.onboarding.done) return false;
+    const info = onboardingInfo();
+    if (info.step >= info.total - 1) return completeOnboarding();
+    campaign.onboarding.step = info.step + 1;
+    saveCampaign();
+    renderOnboarding();
+    return true;
+  }
+
+  function previousOnboarding() {
+    if (!campaign?.onboarding || campaign.onboarding.done) return false;
+    campaign.onboarding.step = Math.max(0, onboardingInfo().step - 1);
+    saveCampaign();
+    renderOnboarding();
+    return true;
+  }
+
+  function completeOnboarding() {
+    if (!campaign) return false;
+    campaign.onboarding = { done: true, step: ONBOARDING_STEPS.length - 1, lastShownTurn: campaign.completedTurns };
+    saveCampaign();
+    closeDialog('modal-onboarding');
+    renderOnboarding();
+    toast('導入案内を完了しました。メニューからいつでも見直せます。');
+    return true;
+  }
+
+  function dismissOnboarding() {
+    closeDialog('modal-onboarding');
+    return Boolean(campaign);
+  }
+
+  function rememberUndo(game) {
+    if (!game) return;
+    game.undo = null;
+    const snapshot = copy(game);
+    delete snapshot.savedAt;
+    delete snapshot.turnPlaybackQueue;
+    // 記事と電報は容量が大きいため直前状態に複製せず、Undo時に当時のターンまで切り戻す。
+    delete snapshot.articles;
+    delete snapshot.threads;
+    const threadUnread = Object.fromEntries(Object.entries(game.threads || {}).map(([id, channel]) => [id, Math.max(0, Number(channel.unread) || 0)]));
+    game.undo = {
+      state: snapshot,
+      turn: game.completedTurns,
+      date: dateOf(game),
+      threadUnread
+    };
+  }
+
+  function undoInfo() {
+    const entry = campaign?.undo;
+    const state = entry?.state;
+    if (!entry || !state || state.completedTurns !== entry.turn) {
+      return { available: false, turn: null, date: '', label: '取り消せる直前の半月はありません' };
+    }
+    const date = entry.date || dateOf(state);
+    return { available: true, turn: entry.turn, date, label: `${date}の直前へ戻す` };
+  }
+
+  function renderUndoState() {
+    const info = undoInfo();
+    for (const button of document.querySelectorAll('[data-undo-turn]')) button.disabled = runtime.busy || !info.available;
+    if ($('btn-undo-turn')) $('btn-undo-turn').hidden = !info.available;
+    text('undo-turn-status', info.label);
+  }
+
+  function undoLastTurn() {
+    if (runtime.busy || runtime.readOnly) return false;
+    const info = undoInfo();
+    if (!info.available) {
+      toast('取り消せる直前の半月はありません。');
+      return false;
+    }
+    const current = campaign;
+    const undo = campaign.undo;
+    const restored = copy(undo.state);
+    if (!restored || restored.completedTurns !== undo.turn) {
+      toast('直前の状態を読み出せませんでした。');
+      return false;
+    }
+    if (!Array.isArray(restored.articles)) {
+      restored.articles = (current.articles || []).filter(article => article.kind === 'opening' || (Number(article.turn) || 0) <= restored.completedTurns);
+    }
+    if (!restored.threads) {
+      const maxMessageTurn = restored.completedTurns + 1;
+      restored.threads = {};
+      for (const [id, channel] of Object.entries(current.threads || {})) {
+        const messages = (channel.messages || []).filter(message => (Number(message.turn) || 0) <= maxMessageTurn);
+        restored.threads[id] = {
+          ...channel,
+          messages,
+          unread: Math.min(messages.length, Math.max(0, Number(undo.threadUnread?.[id]) || 0))
+        };
+      }
+    }
+    campaign = restored;
+    campaign.undo = null;
+    if (!campaign.onboarding) campaign.onboarding = { done: true, step: ONBOARDING_STEPS.length - 1, lastShownTurn: campaign.completedTurns };
+    actors = buildActors(campaign);
+    runtime.error = '';
+    runtime.retry = '';
+    runtime.pending = null;
+    closeDialog('game-ending');
+    closeDialog('turn-review');
+    closeDialog('modal-onboarding');
+    globalThis.ORBIS_PLAYBACK?.stop?.();
+    syncWorld();
+    saveCampaign();
+    render();
+    toast(`直前の半月を取り消し、${dateOf(campaign)}へ戻りました。`);
+    return true;
   }
 
   function playtestStabilize() {
@@ -4732,6 +4911,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if (!SCENARIOS.era_1932.nations[nationId] || !RULES[difficulty] || !['recovery', 'diplomacy', 'security'].includes(mandate) || !allowedMaxTurns(maxTurns)) throw new Error('キャンペーン設定が不正です。');
     if (campaign && !options.replace && typeof window.confirm === 'function' && !window.confirm('新しい歴史を始めます。現在の自動保存を置き換えますか？')) return false;
     if (typeof exitLobbyMode === 'function') exitLobbyMode();
+    globalThis.ORBIS_PLAYBACK?.stop?.();
     campaign = createCampaign(nationId, difficulty, mandate, maxTurns, knowledgeLevel);
     resetDesktop();
     actors = buildActors(campaign);
@@ -4744,7 +4924,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     closeDialog('modal-lg-admin');
     saveCampaign();
     render();
-    return runOperation('世界情勢を読み込み、最初の電報を生成しています…', 'briefing', receiveBriefing);
+    const started = await runOperation('世界情勢を読み込み、最初の電報を生成しています…', 'briefing', receiveBriefing);
+    if (started) maybeShowOnboarding();
+    return started;
   }
 
   async function send(input = null, actorId = null, visibility = null) {
@@ -4787,8 +4969,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if (!hasConnection()) { openSettings(); return false; }
     rememberDraft();
     closeDialog('turn-review');
-    return runOperation('GMが今月の交渉と世界の動きを裁定しています…', 'resolution', async () => {
+    const finished = await runOperation('GMが今月の交渉と世界の動きを裁定しています…', 'resolution', async () => {
       const evaluation = await generateEvaluation(campaign);
+      rememberUndo(campaign);
       campaign = applyEvaluation(campaign, evaluation);
       actors = buildActors(campaign);
       syncWorld();
@@ -4799,6 +4982,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (campaign.ending) { showEnding(); return; }
       await receiveBriefing();
     });
+    if (finished) maybeShowOnboarding();
+    return finished;
   }
 
   function setStandingPolicy(input = null) {
@@ -5216,6 +5401,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     $('btn-open-lobby')?.setAttribute('title', underSuzerain
       ? `${nation.name} · ${nation.leader}（${dependency.overlordName}の${dependency.kindLabel}）`
       : `${nation.name} · ${nation.leader}`);
+    renderUndoState();
   }
 
   function renderDomestic() {
@@ -5454,6 +5640,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     text('btn-send-label', runtime.busy && runtime.pending ? '返電待ち' : '電報を送る');
     text('composer-cost', campaign ? `残り${RULES[campaign.difficulty].actions - campaign.usedActions}交渉` : '送信 1交渉枠');
     text('composer-hint', full ? '今半月の交渉は終了。半月裁定へ進む。' : 'Enterで改行 · Ctrl / ⌘＋Enterで送信');
+    renderUndoState();
   }
 
   function renderSaveStatus() {
@@ -6063,6 +6250,12 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     game.continuePastMilestone = Boolean(raw.continuePastMilestone);
     game.milestoneAcknowledged = Boolean(raw.milestoneAcknowledged);
     game.knowledgeLevel = Object.hasOwn(KNOWLEDGE_PROFILES, raw.knowledgeLevel) ? raw.knowledgeLevel : 'general';
+    const rawOnboarding = raw.onboarding && typeof raw.onboarding === 'object' && !Array.isArray(raw.onboarding) ? raw.onboarding : {};
+    game.onboarding = {
+      done: Boolean(rawOnboarding.done),
+      step: finite(rawOnboarding.step, 0, ONBOARDING_STEPS.length - 1, 0),
+      lastShownTurn: finite(rawOnboarding.lastShownTurn, -1, SAVE_TURN_CEILING(), -1)
+    };
     game.establishedFacts = array(raw.establishedFacts || [], '確定した事実', 400).map(item => requiredText(item, '確定した事実', 500));
     game.wars = raw.wars && typeof raw.wars === 'object' ? copy(raw.wars) : {};
     game.civilWars = raw.civilWars && typeof raw.civilWars === 'object' ? copy(raw.civilWars) : {};
@@ -6071,6 +6264,29 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     game.timelineFired = raw.timelineFired && typeof raw.timelineFired === 'object' ? copy(raw.timelineFired) : {};
     const turnCap = saveTurnLimit(game);
     game.completedTurns = saveNumber(raw.completedTurns, '経過ターン', 0, turnCap);
+    game.undo = null;
+    const rawUndo = raw.undo && typeof raw.undo === 'object' && !Array.isArray(raw.undo) && raw.undo.state && typeof raw.undo.state === 'object' && !Array.isArray(raw.undo.state) ? raw.undo : null;
+    if (rawUndo) {
+      const candidate = copy(rawUndo.state);
+      delete candidate.undo;
+      delete candidate.savedAt;
+      if (!Array.isArray(candidate.articles)) candidate.articles = copy(raw.articles);
+      if (!candidate.threads) candidate.threads = copy(raw.threads);
+      if (candidate.playerNationId === raw.playerNationId && Number.isInteger(candidate.completedTurns) && candidate.completedTurns === game.completedTurns - 1) {
+        try {
+          const restored = validateSave(candidate);
+          delete restored.articles;
+          delete restored.threads;
+          delete restored.turnPlaybackQueue;
+          const threadUnread = rawUndo.threadUnread && typeof rawUndo.threadUnread === 'object' && !Array.isArray(rawUndo.threadUnread)
+            ? Object.fromEntries(Object.entries(rawUndo.threadUnread).filter(([, value]) => Number.isFinite(Number(value))).map(([id, value]) => [id, Math.max(0, Math.round(Number(value)))]))
+            : {};
+          game.undo = { state: restored, turn: restored.completedTurns, date: dateOf(restored), threadUnread };
+        } catch {
+          game.undo = null;
+        }
+      }
+    }
     for (const key of ['treasury', 'prestige', 'tension']) game[key] = saveNumber(raw[key], key, 0, 100);
     if (raw.dynamicNations && typeof raw.dynamicNations === 'object') {
       for (const [id, meta] of Object.entries(raw.dynamicNations)) {
@@ -6500,6 +6716,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   async function activateSave(raw) {
     if (runtime.busy) return false;
     const restored = validateSave(raw);
+    globalThis.ORBIS_PLAYBACK?.stop?.();
     campaign = restored;
     resetDesktop();
     actors = buildActors(campaign);
@@ -6737,6 +6954,11 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (button.id === 'dock-homeland') focusHomeland();
       if (button.hasAttribute('data-dismiss-error')) { runtime.error = ''; renderStatus(); }
       if (button.hasAttribute('data-show-ending')) showEnding();
+      if (button.hasAttribute('data-undo-turn')) undoLastTurn();
+      if (button.hasAttribute('data-onboarding-next')) advanceOnboarding();
+      if (button.hasAttribute('data-onboarding-prev')) previousOnboarding();
+      if (button.hasAttribute('data-onboarding-complete')) completeOnboarding();
+      if (button.hasAttribute('data-open-onboarding')) { if (campaign) openOnboarding(); }
       if (button.id === 'btn-continue-milestone') continuePastMilestone();
       if (button.id === 'btn-ending-minimize') closeDialog('game-ending');
       if (button.id === 'btn-open-war-panel') openWarPanel();
@@ -6837,5 +7059,5 @@ transferDependent: (vassalId, newSponsorId) => transferDependent(vassalId, newSp
 grantAutonomy: (vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) => grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign),
 actorRoster: () => Object.keys(actors),
 createDependentCommand, createDependentRegionCommand, integrateDependentCommand, transferDependentCommand, grantAutonomyCommand,
-warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, onboardingInfo, openOnboarding, maybeShowOnboarding, advanceOnboarding, previousOnboarding, completeOnboarding, dismissOnboarding, undoInfo, undoLastTurn, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();

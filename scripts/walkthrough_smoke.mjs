@@ -66,6 +66,8 @@ await page.click('#btn-start-campaign');
 await page.waitForFunction(() => document.getElementById('lobby-overlay')?.classList.contains('hidden'), { timeout: 120000 });
 await page.waitForFunction(() => Orbis.snapshot()?.phase === 'playing', { timeout: 120000 });
 await page.screenshot({ path: `${artifactDir}/walkthrough-02-started-1932-03.png`, fullPage: true });
+await page.evaluate(() => Orbis.completeOnboarding());
+await page.waitForSelector('#modal-onboarding', { state: 'hidden', timeout: 30000 });
 
 await page.evaluate(() => Orbis.submitAction('国内の生活価格を安定させる準備を指示する。'));
 await page.click('#dock-chat');
