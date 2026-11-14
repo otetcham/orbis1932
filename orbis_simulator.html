@@ -944,7 +944,7 @@ html, body {
 .turn-playback-card .tp-date { font-size: 13px; opacity: 0.8; margin-bottom: 6px; font-family: var(--font-mono); }
 .turn-playback-card .tp-location { font-size: 12px; color: #94a3b8; margin: 4px 0 8px; }
 .turn-playback-card strong { font-size: 18px; display: block; margin-bottom: 6px; }
-.turn-playback-card p { margin: 0; font-size: 14px; opacity: 0.92; }
+.turn-playback-card p { margin: 0; font-size: 14px; opacity: 0.92; white-space: pre-line; }
 body.dialog-open .turn-playback-card,
 body.dialog-open .turn-playback-controls,
 body.dialog-open #turn-playback-overlay {
@@ -2138,6 +2138,11 @@ svg path:focus-visible,
 .actions-buttons { display: flex; gap: 8px; }
 .actions-buttons .btn { min-height: 44px; }
 #national-action-history { display: grid; gap: 10px; }
+.order-queue { display: grid; gap: 8px; }
+.order-queue-card { border: 1px solid #dbe5f0; border-radius: 7px; background: #f8fbfe; padding: 9px 11px; }
+.order-queue-card .eyebrow { display: block; margin-bottom: 3px; }
+.order-queue-card p { margin: 0; font-size: 11.5px; line-height: 1.65; }
+.order-queue-card .order-queue-result-head { font-weight: 600; color: #274666; margin-bottom: 2px; }
 .desktop-dock { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left)); right: auto; transform: none; z-index: 90; display: flex; align-items: center; gap: 3px; padding: 7px; border: 1px solid rgba(255, 255, 255, 0.75); border-radius: 28px; background: rgba(255, 255, 255, 0.62); -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); box-shadow: 0 12px 38px rgba(23, 42, 68, 0.18), inset 0 1px 0 #ffffff; transition: transform .5s cubic-bezier(.16,1,.3,1), opacity .35s ease; }
 .dock-fab-group { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 90; display: flex; align-items: center; gap: 8px; transition: transform .5s cubic-bezier(.16,1,.3,1), opacity .35s ease; }
 .dock-fab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 66px; min-height: 59px; padding: 8px 12px; border-radius: 22px; border: 1px solid rgba(255, 255, 255, 0.75); background: rgba(255, 255, 255, 0.78); color: #42566e; cursor: pointer; box-shadow: 0 10px 26px rgba(23, 42, 68, 0.16), inset 0 1px 0 #ffffff; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); font-family: var(--font-sans); transition: background .14s, transform .14s; }
@@ -2444,7 +2449,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         </div>
         <div class="window-body" id="window-history-body">
         <div class="history-scroll" id="history-scroll"><section class="turn-briefing" id="turn-briefing"></section><div id="history-stream"></div></div>
-        <div class="history-footer"><div id="mandate-progress"></div><button class="btn" data-situation-briefing>情勢分析</button><button class="btn" id="btn-turn-review">今月の交渉記録</button></div>
+        <div class="history-footer"><div id="mandate-progress"></div><button class="btn" data-situation-briefing>顧問ブリーフィング</button><button class="btn" id="btn-turn-review">今月の交渉記録</button></div>
         </div>
         <div class="window-resize-handle" data-window-resize="history" role="separator" tabindex="0" aria-label="歴史タイムラインのサイズを変更" title="ドラッグ、または矢印キーでサイズ変更"></div>
       </section>
@@ -2608,6 +2613,14 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         <div class="window-body" id="window-actions-body">
           <div class="actions-content">
             <p class="eyebrow" id="national-action-status"></p>
+            <div class="order-queue" id="national-action-queue" aria-live="polite"></div>
+            <form id="standing-policy-form">
+              <label for="standing-policy-input">常設方針</label>
+              <textarea class="form-input" id="standing-policy-input" rows="3" maxlength="800" placeholder="例：対中は穏健に、軍備は漸進する。" aria-describedby="standing-policy-hint"></textarea>
+              <p class="muted small" id="standing-policy-hint">ターンをまたいで残り、毎月の裁定と電報の文脈に参照されます。提出時にAPIは呼びません。</p>
+              <p class="muted small" id="standing-policy-status"></p>
+              <div class="actions-buttons"><button class="btn" type="submit" id="btn-save-policy">方針を保存</button><button class="btn btn-ghost" type="button" id="btn-clear-policy">解除</button></div>
+            </form>
             <div class="action-cat-row" role="tablist" aria-label="行動カテゴリ">
               <button type="button" class="action-cat active" data-action-cat="domestic" role="tab" aria-selected="true">内政</button>
               <button type="button" class="action-cat" data-action-cat="diplomacy" role="tab" aria-selected="false">外交</button>
@@ -2691,6 +2704,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   <dialog class="game-dialog wide-dialog" id="modal-research" aria-labelledby="research-title"><div class="modal-head"><strong id="research-title">研究</strong><button class="btn btn-ghost" data-close-dialog="modal-research">閉じる</button></div><div class="modal-body" id="research-panel-body"></div></dialog>
   <dialog class="game-dialog" id="modal-country-card" aria-labelledby="country-card-title"><div class="modal-window"><div class="modal-head"><strong id="country-card-title">国家情報</strong><button class="btn btn-ghost" data-close-dialog="modal-country-card" aria-label="国家情報を閉じる">閉じる</button></div><div class="modal-body" id="country-card-body"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-briefing" aria-labelledby="briefing-title"><div class="modal-window"><div class="modal-head"><strong id="briefing-title">情勢分析</strong><button class="btn btn-ghost" data-close-dialog="modal-briefing">閉じる</button></div><div class="modal-body" id="briefing-body"></div></div></dialog>
+  <dialog class="game-dialog wide-dialog" id="modal-adviser-briefing" aria-labelledby="adviser-briefing-title"><div class="modal-window"><div class="modal-head"><strong id="adviser-briefing-title">顧問の状況ブリーフィング</strong><button class="btn btn-ghost" data-close-dialog="modal-adviser-briefing">閉じる</button></div><div class="modal-body" id="adviser-briefing-body"></div></div></dialog>
   <dialog class="game-dialog" id="modal-dependent-admin" aria-labelledby="dependent-admin-title"><div class="modal-window"><div class="modal-head"><strong id="dependent-admin-title">従属政権</strong><button class="btn btn-ghost" data-close-dialog="modal-dependent-admin">閉じる</button></div><div class="modal-body" id="dependent-admin-body"></div><div class="modal-foot"><span class="muted small" id="dependent-admin-hint"></span><button class="btn btn-primary" id="btn-dependent-admin-submit">実行</button></div></div></dialog>
   <div id="turn-playback-overlay" hidden></div>
   <div class="turn-playback-controls" id="turn-playback-controls">
@@ -6839,8 +6853,9 @@ function renderStateInspector(s) {
 
 function openSituationBriefing() {
   const data = Orbis.situationBriefing?.();
-  const body = document.getElementById('briefing-body');
+  const body = document.getElementById('adviser-briefing-body');
   if (!data || !body) return;
+  const sectionHtml = (data.sections || []).map(section => `<div class="country-card-section"><h3>${escapeHtml(section.title)}</h3><ul style="margin:0; padding-left:18px;">${section.lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul></div>`).join('');
   const powers = data.topPowers.map((entry, index) => `<div class="insp-info-line"><span class="insp-info-label">${index + 1}位</span><span>${escapeHtml(entry.name)} <span class="muted">国力 ${entry.power}</span></span></div>`).join('');
   const threats = data.threats.length
     ? data.threats.map(entry => `<div class="insp-info-line"><span class="insp-info-label">${escapeHtml(entry.name)}</span><span>関係 ${entry.relation}</span></div>`).join('')
@@ -6853,14 +6868,14 @@ function openSituationBriefing() {
     : '';
   body.innerHTML = `
     <div class="country-card">
-      <div class="country-card-head"><div><strong>${escapeHtml(data.date)} の情勢</strong><span class="country-card-meta">国力 ${data.power} · ${data.rank} / ${data.total} 位</span></div></div>
+      <div class="country-card-head"><div><strong>${escapeHtml(data.date)} の顧問ブリーフィング</strong><span class="country-card-meta">国力 ${data.power} · ${data.rank} / ${data.total} 位</span></div></div>
+      ${sectionHtml}
       <div class="country-card-section"><h3>国力上位</h3>${powers}</div>
       <div class="country-card-section"><h3>脅威</h3>${threats}</div>
       <div class="country-card-section"><h3>従属関係</h3>${dependency}${subjects}</div>
-      <div class="country-card-section"><h3>財政</h3><div class="insp-info-line"><span class="insp-info-label">収支</span><span>収入 ${data.budget.income} / 維持費 ${data.budget.upkeep} / 純収支 ${data.budget.net}${data.budget.tribute ? `（貢納 -${data.budget.tribute}）` : ''}</span></div><div class="insp-info-line"><span class="insp-info-label">戦争</span><span>${data.wars} 件</span></div></div>
       <div class="country-card-section"><h3>助言</h3><ul style="margin:0; padding-left:18px;">${data.notes.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul></div>
     </div>`;
-  Orbis.openDialog('modal-briefing');
+  Orbis.openDialog('modal-adviser-briefing');
 }
 
 function openLocalGovernmentCommand(mode, stateId) {

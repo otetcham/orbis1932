@@ -37,6 +37,10 @@ window.ORBIS_PLAYBACK = (() => {
     }
   }
 
+  function escapeCard(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+  }
+
   function showCard(item) {
     let el = document.getElementById('turn-playback-card');
     if (!el) {
@@ -45,9 +49,9 @@ window.ORBIS_PLAYBACK = (() => {
       el.className = 'turn-playback-card';
       document.body.appendChild(el);
     }
-    const loc = item.location ? `<div class="tp-location">${item.location}</div>` : '';
-    const body = (item.body || '').slice(0, 180);
-    el.innerHTML = `<div class="tp-date">${item.date || ''}</div><strong>${item.headline || ''}</strong>${loc}<p>${body}</p>`;
+    const loc = item.location ? `<div class="tp-location">${escapeCard(item.location)}</div>` : '';
+    const body = escapeCard(item.body || '').slice(0, 360);
+    el.innerHTML = `<div class="tp-date">${escapeCard(item.date || '')}</div><strong>${escapeCard(item.headline || '')}</strong>${loc}<p>${body}</p>`;
     el.hidden = false;
     el.classList.add('visible');
   }
