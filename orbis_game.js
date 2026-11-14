@@ -359,7 +359,8 @@ const Orbis = (() => {
       nations, relations, leaders: {}, actorState: {}, threads: {}, activeActorId: 'adviser',
       articles: [], briefing: null, turnActions: [], commitments: [], treaties: [], clients: copy(CLIENTS), territories: {},
       dynamicNations: {},
-      nationalAction: null, actionDraft: '', actionHistory: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [], economy: {}, nationalFocus: {}, research: {},
+      nationalAction: null, actionDraft: '', actionHistory: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, peaceConferences: {}, warScores: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [], economy: {}, nationalFocus: {}, research: {},
+      maritime: { navy: {}, air: {}, seaControl: {}, turn: -1 },
       establishedFacts: [], timelineFired: {}, turnPlaybackQueue: [], worldMemory: '', stress: { collapse: 0, bankruptcy: 0, war: 0, civil: 0 },
       globalWarHalves: 0, worldWarActive: false, lastResolutionIssues: [],
       cumulative: { treaties: 0, fulfilled: 0, broken: 0 }, ending: null, savedAt: null,
@@ -1220,6 +1221,213 @@ const Orbis = (() => {
       && ((war.attacker === a && war.defender === b) || (war.attacker === b && war.defender === a)));
   }
 
+  function isSeaRegion(region) {
+    return Boolean(region && (region.isSea || region.isSeaZone || region.type === 'sea'));
+  }
+
+  function maritimeState(game) {
+    if (!game) return { navy: {}, air: {}, seaControl: {}, turn: -1 };
+    if (!game.maritime || typeof game.maritime !== 'object' || Array.isArray(game.maritime)) {
+      game.maritime = { navy: {}, air: {}, seaControl: {}, turn: -1 };
+    }
+    const state = game.maritime;
+    for (const key of ['navy', 'air', 'seaControl']) {
+      if (!state[key] || typeof state[key] !== 'object' || Array.isArray(state[key])) state[key] = {};
+    }
+    state.turn = finite(state.turn, -1, SAVE_TURN_CEILING(), -1);
+    return state;
+  }
+
+  function directlyHeldLandRegions(game, nationId) {
+    return window.ORBIS_STATES_DB.filter(region => isLandRegion(region) && regionHolder(game, region) === nationId);
+  }
+
+  function rawNavyPower(game, nationId) {
+    const nation = game?.nations?.[nationId];
+    let power = 0;
+    for (const region of directlyHeldLandRegions(game, nationId)) power += Math.max(0, Number(region.nic) || 0);
+    return Math.round(power * (0.9 + (Number(nation?.mil) || 50) / 400 + (Number(nation?.tech) || 50) / 500));
+  }
+
+  function rawAirPower(game, nationId) {
+    const nation = game?.nations?.[nationId];
+    let power = 0;
+    for (const region of directlyHeldLandRegions(game, nationId)) power += Math.max(0, Number(region.air) || 0);
+    return Math.round(power * (0.8 + (Number(nation?.tech) || 50) / 300 + (Number(nation?.mil) || 50) / 500));
+  }
+
+  function nationNavyPower(game, nationId) {
+    const state = maritimeState(game);
+    const saved = state.navy[nationId];
+    return Number.isFinite(saved) ? Math.max(0, Math.round(saved)) : rawNavyPower(game, nationId);
+  }
+
+  function nationAirPower(game, nationId) {
+    const state = maritimeState(game);
+    const saved = state.air[nationId];
+    return Number.isFinite(saved) ? Math.max(0, Math.round(saved)) : rawAirPower(game, nationId);
+  }
+
+  function seaDistance(a, b) {
+    if (!a || !b) return 999;
+    let dLon = Math.abs((Number(a.lon) || 0) - (Number(b.lon) || 0)) % 360;
+    if (dLon > 180) dLon = 360 - dLon;
+    const dLat = (Number(a.lat) || 0) - (Number(b.lat) || 0);
+    return Math.hypot(dLon, dLat);
+  }
+
+  function nearestHeldDistance(game, nationId, zone) {
+    const sphere = formationSphereIds(game, nationId);
+    let best = 999;
+    for (const region of window.ORBIS_STATES_DB) {
+      if (!isLandRegion(region) || !sphere.has(regionHolder(game, region))) continue;
+      best = Math.min(best, seaDistance(region, zone));
+    }
+    return best;
+  }
+
+  function seaZoneCandidates(game, zone) {
+    const ids = new Set();
+    const owner = zone.country && game.nations?.[zone.country] ? zone.country : null;
+    if (owner) ids.add(owner);
+    for (const war of Object.values(game.wars || {})) {
+      if (war.status !== 'active') continue;
+      const a = war.attacker;
+      const b = war.defender;
+      if (!game.nations?.[a] || !game.nations?.[b]) continue;
+      const aNear = nearestHeldDistance(game, a, zone) <= 38;
+      const bNear = nearestHeldDistance(game, b, zone) <= 38;
+      if (aNear || owner === a) ids.add(a);
+      if (bNear || owner === b) ids.add(b);
+    }
+    return [...ids];
+  }
+
+  function seaControlForZone(game, zone) {
+    const candidates = seaZoneCandidates(game, zone);
+    if (!candidates.length) return null;
+    const owner = zone.country && game.nations?.[zone.country] ? zone.country : null;
+    let best = null;
+    let bestPower = -1;
+    for (const id of candidates) {
+      const homeBonus = id === owner ? 1.2 : 1;
+      const power = nationNavyPower(game, id) * homeBonus;
+      if (power > bestPower || (power === bestPower && id === owner)) {
+        best = id;
+        bestPower = power;
+      }
+    }
+    return best;
+  }
+
+  function refreshMaritime(game) {
+    if (!game) return null;
+    const state = maritimeState(game);
+    state.navy = {};
+    state.air = {};
+    for (const nationId of Object.keys(game.nations || {})) {
+      state.navy[nationId] = rawNavyPower(game, nationId);
+      state.air[nationId] = rawAirPower(game, nationId);
+    }
+    state.seaControl = {};
+    for (const zone of window.ORBIS_STATES_DB) {
+      if (!isSeaRegion(zone)) continue;
+      state.seaControl[zone.id] = seaControlForZone(game, zone);
+    }
+    state.turn = game.completedTurns;
+    return state;
+  }
+
+  function nearestSeaZones(region, limit = 3) {
+    return window.ORBIS_STATES_DB
+      .filter(isSeaRegion)
+      .map(zone => ({ zone, distance: seaDistance(region, zone) }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, limit);
+  }
+
+  function seaSupplyInfo(game, region, nationId) {
+    const state = maritimeState(game);
+    const nearest = nearestSeaZones(region, 3);
+    if (!nearest.length) return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: null, seaControl: null };
+    const pick = nearest[0];
+    const controller = state.seaControl[pick.zone.id] || null;
+    const sphere = formationSphereIds(game, nationId);
+    const supplyBonus = nationalModifiers(game, nationId).supplyBonus;
+    if (controller && sphere.has(controller)) {
+      const level = clamp(58 - Math.round(pick.distance / 6) + supplyBonus, 25, 70);
+      const status = level >= 70 ? 'full' : level >= 40 ? 'stretched' : 'low';
+      return { level, status, label: SUPPLY_LABELS[status], distance: null, seaZoneId: pick.zone.id, seaControl: controller };
+    }
+    if (controller && activeWarBetween(game, nationId, controller)) {
+      return { level: 8, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: pick.zone.id, seaControl: controller };
+    }
+    return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: pick.zone.id, seaControl: controller };
+  }
+
+  function airCombatModifier(game, attackerId, defenderId) {
+    if (!attackerId || !defenderId || attackerId === defenderId) return { side: null, lossDelta: 0, label: '航空均衡' };
+    const attackerAir = nationAirPower(game, attackerId);
+    const defenderAir = nationAirPower(game, defenderId);
+    if (attackerAir > 0 && attackerAir >= defenderAir * 1.12) return { side: 'attacker', lossDelta: -1, label: '航空優勢' };
+    if (defenderAir > 0 && defenderAir >= attackerAir * 1.12) return { side: 'defender', lossDelta: 1, label: '敵航空優勢' };
+    return { side: null, lossDelta: 0, label: '航空均衡' };
+  }
+
+  function airInterdictionPenalty(game, nationId, regionId) {
+    const conflict = game.conflicts?.[regionId];
+    if (!conflict) return 0;
+    const enemy = conflict.attacker === nationId ? conflict.defender : conflict.defender === nationId ? conflict.attacker : null;
+    if (!enemy) return 0;
+    return airCombatModifier(game, nationId, enemy).side === 'defender' ? 8 : 0;
+  }
+
+  function maritimeNote(game) {
+    if (!game) return '';
+    const id = game.playerNationId;
+    const state = maritimeState(game);
+    const zones = window.ORBIS_STATES_DB.filter(isSeaRegion)
+      .map(zone => ({ zone, controller: state.seaControl?.[zone.id] || null }))
+      .filter(item => item.controller)
+      .sort((a, b) => (b.zone.vp || 0) - (a.zone.vp || 0))
+      .slice(0, 4)
+      .map(item => `${regionLabel(item.zone)}（${shortName(item.controller)}）`);
+    return `海空軍：海軍力 ${nationNavyPower(game, id)}・空軍力 ${nationAirPower(game, id)}。主な制海：${zones.length ? zones.join('、') : '主要海域は中立'}。`;
+  }
+
+  function maritimeSummary(nationId) {
+    if (!campaign) return null;
+    const id = nationId || campaign.playerNationId;
+    const state = maritimeState(campaign);
+    if (state.turn !== campaign.completedTurns) refreshMaritime(campaign);
+    const sphere = formationSphereIds(campaign, id);
+    const zones = window.ORBIS_STATES_DB.filter(isSeaRegion).map(zone => {
+      const controller = state.seaControl[zone.id] || null;
+      const relation = !controller ? 'neutral' : sphere.has(controller) ? 'friendly' : activeWarBetween(campaign, id, controller) ? 'hostile' : 'foreign';
+      return {
+        id: zone.id,
+        name: regionLabel(zone),
+        controller,
+        controllerName: controller ? shortName(controller) : '中立',
+        relation,
+        vp: Math.max(0, Number(zone.vp) || 0)
+      };
+    });
+    const main = zones
+      .filter(zone => zone.relation === 'friendly' || zone.relation === 'hostile')
+      .sort((a, b) => (a.relation === b.relation ? 0 : a.relation === 'friendly' ? -1 : 1) || b.vp - a.vp)
+      .slice(0, 8);
+    return {
+      nationId: id,
+      navy: nationNavyPower(campaign, id),
+      air: nationAirPower(campaign, id),
+      zones,
+      main,
+      controlled: zones.filter(zone => zone.relation === 'friendly').length,
+      hostile: zones.filter(zone => zone.relation === 'hostile').length
+    };
+  }
+
   function formationById(id) {
     return (campaign?.formations || []).find(item => item.id === id) || null;
   }
@@ -1846,12 +2054,13 @@ const Orbis = (() => {
         queue.push(nextId);
       }
     }
-    if (!distance.has(regionId)) return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null };
+    if (!distance.has(regionId)) return seaSupplyInfo(game, region, nationId);
     const steps = distance.get(regionId);
     const supplyBonus = nationalModifiers(game, nationId).supplyBonus;
-    const level = clamp(100 - steps * 7 + supplyBonus, 20, 100);
+    const interdiction = airInterdictionPenalty(game, nationId, regionId);
+    const level = clamp(100 - steps * 7 + supplyBonus - interdiction, 20, 100);
     const status = level >= 70 ? 'full' : level >= 40 ? 'stretched' : 'low';
-    return { level, status, label: SUPPLY_LABELS[status], distance: steps };
+    return { level, status, label: SUPPLY_LABELS[status], distance: steps, interdiction };
   }
 
   function formationSupplyInfo(game, formation) {
@@ -2329,10 +2538,13 @@ const Orbis = (() => {
         game.conflicts[step.id] = { attacker: formation.nationId, defender: originalOwner, months: 1, reason: `${shortName(formation.nationId)}の攻勢` };
       }
       if (formation.type === 'field') formation.regionId = step.id;
-      const attackLoss = Math.max(1, 2 + (supply.level < 70 ? 1 : 0) - modifiers.lossReduction - Math.floor((modifiers.attackBonus + modifiers.combatStrength) / 3));
+      const air = airCombatModifier(game, formation.nationId, defender);
+      const attackLoss = Math.max(1, 2 + (supply.level < 70 ? 1 : 0) - modifiers.lossReduction - Math.floor((modifiers.attackBonus + modifiers.combatStrength) / 3) + air.lossDelta);
       formation.strength = Math.max(20, (formation.strength || 50) - attackLoss);
       notes.push(liberated ? `${regionLabel(step)}を${shortName(formation.nationId)}が奪還。` : `${regionLabel(step)}を${shortName(formation.nationId)}が占領。`);
       notes.push(`${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}が${regionLabel(step)}方面へ前進（戦力 ${formation.strength}）。`);
+      if (air.side === 'attacker') notes.push(`${shortName(formation.nationId)}の航空支援が${regionLabel(step)}の戦闘を支え、消耗を軽減。`);
+      else if (air.side === 'defender') notes.push(`${shortName(defender)}の航空優勢により${shortName(formation.nationId)}の前進が鈍り、消耗が増加。`);
       retreatEnemyFormations(game, step, formation.nationId, notes);
       if (target.id === step.id) {
         const next = adjacentLandRegions(formation.regionId)
@@ -2475,7 +2687,300 @@ const Orbis = (() => {
     game.claims[stateId] = list.slice(-6);
   }
 
-  function endWarOnGame(game, warId, cedeStateIds = [], returnStateIds = []) {
+  function statePointValue(region) {
+    if (!region) return 2;
+    const vp = Math.max(0, Number(region.vp) || 0);
+    const industry = Math.max(0, Number(region.cic) || 0) + Math.max(0, Number(region.mic) || 0);
+    return Math.max(2, Math.round(vp / 8) + Math.floor(industry / 30));
+  }
+
+  function warScoreBreakdown(game, war, side) {
+    const enemy = war.attacker === side ? war.defender : war.attacker;
+    if (!enemy) return { occupied: 0, points: 0, conflicts: 0, duration: 0, total: 0 };
+    const enemyParty = new Set(warPartyIds(game, enemy));
+    let occupied = 0;
+    let points = 0;
+    let conflicts = 0;
+    for (const [stateId, prior] of Object.entries(game.occupations || {})) {
+      if (game.territories?.[stateId] !== side || !enemyParty.has(prior)) continue;
+      const region = regionById(stateId);
+      if (!region || !isLandRegion(region)) continue;
+      occupied++;
+      points += statePointValue(region);
+    }
+    for (const conflict of Object.values(game.conflicts || {})) {
+      if (conflict.attacker === side && enemyParty.has(conflict.defender)) conflicts++;
+    }
+    const halfTurns = Math.max(0, (game.completedTurns || 0) - (war.startedTurn || 0));
+    const duration = Math.min(8, Math.floor(halfTurns / 3));
+    return { occupied, points, conflicts: Math.min(5, conflicts), duration, total: points + Math.min(5, conflicts) + duration };
+  }
+
+  function warScoreSummary(game, warId) {
+    const war = game?.wars?.[warId];
+    if (!war) return null;
+    const attacker = warScoreBreakdown(game, war, war.attacker);
+    const defender = warScoreBreakdown(game, war, war.defender);
+    const playerId = game.playerNationId;
+    const playerSide = war.attacker === playerId ? 'attacker' : war.defender === playerId ? 'defender' : null;
+    const own = playerSide === 'attacker' ? attacker : playerSide === 'defender' ? defender : null;
+    const opponent = playerSide === 'attacker' ? defender : playerSide === 'defender' ? attacker : null;
+    const available = own ? clamp(own.total + 2 - Math.floor(opponent.total / 3), 0, 100) : 0;
+    const summary = { warId, attacker, defender, playerSide, own, opponent, available, turn: game.completedTurns || 0 };
+    if (!game.warScores || typeof game.warScores !== 'object') game.warScores = {};
+    game.warScores[warId] = {
+      attacker: attacker.total,
+      defender: defender.total,
+      available,
+      playerSide,
+      turn: game.completedTurns || 0
+    };
+    return summary;
+  }
+
+  function refreshWarScores(game) {
+    if (!game) return;
+    game.warScores = {};
+    for (const warId of Object.keys(game.wars || {})) warScoreSummary(game, warId);
+  }
+
+  function peaceDemandsFor(game, warId) {
+    const war = game?.wars?.[warId];
+    if (!war || war.status !== 'active') return [];
+    const playerId = game.playerNationId;
+    const playerSide = war.attacker === playerId ? 'attacker' : war.defender === playerId ? 'defender' : null;
+    if (!playerSide) return [];
+    const enemy = playerSide === 'attacker' ? war.defender : war.attacker;
+    const enemyParty = new Set(warPartyIds(game, enemy));
+    const demands = [];
+    const seenStates = new Set();
+    for (const [stateId, prior] of Object.entries(game.occupations || {})) {
+      if (game.territories?.[stateId] !== playerId || !enemyParty.has(prior)) continue;
+      const region = regionById(stateId);
+      if (!region || !isLandRegion(region)) continue;
+      const value = statePointValue(region);
+      seenStates.add(stateId);
+      demands.push({ id: `hold:${stateId}`, type: 'hold', stateId, cost: value, label: `占領地の保持：${regionLabel(region)}`, detail: `占領状態のまま停戦する（${value}点）` });
+      demands.push({ id: `annex:${stateId}`, type: 'annex', stateId, cost: value + 3, label: `占領地の併合：${regionLabel(region)}`, detail: `占領を解除して自国領に編入する（${value + 3}点）` });
+      demands.push({ id: `return:${stateId}`, type: 'return', stateId, cost: 0, label: `占領地の返還：${regionLabel(region)}`, detail: '占領を解いて相手国へ戻す（0点・威信 +1）' });
+    }
+    for (const [stateId, claims] of Object.entries(game.claims || {})) {
+      if (seenStates.has(stateId)) continue;
+      if (!Array.isArray(claims) || !claims.some(claim => claim.nationId === playerId)) continue;
+      const region = regionById(stateId);
+      if (!region || !isLandRegion(region)) continue;
+      const holder = regionHolder(game, region);
+      if (!enemyParty.has(holder)) continue;
+      const value = statePointValue(region);
+      demands.push({ id: `cede:${stateId}`, type: 'cede', stateId, cost: value + 2, label: `請求に基づく割譲：${regionLabel(region)}`, detail: `従来の請求を根拠に相手国から割譲させる（${value + 2}点）` });
+    }
+    if (enemy && !game.clients?.[enemy]?.sponsorId && !game.nations?.[playerId]?.suzerain) {
+      const cost = 28 + Math.floor((Number(game.nations?.[enemy]?.mil) || 50) / 10);
+      demands.push({ id: `vassalize:${enemy}`, type: 'vassalize', nationId: enemy, cost, label: `${shortName(enemy)}の従属化`, detail: `保護国として外交・軍事を宗主国の影響下に置く（${cost}点）` });
+    }
+    demands.push({ id: 'white', type: 'white', cost: 0, label: '現状維持の停戦', detail: '新たな要求をせず、現在の支配線で戦争を終える（0点）' });
+    return demands;
+  }
+
+  function peaceConferenceSummary(game, warId) {
+    const score = warScoreSummary(game, warId);
+    if (!score) return null;
+    const demands = peaceDemandsFor(game, warId);
+    if (!demands.length) return null;
+    const conference = game.peaceConferences?.[warId];
+    const draft = Array.isArray(conference?.draft) ? conference.draft.filter(id => demands.some(demand => demand.id === id)) : [];
+    let cost = 0;
+    for (const id of draft) cost += demands.find(demand => demand.id === id)?.cost || 0;
+    const remaining = Math.max(0, score.available - cost);
+    return {
+      ...score,
+      playerNationId: game.playerNationId,
+      enemyId: score.playerSide === 'attacker' ? game.wars[warId].defender : game.wars[warId].attacker,
+      war: copy(game.wars[warId]),
+      demands: demands.map(demand => ({
+        ...demand,
+        selected: draft.includes(demand.id),
+        affordable: draft.includes(demand.id) || demand.cost <= remaining,
+        remaining
+      })),
+      selected: draft.slice(),
+      cost,
+      remaining
+    };
+  }
+
+  function peaceDraftCost(demands, ids) {
+    return ids.reduce((sum, id) => sum + (demands.find(demand => demand.id === id)?.cost || 0), 0);
+  }
+
+  function togglePeaceDemand(warId, demandId) {
+    if (!campaign) return { ok: false, error: 'キャンペーンがありません。' };
+    const summary = peaceConferenceSummary(campaign, warId);
+    if (!summary) return { ok: false, error: '進行中の戦争ではありません。' };
+    const demand = summary.demands.find(item => item.id === demandId);
+    if (!demand) return { ok: false, error: 'その要求は選べません。' };
+    const next = new Set(summary.selected);
+    if (next.has(demandId)) next.delete(demandId);
+    else {
+      if (demand.type === 'white') next.clear();
+      else next.delete('white');
+      if (demand.stateId) {
+        for (const id of next) {
+          if (summary.demands.find(item => item.id === id)?.stateId === demand.stateId) next.delete(id);
+        }
+      }
+      next.add(demandId);
+    }
+    const cost = peaceDraftCost(summary.demands, [...next]);
+    if (cost > summary.available) return { ok: false, error: `戦時得点が不足しています（必要 ${cost} / 利用可能 ${summary.available}）。` };
+    campaign.peaceConferences = campaign.peaceConferences || {};
+    campaign.peaceConferences[warId] = {
+      warId,
+      draft: [...next],
+      status: 'draft',
+      openedTurn: campaign.peaceConferences[warId]?.openedTurn ?? campaign.completedTurns,
+      updatedTurn: campaign.completedTurns
+    };
+    saveCampaign();
+    return { ok: true, summary: peaceConferenceSummary(campaign, warId) };
+  }
+
+  function confirmPeaceConference(warId, demandIds = null) {
+    if (!campaign?.wars?.[warId] || campaign.wars[warId].status !== 'active') return { ok: false, error: '進行中の戦争ではありません。' };
+    const summary = peaceConferenceSummary(campaign, warId);
+    if (!summary) return { ok: false, error: '和平会議を開けません。' };
+    const ids = Array.isArray(demandIds) ? [...new Set(demandIds)] : summary.selected.slice();
+    const picks = [];
+    for (const id of ids) {
+      const demand = summary.demands.find(item => item.id === id);
+      if (!demand) return { ok: false, error: '選択できない要求が含まれています。' };
+      picks.push(demand);
+    }
+    const cost = picks.reduce((sum, demand) => sum + demand.cost, 0);
+    if (cost > summary.available) return { ok: false, error: `戦時得点が不足しています（必要 ${cost} / 利用可能 ${summary.available}）。` };
+    if (picks.filter(demand => demand.stateId).length > new Set(picks.filter(demand => demand.stateId).map(demand => demand.stateId)).size) {
+      return { ok: false, error: '同じ州に複数の処分を選ぶことはできません。' };
+    }
+    const war = campaign.wars[warId];
+    const playerId = campaign.playerNationId;
+    const facts = [];
+    for (const demand of picks) {
+      if (demand.type === 'white') continue;
+      if (demand.type === 'hold') {
+        const region = regionById(demand.stateId);
+        if (!region || campaign.territories[demand.stateId] !== playerId) return { ok: false, error: '保持する占領地がありません。' };
+        delete campaign.conflicts[demand.stateId];
+        facts.push(`${regionLabel(region)}の占領を維持`);
+        continue;
+      }
+      if (demand.type === 'annex' || demand.type === 'cede') {
+        const region = regionById(demand.stateId);
+        if (!region) return { ok: false, error: '対象州が見つかりません。' };
+        if (demand.type === 'cede') {
+          const holder = regionHolder(campaign, region);
+          if (!warPartyIds(campaign, summary.enemyId).includes(holder)) return { ok: false, error: '割譲対象が相手国の支配下にありません。' };
+        }
+        const prior = campaign.occupations?.[demand.stateId] || regionHolder(campaign, region);
+        addClaim(campaign, demand.stateId, prior, demand.type === 'annex' ? '和平会議で併合された領土' : '和平会議で割譲された領土');
+        campaign.territories[demand.stateId] = playerId;
+        delete campaign.occupations[demand.stateId];
+        delete campaign.conflicts[demand.stateId];
+        facts.push(`${regionLabel(region)}を${demand.type === 'annex' ? '併合' : '割譲'}`);
+        continue;
+      }
+      if (demand.type === 'return') {
+        const region = regionById(demand.stateId);
+        if (!region) return { ok: false, error: '対象州が見つかりません。' };
+        const prior = campaign.occupations?.[demand.stateId] || region.country;
+        if (campaign.claims?.[demand.stateId]) {
+          campaign.claims[demand.stateId] = campaign.claims[demand.stateId].filter(claim => claim.nationId !== prior);
+          if (!campaign.claims[demand.stateId].length) delete campaign.claims[demand.stateId];
+        }
+        campaign.territories[demand.stateId] = prior;
+        delete campaign.occupations[demand.stateId];
+        delete campaign.conflicts[demand.stateId];
+        campaign.prestige = clamp((campaign.prestige || 0) + 1, 0, 100);
+        facts.push(`${regionLabel(region)}を返還`);
+        continue;
+      }
+      if (demand.type === 'vassalize') {
+        const result = createDependent(playerId, demand.nationId, 'protectorate', `${shortName(demand.nationId)}保護国`, campaign);
+        if (!result.ok) return result;
+        facts.push(`${shortName(demand.nationId)}を従属化`);
+      }
+    }
+    const ended = endWarOnGame(campaign, warId);
+    if (!ended) return { ok: false, error: '停戦処理に失敗しました。' };
+    war.resolvedScore = summary.available;
+    war.resolvedCost = cost;
+    campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(playerId)}と${shortName(summary.enemyId)}が和平会議で停戦${facts.length ? `（${facts.join('、')}）` : ''}`].slice(-400);
+    delete campaign.peaceConferences[warId];
+    delete campaign.peaceOffers?.[warId];
+    refreshWarScores(campaign);
+    refreshMaritime(campaign);
+    saveCampaign();
+    syncWorld();
+    render();
+    toast(facts.length ? `和平が成立：${facts.join('、')}。` : '和平が成立し、戦争が終結した。');
+    return { ok: true, warId, cost, available: summary.available, demands: picks.map(demand => demand.id), facts };
+  }
+
+  function civilWarPeaceSummary(nationId) {
+    const war = campaign?.civilWars?.[nationId];
+    if (!war || war.status !== 'active') return null;
+    const factionId = war.factionId || `${nationId}_rebels`;
+    const held = window.ORBIS_STATES_DB.filter(region => isLandRegion(region) && campaign.territories[region.id] === factionId)
+      .map(region => ({ stateId: region.id, label: regionLabel(region) }));
+    return {
+      nationId,
+      factionId,
+      label: war.label || `${shortName(nationId)}反乱軍`,
+      held,
+      halves: war.halves || 0,
+      demands: [
+        { id: 'civil_return', type: 'civil_return', cost: 0, label: `支配州の返還（${held.length}州）`, detail: '反乱勢力の支配州を政府へ戻し、内戦を収束する' },
+        { id: 'civil_autonomy', type: 'civil_autonomy', cost: 0, label: '支配州の残留を認める', detail: '反乱勢力の支配州を残したまま内戦を終結する' }
+      ]
+    };
+  }
+
+  function settleCivilWar(nationId, mode = 'return') {
+    const war = campaign?.civilWars?.[nationId];
+    if (!war || war.status !== 'active') return { ok: false, error: '進行中の内戦ではありません。' };
+    const factionId = war.factionId || `${nationId}_rebels`;
+    let affected = 0;
+    if (mode === 'autonomy') {
+      for (const region of window.ORBIS_STATES_DB) {
+        if (!isLandRegion(region) || campaign.territories[region.id] !== factionId) continue;
+        delete campaign.occupations[region.id];
+        delete campaign.conflicts[region.id];
+        affected++;
+      }
+      ensureFaction(campaign, factionId, nationId, war.label || '反乱軍').autonomous = true;
+      campaign.nations[nationId].stb = clamp(campaign.nations[nationId].stb - 2, 0, 100);
+      campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(nationId)}内戦：反乱勢力の支配州残留を認めて終結`].slice(-400);
+    } else {
+      for (const region of window.ORBIS_STATES_DB) {
+        if (!isLandRegion(region) || campaign.territories[region.id] !== factionId) continue;
+        campaign.territories[region.id] = nationId;
+        delete campaign.occupations[region.id];
+        delete campaign.conflicts[region.id];
+        affected++;
+      }
+      campaign.nations[nationId].stb = clamp(campaign.nations[nationId].stb + 8, 0, 100);
+      campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(nationId)}内戦：支配州を政府へ返還して収束`].slice(-400);
+    }
+    war.status = 'resolved';
+    war.resolvedTurn = campaign.completedTurns;
+    war.settlement = mode === 'autonomy' ? 'autonomy' : 'return';
+    saveCampaign();
+    syncWorld();
+    render();
+    toast(mode === 'autonomy' ? '反乱勢力の支配州残留を認め、内戦を終結した。' : '内戦の支配州を政府へ戻し、内戦を収束した。');
+    return { ok: true, nationId, mode, affected };
+  }
+
+  function endWarOnGame(game, warId, cedeStateIds = [], returnStateIds = [], options = {}) {
     const war = game.wars?.[warId];
     if (!war || war.status !== 'active') return false;
     war.status = 'peace';
@@ -2483,16 +2988,26 @@ const Orbis = (() => {
     for (const stateId of cedeStateIds) {
       if (!stateId) continue;
       const region = window.ORBIS_STATES_DB.find(r => r.id === stateId);
-      const prior = game.occupations[stateId] || region?.country;
+      const prior = game.occupations?.[stateId] || region?.country;
       addClaim(game, stateId, prior || war.defender, '戦争で失った領土');
       game.territories[stateId] = war.attacker;
       game.occupations[stateId] = war.defender;
       delete game.conflicts[stateId];
     }
+    for (const stateId of options.annexStateIds || []) {
+      if (!stateId) continue;
+      const region = window.ORBIS_STATES_DB.find(r => r.id === stateId);
+      if (!region) continue;
+      const prior = game.occupations?.[stateId] || region.country;
+      addClaim(game, stateId, prior, '和平会議で併合された領土');
+      game.territories[stateId] = war.attacker;
+      delete game.occupations[stateId];
+      delete game.conflicts[stateId];
+    }
     for (const stateId of returnStateIds) {
       const region = window.ORBIS_STATES_DB.find(r => r.id === stateId);
       if (!region) continue;
-      const prior = game.occupations[stateId] || region.country;
+      const prior = game.occupations?.[stateId] || region.country;
       if (game.claims?.[stateId]) {
         game.claims[stateId] = game.claims[stateId].filter(claim => claim.nationId !== prior);
         if (!game.claims[stateId].length) delete game.claims[stateId];
@@ -2500,6 +3015,10 @@ const Orbis = (() => {
       game.territories[stateId] = prior;
       delete game.occupations[stateId];
       delete game.conflicts[stateId];
+    }
+    if (options.vassalizeEnemy) {
+      const sponsorId = options.vassalizeSponsor || war.attacker;
+      createDependent(sponsorId, war.defender, 'protectorate', `${shortName(war.defender)}保護国`, game);
     }
     const warParties = new Set([...warPartyIds(game, war.attacker), ...warPartyIds(game, war.defender)]);
     for (const [rid, c] of Object.entries(game.conflicts || {})) {
@@ -2520,16 +3039,23 @@ const Orbis = (() => {
     if (hasWarGoal) addWarGoal(campaign, campaign.playerNationId, targetNationId);
     campaign.tension = clamp(campaign.tension + (hasWarGoal ? 3 : 6), 0, 100);
     campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(campaign.playerNationId)}と${shortName(targetNationId)}は戦争状態に入った${hasWarGoal ? '（国策の戦争目標）' : ''}`].slice(-400);
+    refreshMaritime(campaign);
+    refreshWarScores(campaign);
     saveCampaign();
     syncWorld();
     render();
     return true;
   }
 
-  function signPeace(warId, cedeStateIds = [], returnStateIds = []) {
+  function signPeace(warId, cedeStateIds = [], returnStateIds = [], options = {}) {
     if (!campaign?.wars[warId]) return false;
-    endWarOnGame(campaign, warId, cedeStateIds, returnStateIds);
+    if (Array.isArray(options.demandIds)) return confirmPeaceConference(warId, options.demandIds).ok;
+    const ended = endWarOnGame(campaign, warId, cedeStateIds, returnStateIds, options);
+    if (!ended) return false;
     delete campaign.peaceOffers?.[warId];
+    delete campaign.peaceConferences?.[warId];
+    refreshMaritime(campaign);
+    refreshWarScores(campaign);
     saveCampaign();
     syncWorld();
     render();
@@ -2543,6 +3069,7 @@ const Orbis = (() => {
       from: campaign.playerNationId,
       cedeStateIds: options.cedeStateIds || [],
       returnStateIds: options.returnStateIds || [],
+      demandIds: options.demandIds || [],
       status: 'pending',
       expiresTurn: campaign.completedTurns + 6,
       terms: options.terms || '国境の安定化',
@@ -2550,12 +3077,47 @@ const Orbis = (() => {
     const war = campaign.wars[warId];
     const rel = campaign.relations[campaign.playerNationId]?.[war.defender === campaign.playerNationId ? war.attacker : war.defender] ?? -50;
     if (rel > -40 || campaign.wars[warId].npc) {
-      signPeace(warId, campaign.peaceOffers[warId].cedeStateIds, campaign.peaceOffers[warId].returnStateIds);
+      if (Array.isArray(options.demandIds) && options.demandIds.length) return confirmPeaceConference(warId, options.demandIds).ok;
+      const settled = signPeace(warId, campaign.peaceOffers[warId].cedeStateIds, campaign.peaceOffers[warId].returnStateIds);
       toast('和平案が受諾され、停戦が成立した。');
-    } else toast('和平案を提出した。相手国の応答を待つ。');
+      return settled;
+    }
+    campaign.peaceConferences = campaign.peaceConferences || {};
+    campaign.peaceConferences[warId] = { warId, draft: options.demandIds || [], status: 'draft', openedTurn: campaign.completedTurns, updatedTurn: campaign.completedTurns };
+    toast('和平案を提出した。戦争パネルの和平会議で要求を調整できる。');
     saveCampaign();
     render();
     return true;
+  }
+
+  function settleNpcWars(game, notes = []) {
+    for (const [warId, war] of Object.entries(game.wars || {})) {
+      if (war.status !== 'active') continue;
+      if (war.attacker === game.playerNationId || war.defender === game.playerNationId) continue;
+      const halves = Math.max(0, (game.completedTurns || 0) - (war.startedTurn || 0));
+      if (halves < 8) continue;
+      const score = warScoreSummary(game, warId);
+      if (!score) continue;
+      const advantage = score.attacker.total - score.defender.total;
+      if (Math.abs(advantage) < 8 && halves < 14) continue;
+      const attackerHeld = Object.entries(game.occupations || {})
+        .filter(([stateId, prior]) => game.territories?.[stateId] === war.attacker && warPartyIds(game, war.defender).includes(prior))
+        .map(([stateId]) => stateId);
+      const defenderHeld = Object.entries(game.occupations || {})
+        .filter(([stateId, prior]) => game.territories?.[stateId] === war.defender && warPartyIds(game, war.attacker).includes(prior))
+        .map(([stateId]) => stateId);
+      if (advantage >= 8 && attackerHeld.length) {
+        const stateId = attackerHeld[0];
+        endWarOnGame(game, warId, [], [], { annexStateIds: [stateId] });
+        notes.push(`${shortName(war.attacker)}と${shortName(war.defender)}が停戦。${regionLabel(regionById(stateId))}は${shortName(war.attacker)}が確保。`);
+      } else if (advantage <= -8 && defenderHeld.length) {
+        endWarOnGame(game, warId, [], defenderHeld);
+        notes.push(`${shortName(war.attacker)}と${shortName(war.defender)}が停戦。占領地は返還された。`);
+      } else {
+        endWarOnGame(game, warId, [], [...attackerHeld, ...defenderHeld]);
+        notes.push(`${shortName(war.attacker)}と${shortName(war.defender)}が現状維持で停戦。`);
+      }
+    }
   }
 
   function negotiateCivilWar(nationId, mode = 'amnesty') {
@@ -2614,17 +3176,98 @@ const Orbis = (() => {
     return `<article class="review-item formation-row"><div class="formation-row-head">${flag}<strong>${escapeHtml(formationTypeLabel(formation.type))}</strong><span class="small muted">${escapeHtml(shortName(formation.nationId))} · ${escapeHtml(region ? regionLabel(region) : formation.regionId)}</span><span class="formation-strength">戦力 ${formation.strength}</span>${supplyBadgeHtml(supply)}</div><p class="small ${formation.order?.kind === 'offensive' ? 'formation-order-offensive' : ''}">${escapeHtml(orderLabel)}</p><div class="formation-order-row"><label class="sr-only" for="war-formation-target-${escapeHtml(formation.id)}">攻勢目標</label><select class="form-select formation-target-select" id="war-formation-target-${escapeHtml(formation.id)}" ${targets.length ? '' : 'disabled'}>${options}</select><button class="btn btn-ghost" data-formation-defend="${escapeHtml(formation.id)}">防御</button><button class="btn btn-primary" data-formation-offensive="${escapeHtml(formation.id)}" ${targets.length ? '' : 'disabled'}>攻勢</button></div></article>`;
   }
 
+  function maritimeSectionHtml() {
+    const summary = maritimeSummary();
+    if (!summary) return '';
+    const rows = summary.main.length
+      ? summary.main.map(zone => `<li><span>${escapeHtml(zone.name)}</span><span class="sea-control ${zone.relation}">${escapeHtml(zone.relation === 'friendly' ? '自国圏' : zone.relation === 'hostile' ? '敵' : '第三国')}：${escapeHtml(zone.controllerName)}</span></li>`).join('')
+      : '<li><span>主要な制海はまだ確定していません。</span><span class="sea-control neutral">中立</span></li>';
+    const affected = (campaign.formations || [])
+      .filter(formation => formation.nationId === summary.nationId)
+      .map(formation => ({ formation, supply: formationSupplyInfo(campaign, formation), region: regionById(formation.regionId) }))
+      .filter(item => item.supply.seaZoneId || item.supply.interdiction);
+    const impactRows = affected.length
+      ? affected.slice(0, 4).map(item => {
+        const zone = regionById(item.supply.seaZoneId);
+        const reason = item.supply.interdiction ? `敵航空優勢で補給 -${item.supply.interdiction}` : `海路 ${zone ? regionLabel(zone) : ''}（${item.supply.seaControl ? shortName(item.supply.seaControl) : '中立'}）`;
+        return `<li><span>${escapeHtml(item.region ? regionLabel(item.region) : item.formation.regionId)}の${escapeHtml(formationTypeLabel(item.formation.type))}</span><span class="sea-control ${item.supply.status === 'isolated' ? 'hostile' : item.supply.status === 'stretched' ? 'foreign' : 'friendly'}">補給 ${escapeHtml(item.supply.label)} · ${escapeHtml(reason)}</span></li>`;
+      }).join('')
+      : '<li><span>海路・航空による補給の悪化はない。</span><span class="sea-control friendly">補給安定</span></li>';
+    return `<section class="maritime-section"><h3>海空軍と制海</h3>
+      <div class="maritime-grid">
+        <div class="economy-card"><span>海軍力</span><strong>${summary.navy}</strong><small>制海 ${summary.controlled} 海域 · 敵制海 ${summary.hostile}</small></div>
+        <div class="economy-card"><span>空軍力</span><strong>${summary.air}</strong><small>航空優勢と補給妨害に影響</small></div>
+      </div>
+      <ul class="sea-control-list">${rows}</ul>
+      <p class="small muted">海軍力は支配陸州の海軍施設（nic）、空軍力は航空施設（air）から簡易集計する。敵が制海する海を隔てた部隊は補給が悪化し、敵航空優勢は前線の補給と攻勢を妨害する。陸続きの補給は従来どおり。</p>
+      <ul class="sea-control-list sea-impact-list">${impactRows}</ul>
+    </section>`;
+  }
+
+  function openPeaceConference(warId) {
+    if (!campaign) return false;
+    const summary = peaceConferenceSummary(campaign, warId);
+    if (!summary) return false;
+    text('peace-title', `和平会議 · ${shortName(campaign.wars[warId].attacker)} ⇄ ${shortName(campaign.wars[warId].defender)}`);
+    const demandRows = summary.demands.map(demand => {
+      const classes = ['peace-demand', demand.selected ? 'selected' : '', demand.affordable || demand.selected ? '' : 'unaffordable'].filter(Boolean).join(' ');
+      const badge = demand.selected ? '選択中' : demand.cost === 0 ? '無条件' : `${demand.cost}点`;
+      return `<button class="${classes}" data-peace-demand="${escapeHtml(demand.id)}" ${demand.affordable || demand.selected ? '' : 'disabled'}>
+        <span class="peace-demand-head"><strong>${escapeHtml(demand.label)}</strong><span class="peace-cost">${escapeHtml(badge)}</span></span>
+        <span class="small">${escapeHtml(demand.detail)}</span>
+      </button>`;
+    }).join('');
+    html('peace-panel-body', `<section class="peace-summary">
+      <div class="peace-score"><span>利用可能な戦時得点</span><strong>${summary.available}</strong><small>要求コスト ${summary.cost} / 残り ${summary.remaining}</small></div>
+      <div class="economy-card"><span>味方の戦果</span><strong>${summary.own.total}</strong><small>占領 ${summary.own.occupied}州・戦闘 ${summary.own.conflicts}・経過 ${summary.own.duration}</small></div>
+      <div class="economy-card"><span>相手の戦果</span><strong>${summary.opponent.total}</strong><small>占領 ${summary.opponent.occupied}州・戦闘 ${summary.opponent.conflicts}・経過 ${summary.opponent.duration}</small></div>
+    </section>
+    <p class="small muted">戦時得点の範囲内で要求を選ぶ。得点を超える要求は選べない。同じ州では保持・併合・返還のいずれか1つを選ぶ。</p>
+    <div class="peace-demand-list">${demandRows}</div>
+    <div class="form-row" style="margin-top:14px"><button class="btn btn-primary" data-peace-confirm="${escapeHtml(warId)}">この条件で和平を確定</button><span class="small muted">確定すると戦争が終わり、領土・占領・請求へ反映される。</span></div>`);
+    openDialog('modal-peace');
+    return true;
+  }
+
+  function openCivilPeaceConference(nationId) {
+    if (!campaign) return false;
+    const summary = civilWarPeaceSummary(nationId);
+    if (!summary) return false;
+    text('peace-title', `内戦和平 · ${shortName(nationId)}`);
+    const held = summary.held.length ? summary.held.map(item => `<li>${escapeHtml(item.label)}</li>`).join('') : '<li>反乱勢力の支配州はない。</li>';
+    const demands = summary.demands.map(demand => `<button class="peace-demand" data-civil-settle="${escapeHtml(demand.id)}" data-civil-nation="${escapeHtml(nationId)}">
+      <span class="peace-demand-head"><strong>${escapeHtml(demand.label)}</strong><span class="peace-cost">収束</span></span>
+      <span class="small">${escapeHtml(demand.detail)}</span>
+    </button>`).join('');
+    html('peace-panel-body', `<section class="peace-summary">
+      <div class="peace-score"><span>内戦の戦線</span><strong>第${summary.halves}戦線</strong><small>反乱勢力 ${escapeHtml(summary.label)}</small></div>
+      <div class="economy-card"><span>反乱勢力の支配州</span><strong>${summary.held.length}</strong><small>政府支配州への返還か残留を選ぶ</small></div>
+    </section>
+    <ul class="peace-held-list">${held}</ul>
+    <p class="small muted">国際戦争の自動占領ルールは内戦へ適用しない。ここで選んだ処置だけを反映し、内戦を収束させる。既存の特赦と交渉も戦争パネルから使える。</p>
+    <div class="peace-demand-list">${demands}</div>`);
+    openDialog('modal-peace');
+    return true;
+  }
+
   function openWarPanel() {
     if (!campaign) return;
     const { wars, civil, fronts } = listConflicts();
     const warRows = wars.map(w => {
-      const enemy = w.attacker === campaign.playerNationId ? w.defender : w.attacker;
-      return `<article class="review-item"><strong>${escapeHtml(shortName(w.attacker))} ⇄ ${escapeHtml(shortName(w.defender))}</strong><p class="small">${escapeHtml(w.reason || '')}</p><div class="war-actions"><button class="btn btn-ghost" data-peace-war="${escapeHtml(w.id)}" data-peace-return="1">和平（占領返還）</button><button class="btn" data-peace-war="${escapeHtml(w.id)}">和平（現状維持）</button></div>${w.attacker === campaign.playerNationId ? '' : `<span class="small muted">侵攻側：${escapeHtml(shortName(w.attacker))}</span>`}</article>`;
+      const isPlayerWar = Boolean(campaign.wars?.[w.id]);
+      const score = isPlayerWar ? warScoreSummary(campaign, w.id) : null;
+      const scoreLine = score
+        ? `<p class="small">戦時得点 味方 ${score.own.total} / 相手 ${score.opponent.total} · 要求可能 ${score.available}</p>`
+        : `<p class="small muted">${escapeHtml(w.reason || '')}</p>`;
+      const actions = isPlayerWar
+        ? `<div class="war-actions"><button class="btn btn-primary" data-peace-conference="${escapeHtml(w.id)}">和平会議</button><button class="btn btn-ghost" data-peace-war="${escapeHtml(w.id)}" data-peace-return="1">占領返還で停戦</button><button class="btn btn-ghost" data-peace-war="${escapeHtml(w.id)}">現状維持で停戦</button></div>`
+        : '';
+      return `<article class="review-item"><strong>${escapeHtml(shortName(w.attacker))} ⇄ ${escapeHtml(shortName(w.defender))}</strong>${scoreLine}<p class="small">${escapeHtml(w.reason || '')}</p>${actions}${w.attacker === campaign.playerNationId ? '' : `<span class="small muted">侵攻側：${escapeHtml(shortName(w.attacker))}</span>`}</article>`;
     }).join('') || '<p class="empty-state">進行中の国際戦争はありません。</p>';
-    const civilRows = civil.map(c => `<article class="review-item"><strong>${escapeHtml(c.label || c.factionId)}</strong><p class="small">第${c.halves || 0}戦線 · ${escapeHtml(shortName(c.nationId))}</p><button class="btn btn-primary" data-civil-peace="${escapeHtml(c.nationId)}">特赦と交渉</button></article>`).join('') || '<p class="empty-state">内戦は発生していません。</p>';
+    const civilRows = civil.map(c => `<article class="review-item"><strong>${escapeHtml(c.label || c.factionId)}</strong><p class="small">第${c.halves || 0}戦線 · ${escapeHtml(shortName(c.nationId))}</p><div class="war-actions"><button class="btn btn-primary" data-civil-conference="${escapeHtml(c.nationId)}">内戦和平会議</button><button class="btn btn-ghost" data-civil-peace="${escapeHtml(c.nationId)}">特赦と交渉</button></div></article>`).join('') || '<p class="empty-state">内戦は発生していません。</p>';
     const playerFormations = (campaign.formations || []).filter(item => item.nationId === campaign.playerNationId);
     const formationRows = playerFormations.map(formationCommandHtml).join('') || '<p class="empty-state">命令できる部隊はありません。</p>';
-    html('war-panel-body', `<section><h3>国際戦争</h3>${warRows}</section><section style="margin-top:14px"><h3>内戦・反乱</h3>${civilRows}</section><section style="margin-top:14px"><h3>戦線（${fronts.length}）</h3><p class="small muted">地図上の赤枠・斜線が占領と戦闘地域です。</p></section><section style="margin-top:14px"><h3>部隊・戦線（${playerFormations.length}）</h3><p class="small muted">防御は現在地で待機、攻勢は目標方向の隣接する敵領へ1ターンに1州ずつ進みます。攻勢は戦争中の相手にだけ指示できます。</p>${formationRows}</section><div class="form-row" style="margin-top:12px"><label>宣戦<select id="war-target-select" class="form-select">${Object.keys(campaign.nations).filter(id => id !== campaign.playerNationId).map(id => `<option value="${id}">${escapeHtml(shortName(id))}</option>`).join('')}</select></label><button class="btn btn-primary" id="btn-declare-war-submit">宣戦布告</button></div>`);
+    html('war-panel-body', `<section><h3>国際戦争</h3>${warRows}</section>${maritimeSectionHtml()}<section style="margin-top:14px"><h3>内戦・反乱</h3>${civilRows}</section><section style="margin-top:14px"><h3>戦線（${fronts.length}）</h3><p class="small muted">地図上の赤枠・斜線が占領と戦闘地域です。</p></section><section style="margin-top:14px"><h3>部隊・戦線（${playerFormations.length}）</h3><p class="small muted">防御は現在地で待機、攻勢は目標方向の隣接する敵領へ1ターンに1州ずつ進みます。攻勢は戦争中の相手にだけ指示できます。</p>${formationRows}</section><div class="form-row" style="margin-top:12px"><label>宣戦<select id="war-target-select" class="form-select">${Object.keys(campaign.nations).filter(id => id !== campaign.playerNationId).map(id => `<option value="${id}">${escapeHtml(shortName(id))}</option>`).join('')}</select></label><button class="btn btn-primary" id="btn-declare-war-submit">宣戦布告</button></div>`);
     openDialog('modal-war-panel');
   }
 
@@ -2657,7 +3300,8 @@ const Orbis = (() => {
     <section style="margin-top:16px"><h3>動員</h3><div class="form-row">${mobilizationButtons}</div><p class="small muted">段階を上げると兵力の増加が伸びる。財政と安定度に軽い負担がかかる。現在の部隊数 ${summary.formations}。</p></section>
     <section style="margin-top:16px"><h3>生産配分</h3><label for="economy-military-share">軍需 ${share}% / 民用 ${100 - share}%</label><input type="range" id="economy-military-share" min="0" max="100" step="5" value="${share}"><div class="economy-split-row"><button class="btn btn-ghost" data-economy-split="25">民用寄り 25%</button><button class="btn btn-ghost" data-economy-split="50">折半 50%</button><button class="btn btn-ghost" data-economy-split="75">軍需寄り 75%</button><button class="btn btn-ghost" data-economy-split="100">総軍需 100%</button></div><p class="small muted">軍需を増やすほど装備の生産と補充が増え、民用を残すと国庫をわずかに支える。${escapeHtml(last)}</p></section>
     <section style="margin-top:16px"><h3>新編制</h3><p class="small">兵力 ${RECRUIT_MANPOWER_COST} と装備 ${RECRUIT_EQUIPMENT_COST} を消費し、首都または後方の支配陸州に野戦部隊を編成する。</p><button class="btn btn-primary" data-economy-recruit ${canRecruit ? '' : 'disabled'}>野戦部隊を編成</button></section>
-    <section style="margin-top:16px"><h3>部隊と補給</h3><p class="small muted">補給は本国・従属圏の支配領から陸続きで辿った距離で決まる。孤立・不足の部隊は攻勢が停滞する。</p>${formations}</section>`);
+    <section style="margin-top:16px"><h3>部隊と補給</h3><p class="small muted">補給は本国・従属圏の支配領から陸続きで辿った距離で決まる。海を隔てた部隊は制海が自国側なら海路で補給され、敵制海下では孤立する。孤立・不足の部隊は攻勢が停滞する。</p>${formations}</section>
+    ${maritimeSectionHtml()}`);
     openDialog('modal-economy');
   }
 
@@ -3816,15 +4460,20 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     tickNationalFocus(game, notes);
     tickResearch(game, notes);
     if (losses.size) game.tension = Math.max(game.tension, 55);
+    refreshMaritime(game);
+    notes.push(maritimeNote(game));
     tickCivilWars(game, notes);
     tickEconomy(game, notes);
     assignNpcFormationOrders(game);
     resolveFormationFronts(game, notes);
     tickNpcWars(game, notes);
+    settleNpcWars(game, notes);
     tickGlobalWorldWar(game, notes);
     notes.push(...crisisRecoveryNotes(game));
     const timelineItems = globalThis.ORBIS_TIMELINE?.applyForTurn(game) || [];
     game.completedTurns++;
+    refreshMaritime(game);
+    refreshWarScores(game);
     resolveWarlordConference(game, notes);
     game.worldMemory = evaluation.memory;
     game.stress.collapse = nation.stb <= 8 && nation.eco <= 8 ? game.stress.collapse + 1 : 0;
@@ -4786,15 +5435,24 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     }
   }
 
+  function refreshDialogOpenState() {
+    const anyOpen = typeof document?.querySelector === 'function' && Boolean(document.querySelector('dialog[open]'));
+    if (!document?.body?.classList) return;
+    if (anyOpen) document.body.classList.add('dialog-open');
+    else document.body.classList.remove('dialog-open');
+  }
+
   function openDialog(id) {
     const dialog = $(id);
     if (!dialog || dialog.open) return;
     if (id === 'game-ending' && campaign && !campaign.maxTurns) dialog.show();
     else dialog.showModal();
+    refreshDialogOpenState();
   }
 
   function closeDialog(id) {
     if ($(id)?.open) $(id).close();
+    refreshDialogOpenState();
   }
 
   function toast(message) {
@@ -5346,6 +6004,50 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       game.relations[a][a] = 100;
       for (const b of Object.keys(game.nations)) if (game.relations[a][b] !== game.relations[b][a]) throw new Error('セーブの外交関係が対称ではありません。');
     }
+    game.peaceConferences = {};
+    if (raw.peaceConferences && typeof raw.peaceConferences === 'object' && !Array.isArray(raw.peaceConferences)) {
+      for (const [warId, conference] of Object.entries(raw.peaceConferences)) {
+        if (!game.wars[warId] || !conference || typeof conference !== 'object' || Array.isArray(conference)) continue;
+        const draft = array(conference.draft || [], '和平会議の草案', 30).map(id => requiredText(id, '和平要求ID', 120));
+        game.peaceConferences[warId] = {
+          warId,
+          draft,
+          status: 'draft',
+          openedTurn: finite(conference.openedTurn, 0, turnCap),
+          updatedTurn: finite(conference.updatedTurn, 0, turnCap)
+        };
+      }
+    }
+    game.warScores = {};
+    if (raw.warScores && typeof raw.warScores === 'object' && !Array.isArray(raw.warScores)) {
+      for (const [warId, score] of Object.entries(raw.warScores)) {
+        if (!game.wars[warId] || !score || typeof score !== 'object' || Array.isArray(score)) continue;
+        game.warScores[warId] = {
+          attacker: saveNumber(score.attacker ?? 0, '戦時得点（攻撃側）', 0, UNBOUNDED_STAT),
+          defender: saveNumber(score.defender ?? 0, '戦時得点（防御側）', 0, UNBOUNDED_STAT),
+          available: saveNumber(score.available ?? 0, '和平要求の得点', 0, 100),
+          playerSide: ['attacker', 'defender'].includes(score.playerSide) ? score.playerSide : null,
+          turn: saveNumber(score.turn ?? 0, '戦時得点の更新ターン', 0, turnCap)
+        };
+      }
+    }
+    game.maritime = { navy: {}, air: {}, seaControl: {}, turn: -1 };
+    const rawMaritime = raw.maritime && typeof raw.maritime === 'object' && !Array.isArray(raw.maritime) ? raw.maritime : {};
+    for (const key of ['navy', 'air']) {
+      const source = rawMaritime[key] && typeof rawMaritime[key] === 'object' && !Array.isArray(rawMaritime[key]) ? rawMaritime[key] : {};
+      for (const [nationId, value] of Object.entries(source)) {
+        if (!game.nations[nationId] || !Number.isFinite(Number(value))) continue;
+        game.maritime[key][nationId] = saveNumber(Math.round(Number(value)), `海空軍力（${key}）`, 0, 1000000);
+      }
+    }
+    const savedSeaControl = rawMaritime.seaControl && typeof rawMaritime.seaControl === 'object' && !Array.isArray(rawMaritime.seaControl) ? rawMaritime.seaControl : {};
+    for (const [zoneId, controller] of Object.entries(savedSeaControl)) {
+      const zone = window.ORBIS_STATES_DB.find(region => region.id === zoneId);
+      if (!zone || !isSeaRegion(zone)) continue;
+      if (controller !== null && !game.nations[controller]) continue;
+      game.maritime.seaControl[zoneId] = controller;
+    }
+    game.maritime.turn = saveNumber(rawMaritime.turn ?? -1, '海空軍の更新ターン', -1, turnCap);
     requireObject(raw.clients, '従属国');
     for (const [id, item] of Object.entries(raw.clients)) {
       if (!game.nations[id]) continue;
@@ -5774,6 +6476,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       event.preventDefault();
       openCountryCard(countryLink.dataset.orbisCountry);
     });
+    document.addEventListener('close', event => {
+      if (event.target?.tagName === 'DIALOG') refreshDialogOpenState();
+    }, true);
     document.addEventListener('click', event => {
       const button = event.target.closest?.('button');
       if (!button || button.disabled) return;
@@ -5875,7 +6580,34 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         const target = button.closest('.formation-order-row')?.querySelector('select')?.value;
         if (!setFormationOrder(data.formationOffensive, { kind: 'offensive', targetRegionId: target })) toast(lastFormationOrderError || '攻勢命令を実行できません。');
       }
-      if (data.peaceWar) proposePeace(data.peaceWar, { returnStateIds: data.peaceReturn ? Object.keys(campaign.occupations || {}) : [] });
+      if (data.peaceWar) {
+        proposePeace(data.peaceWar, { returnStateIds: data.peaceReturn ? Object.keys(campaign.occupations || {}) : [] });
+        if ($('modal-war-panel')?.open) openWarPanel();
+      }
+      if (data.peaceConference) openPeaceConference(data.peaceConference);
+      if (data.peaceDemand) {
+        const warId = button.closest('#peace-panel-body')?.querySelector('[data-peace-confirm]')?.getAttribute('data-peace-confirm') || '';
+        const result = togglePeaceDemand(warId, data.peaceDemand);
+        if (!result.ok) toast(result.error);
+        else openPeaceConference(warId);
+      }
+      if (data.peaceConfirm) {
+        const result = confirmPeaceConference(data.peaceConfirm);
+        if (!result.ok) toast(result.error);
+        else {
+          closeDialog('modal-peace');
+          if ($('modal-war-panel')?.open) openWarPanel();
+        }
+      }
+      if (data.civilConference) openCivilPeaceConference(data.civilConference);
+      if (data.civilSettle) {
+        const result = settleCivilWar(data.civilNation || '', data.civilSettle === 'civil_autonomy' ? 'autonomy' : 'return');
+        if (!result.ok) toast(result.error);
+        else {
+          closeDialog('modal-peace');
+          if ($('modal-war-panel')?.open) openWarPanel();
+        }
+      }
       if (data.civilPeace) negotiateCivilWar(data.civilPeace, 'amnesty');
       if (button.id === 'btn-playback-skip') globalThis.ORBIS_PLAYBACK?.skipAll();
       if (button.id === 'btn-playback-speed') {
@@ -5934,5 +6666,5 @@ transferDependent: (vassalId, newSponsorId) => transferDependent(vassalId, newSp
 grantAutonomy: (vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) => grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign),
 actorRoster: () => Object.keys(actors),
 createDependentCommand, createDependentRegionCommand, integrateDependentCommand, transferDependentCommand, grantAutonomyCommand,
-warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();

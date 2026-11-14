@@ -908,7 +908,7 @@ html, body {
 .research-item p { font-size: 10.5px; color: #3d5570; }
 .research-item .focus-effects { font-size: 10px; }
 .research-item .btn { align-self: flex-start; }
-#focus-panel-body, #research-panel-body { max-height: calc(88dvh - 58px); overflow-y: auto; }
+#focus-panel-body, #research-panel-body, #peace-panel-body { max-height: calc(88dvh - 58px); overflow-y: auto; }
 .formation-order-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .formation-order-row .form-select { flex: 1 1 150px; min-width: 110px; height: 28px; font-size: 10.5px; padding: 2px 6px; }
 .formation-order-row .btn { min-height: 28px; padding: 4px 9px; font-size: 10.5px; }
@@ -945,6 +945,13 @@ html, body {
 .turn-playback-card .tp-location { font-size: 12px; color: #94a3b8; margin: 4px 0 8px; }
 .turn-playback-card strong { font-size: 18px; display: block; margin-bottom: 6px; }
 .turn-playback-card p { margin: 0; font-size: 14px; opacity: 0.92; }
+body.dialog-open .turn-playback-card,
+body.dialog-open .turn-playback-controls,
+body.dialog-open #turn-playback-overlay {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 #turn-playback-overlay {
   position: fixed;
   inset: 0;
@@ -2049,7 +2056,30 @@ svg path:focus-visible,
 .virtual-window #btn-send-command { border-radius: 15px; min-height: 32px; height: 32px; padding: 0 13px; font-size: 10px; background: #1f7a4d; border-color: #18754a; color: #fff; }
 .virtual-window #btn-send-command:hover { background: #1a6b42; }
 .empty-state { color: #6c829c; font-size: 12px; line-height: 1.9; padding: 16px 0; }
-.game-dialog { border: 1px solid #d5e0ec; padding: 0; border-radius: 9px; background: #ffffff; color: #16283e; width: min(520px, calc(100vw - 28px)); max-height: 88dvh; margin: auto; box-shadow: 0 22px 70px rgba(23, 42, 68, 0.22); }
+.game-dialog { border: 1px solid #d5e0ec; padding: 0; border-radius: 9px; background: #ffffff; color: #16283e; width: min(520px, calc(100vw - 28px)); max-height: 88dvh; margin: auto; box-shadow: 0 22px 70px rgba(23, 42, 68, 0.22); z-index: 13000; }
+.peace-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.peace-score { border: 1px solid #b9cde4; border-radius: 9px; background: #eef5fd; padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+.peace-score span { font-size: 10.5px; color: #526b86; }
+.peace-score strong { font-size: 24px; color: #163a66; }
+.peace-score small { font-size: 10.5px; color: #526b86; }
+.peace-demand-list { display: grid; gap: 7px; }
+.peace-demand { display: flex; flex-direction: column; gap: 2px; text-align: left; border: 1px solid #d3dfec; border-radius: 8px; background: #ffffff; padding: 9px 11px; color: #233a54; cursor: pointer; }
+.peace-demand:hover:not(:disabled) { border-color: #2f6db8; background: #f5f9ff; }
+.peace-demand.selected { border-color: #1f7a4d; background: #f1faf5; }
+.peace-demand.unaffordable, .peace-demand:disabled { opacity: 0.55; cursor: not-allowed; background: #f4f6f8; }
+.peace-demand-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.peace-demand-head strong { font-size: 12.5px; }
+.peace-cost { flex-shrink: 0; font-size: 10.5px; font-weight: 700; color: #1e4d85; background: #e8f1fb; border-radius: 999px; padding: 2px 8px; }
+.peace-demand.selected .peace-cost { color: #14532d; background: #dcfce7; }
+.peace-held-list { margin: 8px 0 12px; padding-left: 20px; font-size: 11.5px; color: #334155; }
+.maritime-section { margin-top: 16px; border-top: 1px solid #dce6f0; padding-top: 12px; }
+.maritime-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.sea-control-list { list-style: none; margin: 9px 0 0; padding: 0; display: grid; gap: 4px; }
+.sea-control-list li { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; color: #334155; border-bottom: 1px dotted #dbe4ee; padding-bottom: 3px; }
+.sea-control { flex-shrink: 0; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 8px; }
+.sea-control.friendly { color: #14532d; background: #dcfce7; }
+.sea-control.hostile { color: #7f1d1d; background: #fee2e2; }
+.sea-control.foreign, .sea-control.neutral { color: #475569; background: #e2e8f0; }
 .game-dialog::backdrop { background: rgba(227, 236, 247, 0.85); }
 .ending-dialog { margin: auto 20px 24px auto; max-height: 72dvh; }
 .ending-dialog::backdrop { background: rgba(18, 28, 44, 0.28); pointer-events: none; }
@@ -2655,6 +2685,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   <dialog class="game-dialog wide-dialog" id="actor-directory" aria-labelledby="directory-title"><div class="modal-head"><strong id="directory-title">交渉先を選ぶ</strong><button class="btn btn-ghost" data-close-dialog="actor-directory">閉じる</button></div><div class="modal-body"><label class="sr-only" for="actor-search">国名・組織・人物を検索</label><input class="form-input" id="actor-search" type="search" placeholder="国名・組織・人物を検索"><div class="directory-filters" id="directory-filters"><button class="filter-btn active" data-actor-kind="all">すべて</button><button class="filter-btn" data-actor-kind="domestic">国内</button><button class="filter-btn" data-actor-kind="ministry">外務省</button><button class="filter-btn" data-actor-kind="embassy">大使館</button><button class="filter-btn" data-actor-kind="client">従属国・自治領</button><button class="filter-btn" data-actor-kind="foreign_group">国外の利益団体</button></div><div id="actor-directory-list"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-war-panel" aria-labelledby="war-panel-title"><div class="modal-head"><strong id="war-panel-title">戦争・和平・紛争</strong><button class="btn btn-ghost" data-close-dialog="modal-war-panel">閉じる</button></div><div class="modal-body" id="war-panel-body"></div></dialog>
+  <dialog class="game-dialog wide-dialog" id="modal-peace" aria-labelledby="peace-title"><div class="modal-head"><strong id="peace-title">和平会議</strong><button class="btn btn-ghost" data-close-dialog="modal-peace">閉じる</button></div><div class="modal-body" id="peace-panel-body"></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-economy" aria-labelledby="economy-title"><div class="modal-head"><strong id="economy-title">動員・生産</strong><button class="btn btn-ghost" data-close-dialog="modal-economy">閉じる</button></div><div class="modal-body" id="economy-panel-body"></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-focus" aria-labelledby="focus-title"><div class="modal-head"><strong id="focus-title">国策</strong><button class="btn btn-ghost" data-close-dialog="modal-focus">閉じる</button></div><div class="modal-body" id="focus-panel-body"></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-research" aria-labelledby="research-title"><div class="modal-head"><strong id="research-title">研究</strong><button class="btn btn-ghost" data-close-dialog="modal-research">閉じる</button></div><div class="modal-body" id="research-panel-body"></div></dialog>
