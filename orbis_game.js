@@ -51,6 +51,176 @@ const Orbis = (() => {
     hunan: { sponsorId: 'china', type: 'warlord', autonomy: 64, loyalty: 56, legitimacy: 34, name: '湘系（湖南）', dissolved: false, warlordStatus: 'autonomous' },
     guizhou: { sponsorId: 'china', type: 'warlord', autonomy: 74, loyalty: 42, legitimacy: 26, name: '黔系（貴州）', dissolved: false, warlordStatus: 'autonomous' }
   };
+  // 国策ツリー。1932年3月を起点に、史実寄りの道筋と代替史の分岐を短く持つ。
+  // effects は完了時にコードで適用する。数値系は持続補正、装備・兵力などは即時加算。
+  const FOCUS_TREES = {
+    japan: {
+      label: '日本',
+      focuses: [
+        { id: 'jp_manchukuo', name: '満洲国の経営', tier: 1, cost: 50, desc: '満洲国の統治を整え、現地の産業と治安を安定させる。', effects: { stability: 3, equipment: 10, factoryEfficiency: 5 } },
+        { id: 'jp_army_reform', name: '軍制改革', tier: 1, cost: 50, desc: '軍部の指揮系統を整理し、動員と補充の基礎を固める。', effects: { manpower: 40, attackBonus: 3 } },
+        { id: 'jp_league_withdrawal', name: '国際連盟脱退の決意', tier: 2, cost: 55, requires: ['jp_manchukuo'], exclusive: 'jp_grand_strategy', desc: '満洲国を巡る国際批判に屈せず、連盟からの離脱を決意する。史実の脱退は1933年3月。', effects: { prestige: 4, tension: 6, researchSpeed: 8, warGoal: 'china' } },
+        { id: 'jp_asia_cooperation', name: 'アジア協調路線', tier: 2, cost: 55, requires: ['jp_manchukuo'], exclusive: 'jp_grand_strategy', desc: '中国との経済協調を優先し、軍事的拡張を抑える代替史の道。', effects: { stability: 4, researchSpeed: 12, relation: { nationId: 'china', delta: 10 } } },
+        { id: 'jp_industrial_priority', name: '重工業優先', tier: 2, cost: 55, requires: ['jp_army_reform'], desc: '重化学工業と軍需工場の効率を高め、装備の増産を図る。', effects: { factoryEfficiency: 15, equipment: 15 } },
+        { id: 'jp_naval_expansion', name: '海軍拡張', tier: 3, cost: 60, requires: ['jp_industrial_priority'], desc: '艦隊の整備を進め、太平洋方面への圧力を強める。', effects: { equipment: 20, tension: 4, warGoal: 'usa' } },
+        { id: 'jp_total_mobilization', name: '国家総動員準備', tier: 3, cost: 60, requires: ['jp_industrial_priority'], desc: '産業と行政を戦時体制へ移行する準備を整える。', effects: { manpower: 80, ppGain: 2, supplyBonus: 4 } }
+      ]
+    },
+    usa: {
+      label: '米国',
+      focuses: [
+        { id: 'us_new_deal', name: 'ニューディール', tier: 1, cost: 50, desc: '公共事業と金融安定で恐慌からの回復を図る。', effects: { stability: 5, factoryEfficiency: 8, treasury: 3 } },
+        { id: 'us_public_works', name: '公共事業の拡大', tier: 1, cost: 50, desc: '道路・電力・港湾への投資で雇用と研究基盤を整える。', effects: { researchSpeed: 10, equipment: 5 } },
+        { id: 'us_isolation', name: '孤立主義の堅持', tier: 2, cost: 55, requires: ['us_new_deal'], exclusive: 'us_foreign_policy', desc: '欧州の紛争に関与せず、国内の復興を優先する。', effects: { stability: 3, researchSpeed: 5, tension: -3 } },
+        { id: 'us_internationalism', name: '国際協調への転換', tier: 2, cost: 55, requires: ['us_new_deal'], exclusive: 'us_foreign_policy', desc: '英国との協調を深め、国際秩序の維持に踏み出す代替史。', effects: { researchSpeed: 8, relation: { nationId: 'uk', delta: 8 }, warGoal: 'japan' } },
+        { id: 'us_two_ocean_navy', name: '両洋海軍', tier: 3, cost: 60, requires: ['us_public_works'], desc: '大西洋と太平洋の双方に艦隊を展開できる体制を作る。', effects: { equipment: 25, tension: 3, warGoal: 'japan' } },
+        { id: 'us_industrial_mobilization', name: '産業動員計画', tier: 3, cost: 60, requires: ['us_public_works'], desc: '自動車・航空機産業を軍需へ転換する計画を立てる。', effects: { factoryEfficiency: 18, equipment: 15 } }
+      ]
+    },
+    uk: {
+      label: '英国',
+      focuses: [
+        { id: 'uk_imperial_preference', name: '帝国特恵関税', tier: 1, cost: 50, desc: '帝国圏内の通商を優先し、本国の財政と産業を支える。', effects: { factoryEfficiency: 10, treasury: 4 } },
+        { id: 'uk_rearmament', name: '再軍備の開始', tier: 1, cost: 50, desc: '陸軍と防空の不足を補い、軍需生産を立ち上げる。', effects: { equipment: 15, manpower: 30 } },
+        { id: 'uk_collective_security', name: '集団安全保障', tier: 2, cost: 60, requires: ['uk_imperial_preference'], exclusive: 'uk_strategy', desc: 'フランスとの協調を軸に、ドイツへの抑止を強める。', effects: { researchSpeed: 8, relation: { nationId: 'france', delta: 8 }, warGoal: 'germany' } },
+        { id: 'uk_appeasement', name: '宥和政策', tier: 2, cost: 60, requires: ['uk_imperial_preference'], exclusive: 'uk_strategy', desc: '対独緊張を避け、再軍備の時間を稼ぐ代替史の道。', effects: { stability: 4, researchSpeed: 5, tension: -4 } },
+        { id: 'uk_navy_standard', name: '海軍基準維持', tier: 3, cost: 60, requires: ['uk_rearmament'], desc: '地中海と極東の海軍力を維持し、帝国の連絡線を守る。', effects: { equipment: 20, supplyBonus: 4, warGoal: 'italy' } }
+      ]
+    },
+    france: {
+      label: 'フランス',
+      focuses: [
+        { id: 'fr_maginot', name: 'マジノ線の充実', tier: 1, cost: 50, desc: '国境要塞と補給線を整え、防御体制を固める。', effects: { equipment: 10, supplyBonus: 5, stability: 2 } },
+        { id: 'fr_popular_front', name: '人民戦線の準備', tier: 1, cost: 50, desc: '労働者と中道の連携を図り、国内の分断を和らげる。', effects: { stability: 4, researchSpeed: 6 } },
+        { id: 'fr_containment', name: '対独封じ込め', tier: 2, cost: 60, requires: ['fr_maginot'], exclusive: 'fr_germany_policy', desc: '東欧の同盟国と連携し、ドイツを包囲する。', effects: { equipment: 10, warGoal: 'germany', tension: 4 } },
+        { id: 'fr_european_detente', name: '欧州融和', tier: 2, cost: 60, requires: ['fr_popular_front'], exclusive: 'fr_germany_policy', desc: 'ドイツとの緊張緩和を優先する代替史の道。', effects: { researchSpeed: 8, relation: { nationId: 'germany', delta: 10 }, tension: -3 } },
+        { id: 'fr_colonial_army', name: '植民地軍の再編', tier: 2, cost: 55, requires: ['fr_popular_front'], desc: '北アフリカとインドシナの部隊を再編し、兵力を補う。', effects: { manpower: 50, equipment: 8 } },
+        { id: 'fr_rearmament', name: '再軍備計画', tier: 3, cost: 60, requires: ['fr_maginot'], desc: '航空機と機甲部隊の近代化を進める。', effects: { equipment: 18, manpower: 40, attackBonus: 3 } }
+      ]
+    },
+    germany: {
+      label: 'ドイツ',
+      focuses: [
+        { id: 'de_secret_rearmament', name: '秘密再軍備', tier: 1, cost: 50, desc: 'ヴァイマル共和国の制約下で軍備を整える。首相交代は1933年。', effects: { factoryEfficiency: 10, equipment: 10, tension: 2 } },
+        { id: 'de_republic_stabilization', name: '共和政の安定', tier: 1, cost: 50, desc: '議会と州の協調でヴァイマル体制の基盤を立て直す。', effects: { stability: 4, researchSpeed: 6, relation: { nationId: 'france', delta: 4 } } },
+        { id: 'de_authoritarian_turn', name: '強権体制への移行', tier: 2, cost: 55, requires: ['de_secret_rearmament'], exclusive: 'de_political_path', desc: '大統領権限を拡大し、議会の制約を弱める。', effects: { ppGain: 2, attackBonus: 4, tension: 5 } },
+        { id: 'de_republican_front', name: '共和政擁護', tier: 2, cost: 55, requires: ['de_republic_stabilization'], exclusive: 'de_political_path', desc: '社会民主党と中道の連携で共和政を守る代替史の道。', effects: { stability: 6, researchSpeed: 8, relation: { nationId: 'uk', delta: 6 } } },
+        { id: 'de_army_expansion', name: '陸軍拡張', tier: 2, cost: 50, requires: ['de_secret_rearmament'], desc: '師団数を増やし、機動戦の訓練を進める。', effects: { manpower: 60, equipment: 15, attackBonus: 2 } },
+        { id: 'de_anschluss_prep', name: 'オーストリア併合準備', tier: 3, cost: 60, requires: ['de_authoritarian_turn'], desc: 'オーストリアへの政治的圧力を強め、併合の機会をうかがう。', effects: { prestige: 4, warGoal: 'austria', tension: 4 } }
+      ]
+    },
+    italy: {
+      label: 'イタリア',
+      focuses: [
+        { id: 'it_corporatism', name: '協調体制の整備', tier: 1, cost: 50, desc: '産業界と労働組合を国家の枠組みに組み込み、生産を安定させる。', effects: { stability: 4, factoryEfficiency: 8 } },
+        { id: 'it_ethiopia', name: 'エチオピア作戦準備', tier: 1, cost: 55, desc: '東アフリカの軍備を整え、エチオピアへの圧力を強める。', effects: { equipment: 12, tension: 4, warGoal: 'ethiopia' } },
+        { id: 'it_mediterranean', name: '地中海艦隊', tier: 2, cost: 60, requires: ['it_corporatism'], desc: '地中海の制海を狙い、艦隊と港を整備する。', effects: { equipment: 20, supplyBonus: 4, warGoal: 'uk' } },
+        { id: 'it_autarky', name: '自給自足経済', tier: 2, cost: 55, requires: ['it_corporatism'], desc: '輸入依存を減らし、国内資源の活用を進める。', effects: { factoryEfficiency: 12, treasury: 3 } },
+        { id: 'it_army_reform', name: '陸軍の再編', tier: 3, cost: 60, requires: ['it_ethiopia'], desc: '山岳部隊と機動部隊の編成を改め、攻勢能力を高める。', effects: { manpower: 50, attackBonus: 4, equipment: 10 } }
+      ]
+    },
+    russia: {
+      label: 'ソ連',
+      focuses: [
+        { id: 'ru_five_year', name: '五カ年計画', tier: 1, cost: 50, desc: '重工業への投資を加速し、工場の生産効率を高める。', effects: { factoryEfficiency: 15, equipment: 10 } },
+        { id: 'ru_collectivization', name: '農業集団化', tier: 1, cost: 50, desc: '農村の統制を強め、食料と労働力を都市へ供給する。', effects: { treasury: 5, manpower: 30, stability: -2 } },
+        { id: 'ru_purge', name: '赤軍の粛清', tier: 2, cost: 55, requires: ['ru_collectivization'], exclusive: 'ru_political_path', desc: '軍内の反対派を排除し、政治統制を強める。', effects: { ppGain: 2, attackBonus: 4, stability: -4, tension: 3 } },
+        { id: 'ru_collective_security', name: '集団安全保障', tier: 2, cost: 55, requires: ['ru_collectivization'], exclusive: 'ru_political_path', desc: '仏英との協調でドイツを抑止する代替史の道。', effects: { researchSpeed: 8, relation: { nationId: 'france', delta: 8 }, warGoal: 'germany' } },
+        { id: 'ru_rearmament', name: '赤軍再建', tier: 2, cost: 60, requires: ['ru_five_year'], desc: '戦車と航空機の生産を増やし、機械化部隊を育てる。', effects: { manpower: 60, equipment: 20, attackBonus: 3 } },
+        { id: 'ru_industry_relocation', name: '工業の東方移転', tier: 3, cost: 60, requires: ['ru_five_year'], desc: 'ウラル以東に工場を分散し、戦時の生産を確保する。', effects: { factoryEfficiency: 12, supplyBonus: 5 } }
+      ]
+    },
+    china: {
+      label: '中国（中華民国）',
+      focuses: [
+        { id: 'cn_nanjing_decade', name: '南京の十年', tier: 1, cost: 50, desc: '国民政府の財政・交通・教育を整え、国家の基礎を固める。', effects: { factoryEfficiency: 10, stability: 3 } },
+        { id: 'cn_german_advisers', name: 'ドイツ軍事顧問', tier: 1, cost: 55, desc: '外国顧問の助言で部隊訓練と装備を近代化する。', effects: { attackBonus: 4, equipment: 10 } },
+        { id: 'cn_united_front', name: '抗日統一戦線', tier: 2, cost: 60, requires: ['cn_nanjing_decade'], exclusive: 'cn_political_path', desc: '国内の対立を抑え、日本への抵抗を優先する。', effects: { manpower: 60, stability: 2, warGoal: 'japan' } },
+        { id: 'cn_anti_communist', name: '剿共優先', tier: 2, cost: 60, requires: ['cn_nanjing_decade'], exclusive: 'cn_political_path', desc: '共産党勢力の掃討を優先する代替史の道。', effects: { stability: 3, ppGain: 2, attackBonus: 3 } },
+        { id: 'cn_industrial_relocation', name: '産業の内陸移転', tier: 2, cost: 60, requires: ['cn_nanjing_decade'], desc: '沿岸部の工場を内陸へ分散し、戦時の生産を守る。', effects: { factoryEfficiency: 15, researchSpeed: 5 } },
+        { id: 'cn_constitutional_rule', name: '憲政準備', tier: 3, cost: 55, requires: ['cn_nanjing_decade'], desc: '地方勢力との妥協を進め、中央政府の正統性を高める。', effects: { stability: 5, researchSpeed: 8, prestige: 3 } }
+      ]
+    },
+    generic: {
+      label: '共通',
+      focuses: [
+        { id: 'gen_industry', name: '産業振興', tier: 1, cost: 45, desc: '国内の工場と輸送網を整え、生産効率を高める。', effects: { factoryEfficiency: 10 } },
+        { id: 'gen_army', name: '軍制近代化', tier: 1, cost: 45, desc: '部隊の訓練と装備を更新し、動員体制を整える。', effects: { manpower: 30, equipment: 8 } },
+        { id: 'gen_research', name: '科学研究振興', tier: 1, cost: 50, desc: '大学と研究所への投資で研究速度を高める。', effects: { researchSpeed: 10 } },
+        { id: 'gen_diplomacy', name: '近隣外交', tier: 1, cost: 45, desc: '近隣国との関係を安定させ、国際的な信用を得る。', effects: { stability: 3, prestige: 3 } },
+        { id: 'gen_mobilization', name: '国防動員計画', tier: 2, cost: 50, requires: ['gen_army'], desc: '予備役と軍需在庫を整え、戦時の動員を早める。', effects: { equipment: 12, attackBonus: 2, manpower: 20 } },
+        { id: 'gen_stability', name: '内政安定', tier: 2, cost: 50, requires: ['gen_industry'], desc: '行政の執行力を高め、社会の緊張を和らげる。', effects: { stability: 5, treasury: 3 } }
+      ]
+    }
+  };
+
+  const RESEARCH_BRANCHES = {
+    army_doctrine: {
+      label: '陸軍教義',
+      desc: '攻勢の成功率と消耗に影響する。',
+      items: [
+        { id: 'doctrine_mobile', name: '機動防御', tier: 1, cost: 45, desc: '予備兵力の機動運用を研究し、攻勢の消耗を抑える。', effects: { attackBonus: 3, lossReduction: 1 } },
+        { id: 'doctrine_combined', name: '諸兵科連合', tier: 2, cost: 60, requires: ['doctrine_mobile'], desc: '歩兵・砲兵・戦車の連携を深め、攻勢を強化する。', effects: { attackBonus: 5, lossReduction: 1 } },
+        { id: 'doctrine_deep', name: '縦深攻勢', tier: 3, cost: 75, requires: ['doctrine_combined'], desc: '突破後の追撃と補給線遮断を体系化する。', effects: { attackBonus: 7, lossReduction: 2 } }
+      ]
+    },
+    industry: {
+      label: '産業',
+      desc: '装備の生産と工場効率を高める。',
+      items: [
+        { id: 'industry_standardization', name: '規格統一', tier: 1, cost: 45, desc: '部品の規格を統一し、軍需工場の生産を増やす。', effects: { factoryEfficiency: 12 } },
+        { id: 'industry_assembly', name: '流れ作業導入', tier: 2, cost: 60, requires: ['industry_standardization'], desc: '大量生産方式を導入し、装備の増産を図る。', effects: { factoryEfficiency: 12, equipmentFlat: 2 } },
+        { id: 'industry_rationalization', name: '生産合理化', tier: 3, cost: 75, requires: ['industry_assembly'], desc: '工場管理と物流を合理化し、生産効率をさらに高める。', effects: { factoryEfficiency: 18 } }
+      ]
+    },
+    equipment: {
+      label: '装備',
+      desc: '補充と部隊戦力を改善する。',
+      items: [
+        { id: 'equipment_rifles', name: '小銃の近代化', tier: 1, cost: 45, desc: '歩兵装備を更新し、補充と新編制の戦力を高める。', effects: { replenishBonus: 2, newFormationStrength: 3 } },
+        { id: 'equipment_artillery', name: '野砲の増産', tier: 2, cost: 60, requires: ['equipment_rifles'], desc: '師団砲兵を充実させ、戦闘時の戦力を底上げする。', effects: { replenishBonus: 2, combatStrength: 4 } },
+        { id: 'equipment_motorization', name: '自動車化', tier: 3, cost: 75, requires: ['equipment_artillery'], desc: '輸送と機動を自動車化し、補給効率と戦力を高める。', effects: { replenishBonus: 3, newFormationStrength: 4, supplyBonus: 3 } }
+      ]
+    },
+    electronics: {
+      label: '電子',
+      desc: '研究速度と補給の扱いを改善する。',
+      items: [
+        { id: 'electronics_radio', name: '無線通信', tier: 1, cost: 45, desc: '部隊と研究所の通信を改善し、研究速度を高める。', effects: { researchSpeed: 10 } },
+        { id: 'electronics_logistics', name: '補給管理', tier: 2, cost: 60, requires: ['electronics_radio'], desc: '補給の集計と配送を合理化し、前線への供給を改善する。', effects: { researchSpeed: 10, supplyBonus: 6 } },
+        { id: 'electronics_computing', name: '計算機導入', tier: 3, cost: 75, requires: ['electronics_logistics'], desc: '計算機を研究・暗号・物流へ導入し、効率を高める。', effects: { researchSpeed: 15, supplyBonus: 4 } }
+      ]
+    }
+  };
+
+  const FOCUS_EFFECT_LABELS = {
+    factoryEfficiency: value => `生産効率 +${value}%`,
+    researchSpeed: value => `研究速度 +${value}%`,
+    equipment: value => `装備 +${value}`,
+    equipmentFlat: value => `生産 装備 +${value}/半月`,
+    manpower: value => `兵力 +${value}`,
+    stability: value => `安定度 ${signed(value)}`,
+    economy: value => `経済 ${signed(value)}`,
+    treasury: value => `財政余力 ${signed(value)}`,
+    prestige: value => `威信 ${signed(value)}`,
+    tension: value => `国際緊張 ${signed(value)}`,
+    ppGain: value => `政治力収入 +${value}/半月`,
+    politicalPower: value => `政治力 +${value}`,
+    attackBonus: value => `攻勢戦力 +${value}`,
+    lossReduction: value => `攻勢消耗 -${value}`,
+    replenishBonus: value => `補充 +${value}/半月`,
+    newFormationStrength: value => `新編制戦力 +${value}`,
+    combatStrength: value => `部隊戦力 +${value}`,
+    supplyBonus: value => `補給 +${value}`,
+    warGoal: value => `戦争目標: ${shortName(value)}`,
+    relation: value => `対${shortName(value.nationId)}関係 ${signed(value.delta)}`
+  };
+
+  const FOCUS_PP_BASE = 14;
+  const FOCUS_PP_ALLOCATION = 18;
+  const FOCUS_PP_MAX = 300;
+  const RESEARCH_PROGRESS_BASE = 10;
+
   const DEPENDENCY_TYPES = { colony: '植民地', protectorate: '保護国', warlord: '軍閥', satellite: '衛星国', dominion: '自治領', puppet: '傀儡国' };
   const WARLORD_STATUS = { autonomous: '自治軍閥', neutral: '中立軍閥', independent: '独立軍閥' };
   const WARLORD_STATUS_COLOR = { autonomous: '#93c5fd', neutral: '#7b8fa3', independent: '#a05a52' };
@@ -189,7 +359,7 @@ const Orbis = (() => {
       nations, relations, leaders: {}, actorState: {}, threads: {}, activeActorId: 'adviser',
       articles: [], briefing: null, turnActions: [], commitments: [], treaties: [], clients: copy(CLIENTS), territories: {},
       dynamicNations: {},
-      nationalAction: null, actionDraft: '', actionHistory: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [], economy: {},
+      nationalAction: null, actionDraft: '', actionHistory: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [], economy: {}, nationalFocus: {}, research: {},
       establishedFacts: [], timelineFired: {}, turnPlaybackQueue: [], worldMemory: '', stress: { collapse: 0, bankruptcy: 0, war: 0, civil: 0 },
       globalWarHalves: 0, worldWarActive: false, lastResolutionIssues: [],
       cumulative: { treaties: 0, fulfilled: 0, broken: 0 }, ending: null, savedAt: null,
@@ -198,6 +368,7 @@ const Orbis = (() => {
     seedColonialDependents(game);
     seedFormations(game);
     seedEconomy(game);
+    seedFocusResearch(game);
     return game;
   }
 
@@ -1115,6 +1286,428 @@ const Orbis = (() => {
     for (const nationId of Object.keys(game.nations || {})) economyEntry(game, nationId);
   }
 
+  function focusTreeFor(nationId) {
+    return FOCUS_TREES[nationId] || FOCUS_TREES.generic;
+  }
+
+  function focusById(nationId, focusId) {
+    return focusTreeFor(nationId).focuses.find(item => item.id === focusId) || null;
+  }
+
+  function researchItemById(itemId) {
+    for (const branch of Object.values(RESEARCH_BRANCHES)) {
+      const item = branch.items.find(entry => entry.id === itemId);
+      if (item) return item;
+    }
+    return null;
+  }
+
+  function focusStateFor(game, nationId, create = true) {
+    if (!game || !nationId) return null;
+    if (!game.nationalFocus || typeof game.nationalFocus !== 'object') game.nationalFocus = {};
+    let state = game.nationalFocus[nationId];
+    if (!state && create) {
+      state = game.nationalFocus[nationId] = { politicalPower: 25, current: null, completed: [], warGoals: [], lastCompletedTurn: null };
+    }
+    if (!state) return null;
+    if (!Array.isArray(state.completed)) state.completed = [];
+    if (!Array.isArray(state.warGoals)) state.warGoals = [];
+    if (!state.current || typeof state.current !== 'object') state.current = null;
+    if (state.current) {
+      state.current.id = String(state.current.id || '');
+      state.current.progress = finite(state.current.progress, 0, 10000, 0);
+      if (!focusById(nationId, state.current.id)) state.current = null;
+    }
+    state.politicalPower = finite(state.politicalPower, 0, FOCUS_PP_MAX, 25);
+    return state;
+  }
+
+  function researchStateFor(game, nationId, create = true) {
+    if (!game || !nationId) return null;
+    if (!game.research || typeof game.research !== 'object') game.research = {};
+    let state = game.research[nationId];
+    if (!state && create) state = game.research[nationId] = { current: null, completed: [] };
+    if (!state) return null;
+    if (!Array.isArray(state.completed)) state.completed = [];
+    if (!state.current || typeof state.current !== 'object') state.current = null;
+    if (state.current) {
+      state.current.id = String(state.current.id || '');
+      state.current.progress = finite(state.current.progress, 0, 10000, 0);
+      if (!researchItemById(state.current.id)) state.current = null;
+    }
+    return state;
+  }
+
+  function seedFocusResearch(game) {
+    if (!game) return;
+    game.nationalFocus = {};
+    game.research = {};
+    for (const nationId of Object.keys(game.nations || {})) {
+      focusStateFor(game, nationId);
+      researchStateFor(game, nationId);
+    }
+  }
+
+  function nationalModifiers(game, nationId) {
+    const mods = {
+      factoryEfficiency: 0, researchSpeed: 0, equipmentFlat: 0, replenishBonus: 0,
+      newFormationStrength: 0, combatStrength: 0, attackBonus: 0, lossReduction: 0,
+      supplyBonus: 0, ppGain: 0
+    };
+    const add = effects => {
+      for (const key of Object.keys(mods)) {
+        const value = Number(effects?.[key]);
+        if (Number.isFinite(value)) mods[key] += value;
+      }
+    };
+    const focusState = focusStateFor(game, nationId, false);
+    if (focusState) {
+      const tree = focusTreeFor(nationId);
+      for (const id of focusState.completed) {
+        const focus = tree.focuses.find(item => item.id === id);
+        if (focus) add(focus.effects);
+      }
+    }
+    const research = researchStateFor(game, nationId, false);
+    if (research) {
+      for (const id of research.completed) {
+        const item = researchItemById(id);
+        if (item) add(item.effects);
+      }
+    }
+    for (const key of Object.keys(mods)) mods[key] = Math.max(0, mods[key]);
+    return mods;
+  }
+
+  function focusStatus(game, nationId, focus) {
+    const state = focusStateFor(game, nationId);
+    if (state.completed.includes(focus.id)) return { status: 'completed', reason: '' };
+    if (state.current?.id === focus.id) return { status: 'current', reason: '' };
+    const missing = (focus.requires || []).filter(id => !state.completed.includes(id)).map(id => focusById(nationId, id)?.name || id);
+    if (missing.length) return { status: 'locked', reason: `前提: ${missing.join('、')}` };
+    if (focus.exclusive) {
+      const tree = focusTreeFor(nationId);
+      const taken = tree.focuses.find(item => item.id !== focus.id && item.exclusive === focus.exclusive
+        && (state.completed.includes(item.id) || state.current?.id === item.id));
+      if (taken) return { status: 'locked', reason: `分岐: ${taken.name} を選択済み` };
+    }
+    return { status: 'available', reason: '' };
+  }
+
+  function focusEffectText(effects = {}) {
+    return Object.entries(effects)
+      .map(([key, value]) => FOCUS_EFFECT_LABELS[key]?.(value))
+      .filter(Boolean)
+      .join(' / ') || '効果なし';
+  }
+
+  function addWarGoal(game, nationId, targetNationId) {
+    if (!game?.nations?.[targetNationId] || nationId === targetNationId) return;
+    const state = focusStateFor(game, nationId);
+    if (!state.warGoals.includes(targetNationId)) state.warGoals.push(targetNationId);
+    const sphere = formationSphereIds(game, nationId);
+    const targets = window.ORBIS_STATES_DB
+      .filter(region => isLandRegion(region) && regionHolder(game, region) === targetNationId)
+      .sort((a, b) => {
+        const borderA = [...(landAdjacency().get(a.id) || [])].some(id => sphere.has(regionHolder(game, regionById(id))));
+        const borderB = [...(landAdjacency().get(b.id) || [])].some(id => sphere.has(regionHolder(game, regionById(id))));
+        return (borderA === borderB ? 0 : borderA ? -1 : 1) || (b.vp || 0) - (a.vp || 0);
+      });
+    for (const region of targets.slice(0, 3)) addClaim(game, region.id, nationId, `${shortName(targetNationId)}への戦争目標`);
+  }
+
+  function applyFocusEffects(game, nationId, focus, notes = []) {
+    const effects = focus.effects || {};
+    const nation = game.nations[nationId];
+    if (!nation) return;
+    if (effects.stability) nation.stb = clamp(nation.stb + effects.stability, 0, 100);
+    if (effects.economy) nation.eco = clamp(nation.eco + effects.economy, 0, 100);
+    if (effects.tension) game.tension = clamp((game.tension || 0) + effects.tension, 0, 100);
+    if (nationId === game.playerNationId) {
+      if (effects.treasury) game.treasury = clamp(game.treasury + effects.treasury, 0, 100);
+      if (effects.prestige) game.prestige = clamp(game.prestige + effects.prestige, 0, 100);
+    }
+    const entry = economyEntry(game, nationId);
+    if (entry) {
+      if (effects.equipment) entry.equipment += Math.max(0, Math.round(effects.equipment));
+      if (effects.manpower) entry.manpower += Math.max(0, Math.round(effects.manpower));
+    }
+    const state = focusStateFor(game, nationId);
+    if (effects.politicalPower) state.politicalPower = clamp(state.politicalPower + effects.politicalPower, 0, FOCUS_PP_MAX);
+    if (effects.warGoal) addWarGoal(game, nationId, effects.warGoal);
+    if (effects.relation?.nationId && game.nations[effects.relation.nationId]) {
+      const other = effects.relation.nationId;
+      const delta = finite(effects.relation.delta, -20, 20, 0);
+      game.relations[nationId][other] = clamp(game.relations[nationId][other] + delta, -100, 100);
+      game.relations[other][nationId] = game.relations[nationId][other];
+    }
+    if (nationId === game.playerNationId) notes.push(`国策「${focus.name}」が完了：${focusEffectText(effects)}。`);
+  }
+
+  function chooseNpcFocus(game, nationId) {
+    const state = focusStateFor(game, nationId);
+    const tree = focusTreeFor(nationId);
+    const atWar = Object.values(game.wars || {}).some(war => war.status === 'active' && (war.attacker === nationId || war.defender === nationId));
+    const candidates = tree.focuses.filter(focus => focusStatus(game, nationId, focus).status === 'available');
+    if (!candidates.length) return null;
+    const score = focus => {
+      const effects = focus.effects || {};
+      if (atWar) return (effects.equipment || 0) * 3 + (effects.manpower || 0) + (effects.attackBonus || 0) * 5
+        + (effects.warGoal ? 30 : 0) + (effects.factoryEfficiency || 0) * 0.5 + (effects.stability || 0);
+      return (effects.factoryEfficiency || 0) * 3 + (effects.researchSpeed || 0) * 2 + (effects.stability || 0) * 2
+        + (effects.treasury || 0) * 3 + (effects.ppGain || 0) * 4;
+    };
+    return candidates.slice().sort((a, b) => score(b) - score(a) || a.tier - b.tier || a.cost - b.cost)[0] || null;
+  }
+
+  function chooseNpcResearch(game, nationId) {
+    const state = researchStateFor(game, nationId);
+    const atWar = Object.values(game.wars || {}).some(war => war.status === 'active' && (war.attacker === nationId || war.defender === nationId));
+    const order = atWar ? ['army_doctrine', 'equipment', 'industry', 'electronics'] : ['industry', 'electronics', 'equipment', 'army_doctrine'];
+    for (const key of order) {
+      const branch = RESEARCH_BRANCHES[key];
+      for (const item of branch.items) {
+        if (state.completed.includes(item.id)) continue;
+        if ((item.requires || []).some(id => !state.completed.includes(id))) continue;
+        return item;
+      }
+    }
+    return null;
+  }
+
+  function completeFocus(game, nationId, focus, notes = []) {
+    const state = focusStateFor(game, nationId);
+    if (!state || state.completed.includes(focus.id)) return;
+    applyFocusEffects(game, nationId, focus, notes);
+    state.completed.push(focus.id);
+    state.current = null;
+    state.lastCompletedTurn = game.completedTurns;
+    if (nationId !== game.playerNationId) {
+      const next = chooseNpcFocus(game, nationId);
+      state.current = next ? { id: next.id, progress: 0 } : null;
+    }
+  }
+
+  function tickNationalFocus(game, notes = []) {
+    if (!game?.nations) return;
+    for (const nationId of Object.keys(game.nations)) {
+      const state = focusStateFor(game, nationId);
+      const mods = nationalModifiers(game, nationId);
+      const gain = FOCUS_PP_BASE + mods.ppGain;
+      state.politicalPower = clamp(state.politicalPower + gain, 0, FOCUS_PP_MAX);
+      if (!state.current && nationId !== game.playerNationId) {
+        const next = chooseNpcFocus(game, nationId);
+        if (next) state.current = { id: next.id, progress: 0 };
+      }
+      if (!state.current) {
+        if (nationId === game.playerNationId) notes.push(`政治力 +${gain}（${state.politicalPower}/${FOCUS_PP_MAX}）。国策は未選択。`);
+        continue;
+      }
+      const focus = focusById(nationId, state.current.id);
+      if (!focus) { state.current = null; continue; }
+      const remaining = Math.max(0, focus.cost - state.current.progress);
+      const allocation = Math.min(FOCUS_PP_ALLOCATION, state.politicalPower, remaining);
+      state.politicalPower -= allocation;
+      state.current.progress += allocation;
+      if (nationId === game.playerNationId) notes.push(`国策「${focus.name}」：政治力 +${gain}、進行 ${Math.min(focus.cost, state.current.progress)}/${focus.cost}。`);
+      if (state.current.progress >= focus.cost) completeFocus(game, nationId, focus, notes);
+    }
+  }
+
+  function completeResearch(game, nationId, item, notes = []) {
+    const state = researchStateFor(game, nationId);
+    if (!state || state.completed.includes(item.id)) return;
+    state.completed.push(item.id);
+    state.current = null;
+    if (nationId === game.playerNationId) notes.push(`研究「${item.name}」が完了：${focusEffectText(item.effects)}。`);
+    if (nationId !== game.playerNationId) {
+      const next = chooseNpcResearch(game, nationId);
+      state.current = next ? { id: next.id, progress: 0 } : null;
+    }
+  }
+
+  function tickResearch(game, notes = []) {
+    if (!game?.nations) return;
+    for (const nationId of Object.keys(game.nations)) {
+      const state = researchStateFor(game, nationId);
+      if (!state.current && nationId !== game.playerNationId) {
+        const next = chooseNpcResearch(game, nationId);
+        if (next) state.current = { id: next.id, progress: 0 };
+      }
+      if (!state.current) continue;
+      const item = researchItemById(state.current.id);
+      if (!item) { state.current = null; continue; }
+      const mods = nationalModifiers(game, nationId);
+      const gain = Math.max(1, Math.round(RESEARCH_PROGRESS_BASE * (1 + mods.researchSpeed / 100)));
+      state.current.progress += gain;
+      if (nationId === game.playerNationId) notes.push(`研究「${item.name}」：進行 ${Math.min(item.cost, state.current.progress)}/${item.cost}（+${gain}）。`);
+      if (state.current.progress >= item.cost) completeResearch(game, nationId, item, notes);
+    }
+  }
+
+  function focusSummary(nationId) {
+    if (!campaign) return null;
+    const id = nationId || campaign.playerNationId;
+    const state = focusStateFor(campaign, id);
+    const tree = focusTreeFor(id);
+    const mods = nationalModifiers(campaign, id);
+    const current = state.current ? focusById(id, state.current.id) : null;
+    return {
+      nationId: id,
+      nationLabel: shortName(id),
+      treeLabel: tree.label,
+      politicalPower: state.politicalPower,
+      maxPoliticalPower: FOCUS_PP_MAX,
+      gain: FOCUS_PP_BASE + mods.ppGain,
+      allocation: FOCUS_PP_ALLOCATION,
+      current: current ? { id: current.id, name: current.name, progress: state.current.progress, cost: current.cost } : null,
+      completed: state.completed.slice(),
+      warGoals: state.warGoals.slice(),
+      modifiers: copy(mods),
+      focuses: tree.focuses.map(focus => ({ ...copy(focus), ...focusStatus(campaign, id, focus), effectText: focusEffectText(focus.effects) }))
+    };
+  }
+
+  function selectFocus(focusId) {
+    if (!campaign || campaign.phase !== 'playing') return { ok: false, error: 'キャンペーン進行中のみ国策を選べます。' };
+    const nationId = campaign.playerNationId;
+    const focus = focusById(nationId, focusId);
+    if (!focus) return { ok: false, error: 'その国策はこの国のツリーにありません。' };
+    const state = focusStateFor(campaign, nationId);
+    if (state.current?.id === focus.id) return { ok: true, focus: copy(focus) };
+    if (state.current) return { ok: false, error: `「${focusById(nationId, state.current.id)?.name || '別の国策'}」を進行中です。完了後に選んでください。` };
+    const status = focusStatus(campaign, nationId, focus);
+    if (status.status !== 'available') return { ok: false, error: status.reason || 'この国策は選択できません。' };
+    state.current = { id: focus.id, progress: 0 };
+    saveCampaign();
+    render();
+    if ($('modal-focus')?.open) openFocusPanel();
+    return { ok: true, focus: copy(focus) };
+  }
+
+  function researchSummary(nationId) {
+    if (!campaign) return null;
+    const id = nationId || campaign.playerNationId;
+    const state = researchStateFor(campaign, id);
+    const mods = nationalModifiers(campaign, id);
+    const current = state.current ? researchItemById(state.current.id) : null;
+    return {
+      nationId: id,
+      current: current ? { id: current.id, name: current.name, progress: state.current.progress, cost: current.cost } : null,
+      completed: state.completed.slice(),
+      speed: mods.researchSpeed,
+      progressGain: Math.max(1, Math.round(RESEARCH_PROGRESS_BASE * (1 + mods.researchSpeed / 100))),
+      branches: Object.entries(RESEARCH_BRANCHES).map(([key, branch]) => ({
+        id: key,
+        label: branch.label,
+        desc: branch.desc,
+        items: branch.items.map(item => {
+          const completed = state.completed.includes(item.id);
+          const isCurrent = state.current?.id === item.id;
+          const missing = (item.requires || []).filter(dep => !state.completed.includes(dep)).map(dep => researchItemById(dep)?.name || dep);
+          const status = completed ? 'completed' : isCurrent ? 'current' : missing.length ? 'locked' : 'available';
+          return { ...copy(item), status, reason: missing.length ? `前提: ${missing.join('、')}` : '', effectText: focusEffectText(item.effects) };
+        })
+      }))
+    };
+  }
+
+  function selectResearch(itemId) {
+    if (!campaign || campaign.phase !== 'playing') return { ok: false, error: 'キャンペーン進行中のみ研究を選べます。' };
+    const nationId = campaign.playerNationId;
+    const item = researchItemById(itemId);
+    if (!item) return { ok: false, error: 'その研究はありません。' };
+    const state = researchStateFor(campaign, nationId);
+    if (state.current?.id === item.id) return { ok: true, research: copy(item) };
+    if (state.current) return { ok: false, error: `「${researchItemById(state.current.id)?.name || '別の研究'}」を研究中です。完了後に選んでください。` };
+    if (state.completed.includes(item.id)) return { ok: false, error: 'その研究は完了済みです。' };
+    const missing = (item.requires || []).filter(dep => !state.completed.includes(dep));
+    if (missing.length) return { ok: false, error: `前提研究が必要です: ${missing.map(id => researchItemById(id)?.name || id).join('、')}` };
+    state.current = { id: item.id, progress: 0 };
+    saveCampaign();
+    render();
+    if ($('modal-research')?.open) openResearchPanel();
+    return { ok: true, research: copy(item) };
+  }
+
+  function openFocusPanel() {
+    if (!campaign) return;
+    const summary = focusSummary();
+    if (!summary) return;
+    const current = summary.current
+      ? `<div class="focus-stat"><span>進行中</span><strong>${escapeHtml(summary.current.name)}</strong><small>${summary.current.progress} / ${summary.current.cost} · 毎半月 最大 ${summary.allocation}</small><div class="focus-progress" style="margin-top:6px"><span style="width:${Math.min(100, Math.round(summary.current.progress / summary.current.cost * 100))}%"></span></div></div>`
+      : '<div class="focus-stat"><span>進行中</span><strong>未選択</strong><small>下のツリーから次の国策を選ぶ</small></div>';
+    const warGoals = summary.warGoals.length
+      ? summary.warGoals.map(id => `<span class="focus-badge">${escapeHtml(shortName(id))}</span>`).join(' ')
+      : '<span class="small muted">なし</span>';
+    const tiers = [...new Set(summary.focuses.map(focus => focus.tier))].sort((a, b) => a - b);
+    const tierRows = tiers.map(tier => {
+      const cards = summary.focuses.filter(focus => focus.tier === tier).map(focus => {
+        const statusLabel = { completed: '完了', current: '進行中', locked: 'ロック', available: '選択可' }[focus.status];
+        const badgeClass = focus.status === 'completed' ? 'completed' : focus.status === 'current' ? 'current' : focus.status === 'locked' ? 'locked' : '';
+        const button = focus.status === 'completed' ? '<span class="small muted">効果を適用済み</span>'
+          : focus.status === 'current' ? '<button class="btn btn-ghost" disabled>進行中</button>'
+            : focus.status === 'locked' ? '<button class="btn btn-ghost" disabled>ロック中</button>'
+              : `<button class="btn btn-primary" data-focus-select="${escapeHtml(focus.id)}" ${summary.current ? 'disabled' : ''}>${summary.current ? '別の国策を進行中' : 'この国策を選ぶ'}</button>`;
+        return `<article class="focus-card is-${focus.status}">
+          <div class="focus-card-head"><strong>${escapeHtml(focus.name)}</strong><span class="focus-badge ${badgeClass}">${statusLabel}</span></div>
+          <p class="focus-desc">${escapeHtml(focus.desc)}</p>
+          <p class="focus-effects">${escapeHtml(focus.effectText)}</p>
+          <p class="focus-meta">費用 ${focus.cost} 政治力 · 第${focus.tier}段階</p>
+          ${focus.status === 'locked' ? `<p class="focus-lock">${escapeHtml(focus.reason)}</p>` : ''}
+          ${button}
+        </article>`;
+      }).join('');
+      return `<section class="focus-tier"><h3>第${tier}段階</h3><div class="focus-grid">${cards}</div></section>`;
+    }).join('');
+    html('focus-panel-body', `<section class="focus-summary">
+      <div class="focus-stat"><span>政治力</span><strong>${summary.politicalPower} / ${summary.maxPoliticalPower}</strong><small>毎半月 +${summary.gain} · 国策へ最大 ${summary.allocation}</small></div>
+      ${current}
+      <div class="focus-stat"><span>完了済み</span><strong>${summary.completed.length} / ${summary.focuses.length}</strong><small>${escapeHtml(summary.treeLabel)}の国策</small></div>
+      <div class="focus-stat"><span>戦争目標</span><strong>${summary.warGoals.length}</strong><small>${warGoals}</small></div>
+    </section>
+    <p class="small muted">1932年3月を起点とする。政治力は威信とは別の指標で、半月ごとに増える。国策は1件ずつ進み、完了すると効果が数値・フラグとして残る。排他分岐は片方を選ぶと他方がロックされる。</p>
+    <div class="focus-branch"><h3>${escapeHtml(summary.treeLabel)} · 国策ツリー</h3><p class="small muted">史実寄りの経路と代替史の分岐。前提と分岐のロックを確認して選ぶ。</p>${tierRows}</div>`);
+    openDialog('modal-focus');
+  }
+
+  function openResearchPanel() {
+    if (!campaign) return;
+    const summary = researchSummary();
+    if (!summary) return;
+    const current = summary.current
+      ? `<div class="focus-stat"><span>進行中</span><strong>${escapeHtml(summary.current.name)}</strong><small>${summary.current.progress} / ${summary.current.cost} · 毎半月 +${summary.progressGain}</small><div class="focus-progress" style="margin-top:6px"><span style="width:${Math.min(100, Math.round(summary.current.progress / summary.current.cost * 100))}%"></span></div></div>`
+      : '<div class="focus-stat"><span>進行中</span><strong>未選択</strong><small>下の系統から研究対象を選ぶ</small></div>';
+    const branches = summary.branches.map(branch => {
+      const items = branch.items.map(item => {
+        const badgeClass = item.status === 'completed' ? 'completed' : item.status === 'current' ? 'current' : item.status === 'locked' ? 'locked' : '';
+        const statusLabel = { completed: '完了', current: '研究中', locked: 'ロック', available: '選択可' }[item.status];
+        const button = item.status === 'completed' ? '<span class="small muted">効果を適用済み</span>'
+          : item.status === 'current' ? '<button class="btn btn-ghost" disabled>研究中</button>'
+            : item.status === 'locked' ? '<button class="btn btn-ghost" disabled>ロック中</button>'
+              : `<button class="btn btn-primary" data-research-select="${escapeHtml(item.id)}" ${summary.current ? 'disabled' : ''}>${summary.current ? '別の研究を進行中' : 'この研究を選ぶ'}</button>`;
+        return `<article class="research-item is-${item.status}">
+          <div class="research-item-head"><strong>${escapeHtml(item.name)}</strong><span class="focus-badge ${badgeClass}">${statusLabel}</span></div>
+          <p>${escapeHtml(item.desc)}</p>
+          <p class="focus-effects">${escapeHtml(item.effectText)}</p>
+          <p class="focus-meta">研究点 ${item.cost} · 第${item.tier}段階</p>
+          ${item.status === 'locked' ? `<p class="focus-lock">${escapeHtml(item.reason)}</p>` : ''}
+          ${button}
+        </article>`;
+      }).join('');
+      return `<section class="research-branch"><h3>${escapeHtml(branch.label)}</h3><p class="small muted">${escapeHtml(branch.desc)}</p>${items}</section>`;
+    }).join('');
+    html('research-panel-body', `<section class="focus-summary">
+      <div class="focus-stat"><span>研究速度</span><strong>+${summary.speed}%</strong><small>国策・電子研究の補正</small></div>
+      ${current}
+      <div class="focus-stat"><span>完了済み</span><strong>${summary.completed.length}</strong><small>同時研究は1件</small></div>
+      <div class="focus-stat"><span>半月ごとの進行</span><strong>+${summary.progressGain}</strong><small>完了で効果を適用</small></div>
+    </section>
+    <p class="small muted">陸軍教義は攻勢と消耗、産業は装備生産、装備は補充と戦力、電子は研究速度と補給に効く。研究速度が上がると実際の進行が速くなる。</p>
+    <div class="research-grid">${branches}</div>`);
+    openDialog('modal-research');
+  }
+
   function mobilizationGrowth(entry) {
     return 2 + Math.max(0, Math.min(MOBILIZATION_LABELS.length - 1, Number(entry?.mobilization) || 0)) * 3;
   }
@@ -1195,6 +1788,7 @@ const Orbis = (() => {
     }
     const region = controlledRecruitRegion(campaign, nationId);
     if (!region) return { ok: false, error: '新編制できる支配陸州がありません。' };
+    const modifiers = nationalModifiers(campaign, nationId);
     if (!Array.isArray(campaign.formations)) campaign.formations = [];
     const used = new Set(campaign.formations.map(item => item.id));
     let index = campaign.formations.filter(item => item.nationId === nationId && item.type === 'field').length + 1;
@@ -1205,7 +1799,7 @@ const Orbis = (() => {
       nationId,
       type: 'field',
       regionId: region.id,
-      strength: 55,
+      strength: clamp(55 + modifiers.newFormationStrength, 1, 100),
       order: { kind: 'defend' }
     };
     campaign.formations.push(formation);
@@ -1254,7 +1848,8 @@ const Orbis = (() => {
     }
     if (!distance.has(regionId)) return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null };
     const steps = distance.get(regionId);
-    const level = clamp(100 - steps * 7, 20, 100);
+    const supplyBonus = nationalModifiers(game, nationId).supplyBonus;
+    const level = clamp(100 - steps * 7 + supplyBonus, 20, 100);
     const status = level >= 70 ? 'full' : level >= 40 ? 'stretched' : 'low';
     return { level, status, label: SUPPLY_LABELS[status], distance: steps };
   }
@@ -1278,9 +1873,10 @@ const Orbis = (() => {
       }
       const factories = factoryCounts(game, nationId);
       const share = clamp(Math.round(entry.militaryShare), 0, 100);
+      const modifiers = nationalModifiers(game, nationId);
       const manpowerGain = mobilizationGrowth(entry);
       entry.manpower += manpowerGain;
-      const equipmentGain = Math.max(0, Math.round(factories.military * share / 1000));
+      const equipmentGain = Math.max(0, Math.round(factories.military * share / 1000 * (1 + modifiers.factoryEfficiency / 100)) + modifiers.equipmentFlat);
       entry.equipment += equipmentGain;
       let treasuryGain = 0;
       if (nationId === game.playerNationId) {
@@ -1288,7 +1884,7 @@ const Orbis = (() => {
         treasuryGain = civilianLean > 0 ? Math.min(2, Math.round(factories.civil * civilianLean / 20000)) : 0;
         game.treasury = clamp(game.treasury + treasuryGain, 0, 100);
       }
-      const replenishBudget = 1 + Math.round(share / 25);
+      const replenishBudget = 1 + Math.round(share / 25) + modifiers.replenishBonus;
       let replenished = 0;
       for (const formation of game.formations) {
         if (formation.nationId !== nationId || formation.strength >= 100) continue;
@@ -1683,6 +2279,7 @@ const Orbis = (() => {
     if (!Array.isArray(game.formations)) return;
     for (const formation of game.formations.slice()) {
       if (!formation || !game.formations.includes(formation)) continue;
+      const modifiers = nationalModifiers(game, formation.nationId);
       const supply = formationSupplyInfo(game, formation);
       formation.supply = supply.level;
       formation.supplyStatus = supply.status;
@@ -1694,7 +2291,7 @@ const Orbis = (() => {
       }
       if (formation.order.kind !== 'offensive') continue;
       if (supply.level < 40) {
-        formation.strength = Math.max(10, (formation.strength || 1) - 2);
+        formation.strength = Math.max(10, (formation.strength || 1) - Math.max(1, 2 - modifiers.lossReduction));
         if (playerFormation) notes.push(`${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}は補給不足（${supply.label}）のため攻勢が停滞。`);
         continue;
       }
@@ -1732,7 +2329,8 @@ const Orbis = (() => {
         game.conflicts[step.id] = { attacker: formation.nationId, defender: originalOwner, months: 1, reason: `${shortName(formation.nationId)}の攻勢` };
       }
       if (formation.type === 'field') formation.regionId = step.id;
-      formation.strength = Math.max(20, (formation.strength || 50) - 2 - (supply.level < 70 ? 1 : 0));
+      const attackLoss = Math.max(1, 2 + (supply.level < 70 ? 1 : 0) - modifiers.lossReduction - Math.floor((modifiers.attackBonus + modifiers.combatStrength) / 3));
+      formation.strength = Math.max(20, (formation.strength || 50) - attackLoss);
       notes.push(liberated ? `${regionLabel(step)}を${shortName(formation.nationId)}が奪還。` : `${regionLabel(step)}を${shortName(formation.nationId)}が占領。`);
       notes.push(`${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}が${regionLabel(step)}方面へ前進（戦力 ${formation.strength}）。`);
       retreatEnemyFormations(game, step, formation.nationId, notes);
@@ -1918,8 +2516,10 @@ const Orbis = (() => {
     if (dependency && !dependency.independent && dependency.overlordId === targetNationId) return false;
     const warId = uid('war');
     campaign.wars[warId] = { attacker: campaign.playerNationId, defender: targetNationId, startedTurn: campaign.completedTurns, status: 'active', reason: requiredText(reason || '宣戦布告', '宣戦理由', 400) };
-    campaign.tension = clamp(campaign.tension + 6, 0, 100);
-    campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(campaign.playerNationId)}と${shortName(targetNationId)}は戦争状態に入った`].slice(-400);
+    const hasWarGoal = focusStateFor(campaign, campaign.playerNationId).warGoals.includes(targetNationId);
+    if (hasWarGoal) addWarGoal(campaign, campaign.playerNationId, targetNationId);
+    campaign.tension = clamp(campaign.tension + (hasWarGoal ? 3 : 6), 0, 100);
+    campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(campaign.playerNationId)}と${shortName(targetNationId)}は戦争状態に入った${hasWarGoal ? '（国策の戦争目標）' : ''}`].slice(-400);
     saveCampaign();
     syncWorld();
     render();
@@ -3213,6 +3813,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
 
     applyMeanReversion(game, notes);
     tickDependencies(game, notes);
+    tickNationalFocus(game, notes);
+    tickResearch(game, notes);
     if (losses.size) game.tension = Math.max(game.tension, 55);
     tickCivilWars(game, notes);
     tickEconomy(game, notes);
@@ -3918,7 +4520,11 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const goal = mandateInfo(campaign);
     const budget = monthlyBudget(campaign);
     const ownClient = campaign.clients[campaign.playerNationId];
-    html('domestic-overview-box', `<div class="nation-overview"><div class="mini-metrics"><div><span class="muted small">財政余力</span><strong>${campaign.treasury}<small class="small muted"> / 100</small></strong><span class="small">経常収支 ${signed(budget.net)}${budget.admin ? ` · 自治政府 +${budget.admin}` : ''}${budget.tribute ? ` · 貢納 -${budget.tribute}` : ''}</span></div><div><span class="muted small">国家威信</span><strong>${campaign.prestige}<small class="small muted"> / 100</small></strong><span class="small">履行 ${campaign.cumulative.fulfilled} · 違反 ${campaign.cumulative.broken}</span></div></div><details class="compact-disclosure"><summary>国家目標 · ${escapeHtml(goal.name)} <span class="muted">${goal.conditions.filter(condition => condition.met).length}/${goal.conditions.length}</span></summary><div class="goal-box">${goal.conditions.map(condition => `<div>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</div>`).join('')}</div><p class="small">任期末までに全条件を満たす。</p></details>${ownClient ? `<p class="small" style="margin-top:9px">${escapeHtml(shortName(ownClient.sponsorId))}の影響下 · 自治 ${ownClient.autonomy} / 忠誠 ${ownClient.loyalty}</p>` : ''}<div class="form-row" style="margin-top:6px"><button class="text-button" data-situation-briefing>情勢分析 ↗</button><button class="text-button" data-open-economy>動員・生産 ↗</button></div></div>`);
+    const focusInfo = focusSummary();
+    const researchInfo = researchSummary();
+    const focusLine = focusInfo?.current ? `${escapeHtml(focusInfo.current.name)} ${focusInfo.current.progress}/${focusInfo.current.cost}` : '未選択';
+    const researchLine = researchInfo?.current ? `${escapeHtml(researchInfo.current.name)} ${researchInfo.current.progress}/${researchInfo.current.cost}` : '未選択';
+    html('domestic-overview-box', `<div class="nation-overview"><div class="mini-metrics"><div><span class="muted small">財政余力</span><strong>${campaign.treasury}<small class="small muted"> / 100</small></strong><span class="small">経常収支 ${signed(budget.net)}${budget.admin ? ` · 自治政府 +${budget.admin}` : ''}${budget.tribute ? ` · 貢納 -${budget.tribute}` : ''}</span></div><div><span class="muted small">国家威信</span><strong>${campaign.prestige}<small class="small muted"> / 100</small></strong><span class="small">履行 ${campaign.cumulative.fulfilled} · 違反 ${campaign.cumulative.broken}</span></div><div><span class="muted small">政治力</span><strong>${focusInfo?.politicalPower ?? 0}<small class="small muted"> / ${focusInfo?.maxPoliticalPower ?? FOCUS_PP_MAX}</small></strong><span class="small">国策 ${focusLine} · 研究 ${researchLine}</span></div></div><details class="compact-disclosure"><summary>国家目標 · ${escapeHtml(goal.name)} <span class="muted">${goal.conditions.filter(condition => condition.met).length}/${goal.conditions.length}</span></summary><div class="goal-box">${goal.conditions.map(condition => `<div>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</div>`).join('')}</div><p class="small">任期末までに全条件を満たす。</p></details>${ownClient ? `<p class="small" style="margin-top:9px">${escapeHtml(shortName(ownClient.sponsorId))}の影響下 · 自治 ${ownClient.autonomy} / 忠誠 ${ownClient.loyalty}</p>` : ''}<div class="form-row" style="margin-top:6px"><button class="text-button" data-situation-briefing>情勢分析 ↗</button><button class="text-button" data-open-focus>国策 ↗</button><button class="text-button" data-open-research>研究 ↗</button><button class="text-button" data-open-economy>動員・生産 ↗</button></div></div>`);
     const dependencyCards = [];
     const ownDependency = dependencyInfo(campaign.playerNationId);
     if (ownDependency && !ownDependency.independent && !ownDependency.annexed && !ownDependency.dissolved) {
@@ -4941,6 +5547,37 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         };
       }
     }
+    const rawFocus = raw.nationalFocus && typeof raw.nationalFocus === 'object' && !Array.isArray(raw.nationalFocus) ? raw.nationalFocus : {};
+    for (const nationId of Object.keys(game.nations)) {
+      const state = focusStateFor(game, nationId);
+      const saved = rawFocus[nationId];
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) continue;
+      state.politicalPower = saveNumber(saved.politicalPower ?? state.politicalPower, '政治力', 0, FOCUS_PP_MAX);
+      const completed = new Set(array(saved.completed || [], '完了した国策', 100).map(id => requiredText(id, '国策ID', 100)).filter(id => focusById(nationId, id)));
+      state.completed = [...completed];
+      state.warGoals = array(saved.warGoals || [], '戦争目標', 40).map(id => requiredText(id, '戦争目標の国', 100)).filter(id => Object.hasOwn(game.nations, id) && id !== nationId);
+      if (saved.current && typeof saved.current === 'object' && !Array.isArray(saved.current)) {
+        const focus = focusById(nationId, saved.current.id);
+        if (focus && !state.completed.includes(focus.id)) {
+          state.current = { id: focus.id, progress: saveNumber(saved.current.progress ?? 0, '国策の進行', 0, focus.cost) };
+        }
+      }
+      state.lastCompletedTurn = saved.lastCompletedTurn != null ? saveNumber(saved.lastCompletedTurn, '国策の完了ターン', 0, turnCap) : null;
+    }
+    const rawResearch = raw.research && typeof raw.research === 'object' && !Array.isArray(raw.research) ? raw.research : {};
+    for (const nationId of Object.keys(game.nations)) {
+      const state = researchStateFor(game, nationId);
+      const saved = rawResearch[nationId];
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) continue;
+      const completed = new Set(array(saved.completed || [], '完了した研究', 100).map(id => requiredText(id, '研究ID', 100)).filter(id => researchItemById(id)));
+      state.completed = [...completed];
+      if (saved.current && typeof saved.current === 'object' && !Array.isArray(saved.current)) {
+        const item = researchItemById(saved.current.id);
+        if (item && !state.completed.includes(item.id)) {
+          state.current = { id: item.id, progress: saveNumber(saved.current.progress ?? 0, '研究の進行', 0, item.cost) };
+        }
+      }
+    }
     requireObject(raw.conflicts, '紛争');
     for (const [id, item] of Object.entries(raw.conflicts)) {
       const rid = mapRegionId(id);
@@ -5202,6 +5839,16 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (button.hasAttribute('data-open-settings')) openSettings();
       if (button.hasAttribute('data-open-war')) openWarPanel();
       if (button.hasAttribute('data-open-economy')) openEconomyPanel();
+      if (button.hasAttribute('data-open-focus')) openFocusPanel();
+      if (button.hasAttribute('data-open-research')) openResearchPanel();
+      if (data.focusSelect) {
+        const result = selectFocus(data.focusSelect);
+        if (!result.ok) toast(result.error);
+      }
+      if (data.researchSelect) {
+        const result = selectResearch(data.researchSelect);
+        if (!result.ok) toast(result.error);
+      }
       if (data.economyMobilization !== undefined) {
         if (!setMobilizationLevel(Number(data.economyMobilization))) toast('動員段階を変更できません。');
       }
@@ -5287,5 +5934,5 @@ transferDependent: (vassalId, newSponsorId) => transferDependent(vassalId, newSp
 grantAutonomy: (vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) => grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign),
 actorRoster: () => Object.keys(actors),
 createDependentCommand, createDependentRegionCommand, integrateDependentCommand, transferDependentCommand, grantAutonomyCommand,
-warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();

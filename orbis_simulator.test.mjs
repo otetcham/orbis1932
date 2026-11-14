@@ -1920,6 +1920,137 @@ try {
     assert.ok(oldEconomy.manpower > 0 && oldEconomy.equipment >= 0);
   });
 
+  await check('日本で史実寄りの国策を数ターン進め、完了効果で生産と研究補正が変わる', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(api.focusSummary().treeLabel, '日本');
+    assert.equal(api.focusSummary().current, null);
+    assert.equal(api.selectFocus('jp_manchukuo').ok, true);
+    const before = json(api.snapshot());
+    for (let turn = 0; turn < 3; turn++) assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    const focus = api.focusSummary();
+    assert.ok(focus.completed.includes('jp_manchukuo'), '史実寄り国策の完了');
+    assert.equal(focus.current, null);
+    assert.equal(focus.modifiers.factoryEfficiency, 5);
+    assert.ok(after.economy.japan.equipment > before.economy.japan.equipment, '国策完了で装備が増える');
+    assert.ok(focus.politicalPower < focus.maxPoliticalPower, '政治力を消費して進行する');
+    const resolution = after.articles.filter(article => article.kind === 'resolution').at(-1);
+    assert.ok(resolution.notes.some(note => note.includes('満洲国の経営')), 'ターン結果に国策完了が残る');
+  });
+
+  await check('日本の代替史分岐は排他で、選んだ側だけが戦争目標と関係を変える', async () => {
+    const { api } = harness();
+    await begin(api);
+    const base = json(api.snapshot());
+    base.nationalFocus.japan.completed = ['jp_manchukuo'];
+    base.nationalFocus.japan.current = { id: 'jp_league_withdrawal', progress: 54 };
+    base.nationalFocus.japan.politicalPower = 200;
+    base.economy.japan.militaryShare = 80;
+    assert.equal(await api.restore(base), true);
+    assert.equal(await api.finishTurn(), true);
+    const historical = api.snapshot();
+    assert.ok(historical.nationalFocus.japan.completed.includes('jp_league_withdrawal'));
+    assert.ok(historical.nationalFocus.japan.warGoals.includes('china'), '史実寄り分岐で対中戦争目標を解禁');
+    assert.ok(Object.values(historical.claims).some(list => list.some(claim => claim.nationId === 'japan')), '戦争目標で請求権が付く');
+    assert.ok(api.researchSummary().progressGain > 10, '国策の研究速度補正が実際の研究進行に反映される');
+    assert.equal(api.selectFocus('jp_asia_cooperation').ok, false, '排他分岐の反対側はロック');
+    const historicalRelation = historical.relations.japan.china;
+
+    const alt = json(base);
+    alt.nationalFocus.japan.current = { id: 'jp_asia_cooperation', progress: 54 };
+    assert.equal(await api.restore(alt), true);
+    assert.equal(await api.finishTurn(), true);
+    const alternative = api.snapshot();
+    assert.ok(alternative.nationalFocus.japan.completed.includes('jp_asia_cooperation'));
+    assert.ok(!alternative.nationalFocus.japan.warGoals.includes('china'), '代替史では対中戦争目標を取らない');
+    assert.ok(alternative.relations.japan.china > historicalRelation, '代替史は対中関係を改善する');
+    assert.equal(api.selectFocus('jp_league_withdrawal').ok, false, '代替史を選ぶと史実寄り分岐がロック');
+  });
+
+  await check('非主要国は共通ツリーの国策を進められる', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'siam', difficulty: 'standard', mandate: 'recovery', maxTurns: 24, replace: true }), true);
+    const summary = api.focusSummary();
+    assert.equal(summary.treeLabel, '共通');
+    assert.equal(api.selectFocus('gen_industry').ok, true);
+    for (let turn = 0; turn < 3; turn++) assert.equal(await api.finishTurn(), true);
+    const after = api.focusSummary();
+    assert.ok(after.completed.includes('gen_industry'), '共通ツリーの完了');
+    assert.equal(after.modifiers.factoryEfficiency, 10);
+  });
+
+  await check('産業研究の完了は未研究より装備生産を増やす', async () => {
+    const { api: researchedApi } = harness();
+    await begin(researchedApi);
+    const base = json(researchedApi.snapshot());
+    base.economy.japan.militaryShare = 100;
+    const researched = json(base);
+    researched.research.japan.current = { id: 'industry_standardization', progress: 44 };
+    assert.equal(await researchedApi.restore(researched), true);
+    assert.equal(await researchedApi.finishTurn(), true);
+    const researchedAfter = researchedApi.snapshot();
+    assert.ok(researchedAfter.research.japan.completed.includes('industry_standardization'));
+    assert.ok(researchedAfter.economy.japan.lastProduction.equipment > 0);
+
+    const { api: baselineApi } = harness();
+    await begin(baselineApi);
+    assert.equal(await baselineApi.restore(json(base)), true);
+    assert.equal(await baselineApi.finishTurn(), true);
+    const baselineAfter = baselineApi.snapshot();
+    assert.ok(researchedAfter.economy.japan.lastProduction.equipment > baselineAfter.economy.japan.lastProduction.equipment,
+      `産業研究後の装備生産 (${researchedAfter.economy.japan.lastProduction.equipment}) が未研究 (${baselineAfter.economy.japan.lastProduction.equipment}) を上回る`);
+  });
+
+  await check('NPCは国策と研究を自動で進め、プレイヤー国は自動選択しない', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(await api.finishTurn(), true);
+    const state = api.snapshot();
+    assert.equal(state.nationalFocus.japan.current, null, 'プレイヤー国の国策は自動選択しない');
+    assert.equal(state.research.japan.current, null, 'プレイヤー国の研究は自動選択しない');
+    assert.equal(state.nationalFocus.japan.politicalPower, 39, 'プレイヤーにも政治力は蓄積する');
+    const npcFocus = Object.entries(state.nationalFocus).filter(([id, entry]) => id !== 'japan' && entry.current);
+    assert.ok(npcFocus.length > 0, 'NPCが国策を開始する');
+    assert.ok(npcFocus.every(([, entry]) => entry.current.progress > 0), 'NPC国策が進行する');
+    const npcResearch = Object.entries(state.research).filter(([id, entry]) => id !== 'japan' && entry.current);
+    assert.ok(npcResearch.length > 0, 'NPCが研究を開始する');
+    assert.ok(npcResearch.every(([, entry]) => entry.current.progress > 0), 'NPC研究が進行する');
+  });
+
+  await check('国策・研究・政治力は保存と再開で残り、旧セーブは既定値で読む', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(api.selectFocus('jp_army_reform').ok, true);
+    assert.equal(api.selectResearch('industry_standardization').ok, true);
+    assert.equal(await api.finishTurn(), true);
+    const saved = json(api.snapshot());
+    assert.equal(saved.nationalFocus.japan.current.id, 'jp_army_reform');
+    assert.ok(saved.nationalFocus.japan.politicalPower < 39);
+    assert.equal(saved.research.japan.current.id, 'industry_standardization');
+    assert.ok(saved.research.japan.current.progress > 0);
+
+    const restored = harness().api;
+    assert.equal(await restored.restore(saved), true);
+    const after = restored.snapshot();
+    assert.equal(after.nationalFocus.japan.current.id, saved.nationalFocus.japan.current.id);
+    assert.equal(after.nationalFocus.japan.current.progress, saved.nationalFocus.japan.current.progress);
+    assert.equal(after.nationalFocus.japan.politicalPower, saved.nationalFocus.japan.politicalPower);
+    assert.equal(after.research.japan.current.id, saved.research.japan.current.id);
+    assert.equal(after.research.japan.current.progress, saved.research.japan.current.progress);
+
+    const old = json(saved);
+    delete old.nationalFocus;
+    delete old.research;
+    const oldApi = harness().api;
+    assert.equal(await oldApi.restore(old), true);
+    const oldFocus = oldApi.focusSummary();
+    assert.equal(oldFocus.politicalPower, 25);
+    assert.equal(oldFocus.current, null);
+    assert.equal(oldApi.researchSummary().current, null);
+    assert.ok(oldApi.researchSummary().branches.every(branch => branch.items.some(item => item.status === 'available')), '旧セーブでも研究を選べる');
+  });
+
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
 } finally {
   await new Promise(resolve => server.close(resolve));
