@@ -1,8 +1,14 @@
 {
   "name": "orbis1932",
-  "version": "1.0.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build:dist": "node scripts/build_dist.mjs",
+    "test": "node orbis_simulator.test.mjs",
+    "perf:m7": "node scripts/measure_m7_perf.mjs",
+    "capture:m7": "node scripts/capture_m7_productization.mjs"
+  },
   "dependencies": {
     "@turf/area": "^7.2.0",
     "@turf/boolean-point-in-polygon": "^7.2.0",

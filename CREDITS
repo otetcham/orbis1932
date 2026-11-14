@@ -36,3 +36,30 @@
 | ドイツ | パウル・フォン・ヒンデンブルク | [ja.wikipedia.org/wiki/パウル・フォン・ヒンデンブルク](https://ja.wikipedia.org/wiki/%E3%83%91%E3%82%A6%E3%83%AB%E3%83%BB%E3%83%95%E3%82%A9%E3%83%B3%E3%83%BB%E3%83%92%E3%83%B3%E3%83%87%E3%83%B3%E3%83%96%E3%83%AB%E3%82%AF) |
 | イタリア | ベニート・ムッソリーニ | [ja.wikipedia.org/wiki/ベニート・ムッソリーニ](https://ja.wikipedia.org/wiki/%E3%83%99%E3%83%8B%E3%83%BC%E3%83%88%E3%83%BB%E3%83%A0%E3%83%83%E3%82%BD%E3%83%AA%E3%83%BC%E3%83%8B) |
 | ソ連 | ヨシフ・スターリン | [ja.wikipedia.org/wiki/ヨシフ・スターリン](https://ja.wikipedia.org/wiki/%E3%83%A8%E3%82%B7%E3%83%95%E3%83%BB%E3%82%B9%E3%82%BF%E3%83%BC%E3%83%AA%E3%83%B3) |
+
+## 国旗画像（flags/）
+
+- `flags/` の111ファイル（webp等）。
+- **出典・作者・ライセンスはリポジトリ内に記録がない（不明）**。推測でパブリックドメイン等と断定しない。
+- 商用配布前に個別の権利確認または置換が必要。素材は現状のまま保持している。
+- 詳細はゲーム内「クレジット／ライセンス」画面と `/workspace/pm/orbis1932/decisions-pending.md` の権利台帳を参照。
+
+## 実行時・構築時のソフトウェア
+
+ゲーム本体はバニラJSで動作し、以下のライブラリを実行時に読み込まない。州データの構築・検証・包装にのみ使う。
+
+| ライブラリ | ライセンス | 用途 |
+|---|---|---|
+| Turf.js（@turf/area, boolean-point-in-polygon, difference, distance, helpers, intersect） | MIT | 州データの構築・形状計算 |
+| topojson-client / topojson-server / topojson-simplify | ISC | 州データの位相構築・簡略化 |
+| polylabel | ISC | 州の代表点計算 |
+| Playwright | Apache-2.0 | スモークテスト・スクリーンショット・性能測定（開発専用） |
+| Electron / @electron/packager | MIT / BSD-2-Clause | デスクトップ包装のローカル検証ビルド（開発専用） |
+
+## フォント
+
+ソースHTMLは Google Fonts の Inter / JetBrains Mono / Noto Sans JP を参照する（SIL Open Font License 1.1）。オフライン配布構築では `@import` を除去し、端末のフォールバック書体を使う。配布物にフォントファイルは同梱しない。
+
+## ゲーム内クレジット
+
+`orbis_credits.js` のデータを「このソフトについて」→「クレジット／ライセンス」画面に表示する。分類は「商用利用可」「要置換」「要判断」。

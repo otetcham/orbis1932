@@ -714,6 +714,15 @@ const Orbis = (() => {
   let campaign = null;
   let actors = {};
   let config = { provider: 'gemini', endpoint: PROVIDER_CONFIGS.gemini.defaultEndpoint, apiKey: '', model: 'gemini-2.5-flash', remember: false };
+  const versionData = () => globalThis.ORBIS_VERSION || { product: 'ORBIS//1932', version: '0.0.0', display: 'v0.0.0', milestone: '', released: '', description: '', copyright: '' };
+  const creditsData = () => globalThis.ORBIS_CREDITS || { updated: '', intro: '', sections: [] };
+  function redactKey(value, extra = '') {
+    let message = String(value ?? '');
+    for (const secret of [config?.apiKey, extra]) {
+      if (typeof secret === 'string' && secret.length >= 6) message = message.split(secret).join('[非表示]');
+    }
+    return message;
+  }
   const runtime = {
     busy: false, controller: null, cancelled: false, status: '', error: '', retry: '', saved: null, statusStartedAt: 0,
     connection: 'untested', pending: null, streamPreview: '', directoryKind: 'all', toastTimer: null, saveFailed: false,
@@ -6229,7 +6238,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       runtime.retry = '';
       return true;
     } catch (error) {
-      runtime.error = runtime.cancelled ? '処理を中断しました。確定前の交渉枠は消費していません。' : error.message;
+      runtime.error = runtime.cancelled ? '処理を中断しました。確定前の交渉枠は消費していません。' : redactKey(error.message);
       if (campaign?.phase === 'briefing' && campaign.completedTurns > 0) runtime.error += ' 前月の裁定は保存済みです。再試行では今月の電報だけを生成します。';
       return false;
     } finally {
@@ -7553,6 +7562,57 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     text('endpoint-label', provider === 'gemini' ? 'Gemini APIベースURL（/v1betaまで）' : 'APIエンドポイントURL');
   }
 
+  function renderVersion() {
+    const version = versionData();
+    const display = version.display || (version.version ? `v${version.version}` : '');
+    text('orbis-build-version', display);
+    text('about-version', display);
+    text('about-version-menu', display);
+    text('about-brand', version.product || 'ORBIS//1932');
+    text('about-milestone', version.milestone || '');
+    text('about-released', version.released || '');
+    if (version.description) text('about-description', version.description);
+    if (version.copyright) text('about-legal', `${version.copyright}。第三者素材・データ・ソフトウェアの出典とライセンスはクレジット画面に記載する。`);
+  }
+
+  function versionInfo() {
+    const version = versionData();
+    return {
+      product: version.product,
+      version: version.version,
+      display: version.display,
+      milestone: version.milestone,
+      released: version.released,
+      description: version.description,
+      copyright: version.copyright
+    };
+  }
+
+  function creditsInfo() {
+    return copy(creditsData());
+  }
+
+  function renderCredits() {
+    const data = creditsData();
+    const sections = Array.isArray(data.sections) ? data.sections : [];
+    const sectionHtml = sections.map(section => `<section class="credits-section"><h3>${escapeHtml(section.title || '')}</h3>${(section.items || []).map(item => {
+      const pending = item.status !== '商用利用可';
+      return `<article class="credits-item"><div class="credits-item-head"><span class="credits-item-name">${escapeHtml(item.name || '')}</span><span class="credits-status ${pending ? 'is-pending' : ''}">${escapeHtml(item.status || '要判断')}</span></div><dl class="credits-meta"><dt>出典</dt><dd>${escapeHtml(item.source || '')}</dd><dt>ライセンス</dt><dd>${escapeHtml(item.license || '')}</dd><dt>用途</dt><dd>${escapeHtml(item.usage || '')}</dd></dl>${item.note ? `<p class="credits-note">${escapeHtml(item.note)}</p>` : ''}</article>`;
+    }).join('')}</section>`).join('');
+    html('credits-body', `<p class="credits-intro">${escapeHtml(data.intro || '')}</p>${sectionHtml || '<p class="muted">クレジット情報を読み込めませんでした。</p>'}`);
+    text('credits-updated', data.updated ? `更新: ${data.updated}` : '');
+  }
+
+  function openAbout() {
+    renderVersion();
+    openDialog('modal-about');
+  }
+
+  function openCredits() {
+    renderCredits();
+    openDialog('modal-credits');
+  }
+
   function openSettings() {
     if ($('select-ai-provider')) $('select-ai-provider').value = config.provider;
     fillModelOptions(config.provider, config.model);
@@ -7565,8 +7625,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   }
 
   function settingsFeedback(message, kind = '') {
-    text('ai-modal-alert-banner', message);
+    const safe = redactKey(message);
+    text('ai-modal-alert-banner', safe);
     if ($('ai-modal-alert-banner')) $('ai-modal-alert-banner').className = `settings-feedback ${kind}`;
+    runtime.settingsMessage = safe;
   }
 
   function configFromForm() {
@@ -7582,10 +7644,15 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     } catch (error) { settingsFeedback(error.message, 'error'); }
   }
 
-  async function testConnection() {
-    if (runtime.busy) return;
-    try { configure(configFromForm()); }
-    catch (error) { settingsFeedback(error.message, 'error'); return; }
+  async function testConnection(candidate = null) {
+    if (runtime.busy) return { ok: false, message: '処理中です。完了してから接続をテストしてください。' };
+    const input = candidate && typeof candidate === 'object' && candidate.provider ? candidate : configFromForm();
+    try { configure(input); }
+    catch (error) {
+      const message = redactKey(error.message, input?.apiKey);
+      settingsFeedback(message, 'error');
+      return { ok: false, message, reason: 'validation' };
+    }
     settingsFeedback('接続を確認しています…');
     const success = await runOperation('LLMの接続とJSON応答を確認しています…', '', async () => {
       await structuredAI('CONNECTION_TEST', '接続テストです。必ず {"ok":true} だけを返してください。', {}, value => {
@@ -7593,7 +7660,15 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         return value;
       }, 256);
     });
-    settingsFeedback(success ? `${PROVIDER_CONFIGS[config.provider].name} / ${config.model} の応答を確認しました。「設定を保存」で確定してください。` : runtime.error, success ? 'success' : 'error');
+    let message;
+    if (success) {
+      message = `${PROVIDER_CONFIGS[config.provider].name} / ${config.model} の応答を確認しました。「設定を保存」で確定してください。`;
+    } else {
+      const reason = redactKey(runtime.error || '', input?.apiKey);
+      message = `接続を確認できませんでした。APIキー・URL・モデルを確認してください。${reason ? `（${reason}）` : ''}`;
+    }
+    settingsFeedback(message, success ? 'success' : 'error');
+    return { ok: success, message, reason: success ? '' : 'connection', provider: config.provider, model: config.model };
   }
 
   function updateAIStatus() {
@@ -8267,6 +8342,27 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     } catch { toast('保存されたAI設定を読み込めません。AI設定を入力し直してください。'); }
   }
 
+  function settingsInfo() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(CONFIG_KEY) || 'null'); } catch { saved = null; }
+    return {
+      provider: config.provider,
+      endpoint: config.endpoint,
+      model: config.model,
+      remember: Boolean(config.remember),
+      hasKey: Boolean(config.apiKey),
+      persisted: Boolean(saved),
+      persistedHasKey: Boolean(saved?.apiKey),
+      storageKey: CONFIG_KEY
+    };
+  }
+
+  function reloadSettings() {
+    loadSettings();
+    updateAIStatus();
+    return settingsInfo();
+  }
+
   function bindEvents() {
     const on = (id, event, handler) => $(id)?.addEventListener(event, handler);
     on('btn-start-campaign', 'click', () => start());
@@ -8278,7 +8374,15 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     on('btn-open-ai-settings', 'click', openSettings);
     on('btn-lobby-open-api', 'click', openSettings);
     on('btn-save-ai-settings', 'click', saveAISettings);
-    on('btn-test-ai', 'click', testConnection);
+    on('btn-test-ai', 'click', () => testConnection());
+    on('btn-lobby-about', 'click', openAbout);
+    on('btn-lobby-credits', 'click', openCredits);
+    on('btn-open-about', 'click', openAbout);
+    on('btn-open-credits', 'click', openCredits);
+    on('btn-settings-about', 'click', () => { closeDialog('modal-ai-settings'); openAbout(); });
+    on('btn-settings-credits', 'click', () => { closeDialog('modal-ai-settings'); openCredits(); });
+    on('btn-about-credits', 'click', () => { closeDialog('modal-about'); openCredits(); });
+    on('btn-about-settings', 'click', () => { closeDialog('modal-about'); openSettings(); });
     on('btn-open-directory', 'click', () => { if (campaign) { renderDirectory(); openDialog('actor-directory'); } });
     on('actor-search', 'input', renderDirectory);
     on('btn-export-save', 'click', exportSave);
@@ -8479,6 +8583,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
 
   function boot() {
     loadSettings();
+    renderVersion();
     loadDesktopLayout();
     syncWorld();
     if ($('campaign-length')) $('campaign-length').value = 'unlimited';
@@ -8510,7 +8615,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       turnsThroughCalendarMonth: (year, month, half = 'second') => core.halfTurnsThrough(year, month, half),
     };
   };
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, setStandingPolicy, clearStandingPolicy, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, openPanel, setKnowledgeLevel, knowledgeProfiles: KNOWLEDGE_PROFILES, dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, setStandingPolicy, clearStandingPolicy, finishTurn, retryBriefing, openSettings, openAbout, openCredits, versionInfo, creditsInfo, settingsInfo, reloadSettings, testAIConnection: testConnection, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, openPanel, setKnowledgeLevel, knowledgeProfiles: KNOWLEDGE_PROFILES, dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
 colorNation, nationMeta: nationId => nationMeta(nationId),
 dependentsFor: nationId => Object.values(campaign?.clients || {}).filter(client => client.sponsorId === (nationId || campaign?.playerNationId) && !client.dissolved),
 createDependent: (sponsorId, vassalId, type, name) => createDependent(sponsorId, vassalId, type, name, campaign),
