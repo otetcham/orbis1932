@@ -80,50 +80,114 @@ await page.evaluate(() => Orbis.start({ nationId: 'japan', difficulty: 'standard
 await page.waitForFunction(() => Orbis.snapshot()?.phase === 'playing', { timeout: 120000 });
 await page.waitForFunction(() => document.querySelectorAll('#formations-layer .formation-marker').length > 0, { timeout: 20000 });
 const markerProjectionCounts = await page.evaluate(() => {
+  const measure = () => {
+    const visible = nodes => [...nodes].filter(node => node.style.display !== 'none');
+    const clusters = visible(document.querySelectorAll('#formations-layer .formation-cluster'));
+    return {
+      individual: visible(document.querySelectorAll('#formations-layer .formation-marker')).length,
+      clusters: clusters.length,
+      clusteredMembers: clusters.reduce((sum, node) => sum + (node._members?.length || 0), 0)
+    };
+  };
   state.mapProjection = 'flat';
+  resetMapTransformForProjection();
   state.mapTransform.scale = 1;
   state.mapTransform.x = 0;
   state.mapTransform.y = 0;
   applyFlatTransform();
   updateMapVisuals();
-  const flat = [...document.querySelectorAll('#formations-layer .formation-marker')].filter(node => node.style.display !== 'none').length;
-  state.mapProjection = 'globe';
-  state.globe.lon = 124;
-  state.globe.lat = 33;
-  state.globe.zoom = 1.85;
+  const flatOut = measure();
+  state.mapTransform.scale = 2;
+  applyFlatTransform();
   updateMapVisuals();
-  const globe = [...document.querySelectorAll('#formations-layer .formation-marker')].filter(node => node.style.display !== 'none').length;
-  return { flat, globe };
+  const flatIn = measure();
+  state.mapProjection = 'globe';
+  resetMapTransformForProjection();
+  state.globe.lon = 118;
+  state.globe.lat = 32;
+  state.globe.zoom = 1.18;
+  updateMapVisuals();
+  const globeOut = measure();
+  state.globe.zoom = 2.2;
+  updateMapVisuals();
+  const globeIn = measure();
+  return { flatOut, flatIn, globeOut, globeIn };
 });
-console.log(`Visible formation markers: flat ${markerProjectionCounts.flat}, globe ${markerProjectionCounts.globe}`);
+for (const [label, counts] of Object.entries(markerProjectionCounts)) {
+  console.log(`Formation markers ${label}: individual ${counts.individual}, clusters ${counts.clusters} (${counts.clusteredMembers} members)`);
+}
+if (!markerProjectionCounts.globeOut.clusters || !markerProjectionCounts.flatOut.clusters) throw new Error('ズームアウト時の集約マーカーが表示されませんでした。');
+if (markerProjectionCounts.globeIn.clusters || markerProjectionCounts.flatIn.clusters) throw new Error('ズームイン時に集約マーカーが残っています。');
 
-// 1. 開始直後、日本と満洲方面の部隊マーカーが見える状態。
+// 1. 開始直後、ズームアウト気味で集約された部隊マーカーが見える状態。
 await page.evaluate(() => {
   state.mapProjection = 'globe';
-  state.globe.lon = 124;
-  state.globe.lat = 33;
-  state.globe.zoom = 1.85;
+  resetMapTransformForProjection();
+  state.globe.lon = 118;
+  state.globe.lat = 32;
+  state.globe.zoom = 1.18;
   updateMapVisuals();
 });
 await page.waitForTimeout(700);
 await page.evaluate(() => { const toast = document.getElementById('game-toast'); if (toast) toast.hidden = true; });
+const visibleCamera = await page.evaluate(() => ({
+  projection: state.mapProjection,
+  lon: state.globe.lon,
+  lat: state.globe.lat,
+  zoom: state.globe.zoom,
+  clusters: document.querySelectorAll('#formations-layer .formation-cluster').length
+}));
+console.log(`formations-visible camera: ${visibleCamera.projection} lon ${visibleCamera.lon.toFixed(1)}, lat ${visibleCamera.lat.toFixed(1)}, zoom ${visibleCamera.zoom.toFixed(2)}, clusters ${visibleCamera.clusters}`);
 await page.screenshot({ path: `${artifactDir}/formations-visible.png`, fullPage: false });
 
-// 2. 対中国戦争で攻勢・防御命令を出し、州パネルに部隊命令を表示。
-const plan = await page.evaluate(() => {
+// 拡大時は個別マーカーに戻ることを確認する。
+await page.evaluate(() => {
+  state.globe.zoom = 2.2;
+  updateMapVisuals();
+});
+await page.waitForTimeout(500);
+await page.screenshot({ path: `${artifactDir}/formations-visible-zoom-in.png`, fullPage: false });
+
+// 集約マーカーのクリックで拡大し、中身の個別マーカーへ移行できることを確認する。
+const clusterClick = await page.evaluate(() => {
+  state.globe.lon = 118;
+  state.globe.lat = 32;
+  state.globe.zoom = 1.18;
+  updateMapVisuals();
+  const node = [...document.querySelectorAll('#formations-layer .formation-cluster')].find(item => item.style.display !== 'none');
+  const beforeZoom = state.globe.zoom;
+  node?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  return {
+    found: Boolean(node),
+    beforeZoom,
+    afterZoom: state.globe.zoom,
+    clustersAfter: [...document.querySelectorAll('#formations-layer .formation-cluster')].filter(item => item.style.display !== 'none').length,
+    selectedStateId: state.selectedStateId
+  };
+});
+if (!clusterClick.found) throw new Error('クリックできる集約マーカーがありませんでした。');
+if (!(clusterClick.afterZoom > clusterClick.beforeZoom)) throw new Error('集約マーカーのクリックで拡大しませんでした。');
+if (clusterClick.clustersAfter) throw new Error('集約マーカーのクリック後も集約が残っています。');
+console.log(`Cluster click: zoom ${clusterClick.beforeZoom.toFixed(2)} -> ${clusterClick.afterZoom.toFixed(2)}, selected ${clusterClick.selectedStateId}`);
+
+// 2. 満洲方面の部隊から遠い江蘇省を方向目標にし、州パネルに部隊命令を表示。
+const plan = await page.evaluate(async () => {
   Orbis.declareWar('china', '満州国境の戦線');
   const snapshot = Orbis.snapshot();
+  // 宣戦時の自動占領で満洲の前面が埋まるため、接する中国領を1州だけ戻して前線を作る。
+  snapshot.territories['china_cn_he'] = 'china';
+  delete snapshot.occupations['china_cn_he'];
+  delete snapshot.conflicts['china_cn_he'];
+  await Orbis.restore(snapshot);
+  const current = Orbis.snapshot();
+  const adjacency = Orbis.landAdjacency();
   const formations = Orbis.listFormations().filter(item => item.nationId === 'japan');
-  const field = formations.find(item => item.type === 'field' && Orbis.formationTargets(item.id).some(target => {
-    const region = window.ORBIS_STATES_DB.find(entry => entry.id === target.regionId);
-    return region && (snapshot.territories[target.regionId] || region.country) === 'china';
-  })) || formations.find(item => item.type === 'field' && Orbis.formationTargets(item.id).length);
+  const field = formations.find(item => item.type === 'field' && item.regionId.startsWith('manchukuo_')
+    && (adjacency.get(item.regionId) || new Set()).has('china_cn_he'))
+    || formations.find(item => item.type === 'field' && (adjacency.get(item.regionId) || new Set()).has('china_cn_he'));
   if (!field) return { ok: false };
-  const target = Orbis.formationTargets(field.id).find(item => {
-    const region = window.ORBIS_STATES_DB.find(entry => entry.id === item.regionId);
-    return region && (snapshot.territories[item.regionId] || region.country) === 'china';
-  }) || Orbis.formationTargets(field.id)[0];
-  const offensive = Orbis.setFormationOrder(field.id, { kind: 'offensive', targetRegionId: target.regionId });
+  const target = { regionId: 'china_cn_js', regionName: '江蘇省', nationId: 'china', nationName: '中華民国' };
+  const offensive = Orbis.setFormationOrder(field.id, { kind: 'offensive', targetRegionId: target.regionId, targetNationId: 'china' });
   const defendField = formations.find(item => item.id !== field.id && item.type === 'field');
   const defend = defendField ? Orbis.setFormationOrder(defendField.id, { kind: 'defend' }) : false;
   const region = window.ORBIS_STATES_DB.find(entry => entry.id === field.regionId);
@@ -132,7 +196,7 @@ const plan = await page.evaluate(() => {
   state.globe.zoom = 2.35;
   updateMapVisuals();
   handleStateSelect(field.regionId);
-  return { ok: offensive, defend, field, target, before: Object.keys(Orbis.snapshot().occupations).length };
+  return { ok: offensive, defend, field, target, before: Object.keys(current.occupations).length, startRegionId: field.regionId };
 });
 if (!plan.ok) throw new Error('攻勢命令を作成できませんでした。');
 await page.waitForFunction(() => document.getElementById('state-inspector')?.classList.contains('open'));
@@ -173,6 +237,9 @@ const after = await page.evaluate(previous => {
   const moved = snapshot.formations.find(item => item.id === previous.field.id);
   const region = window.ORBIS_STATES_DB.find(entry => entry.id === moved?.regionId);
   const occupations = Object.keys(snapshot.occupations).length;
+  const jiangsuHolder = snapshot.territories['china_cn_js']
+    || window.ORBIS_STATES_DB.find(entry => entry.id === 'china_cn_js')?.country;
+  const adjacency = Orbis.landAdjacency();
   if (moved) {
     state.globe.lon = region?.lon ?? state.globe.lon;
     state.globe.lat = region?.lat ?? state.globe.lat;
@@ -180,7 +247,16 @@ const after = await page.evaluate(previous => {
     updateMapVisuals();
     handleStateSelect(moved.regionId);
   }
-  return { occupations, moved, gain: occupations - previous.before };
+  return {
+    occupations,
+    moved,
+    gain: occupations - previous.before,
+    jiangsuHolder,
+    jiangsuOccupied: Object.hasOwn(snapshot.occupations, 'china_cn_js'),
+    adjacentToStart: moved && moved.regionId !== previous.startRegionId
+      ? (adjacency.get(previous.startRegionId) || new Set()).has(moved.regionId)
+      : true
+  };
 }, plan);
 await page.waitForTimeout(800);
 await page.screenshot({ path: `${artifactDir}/occupation-after-front.png`, fullPage: false });
@@ -188,6 +264,10 @@ await page.screenshot({ path: `${artifactDir}/occupation-after-front.png`, fullP
 console.log(`Screenshots saved to ${artifactDir}`);
 console.log(`Occupation before/after: ${plan.before} -> ${after.occupations} (+${after.gain})`);
 if (after.moved) console.log(`Advanced formation: ${after.moved.id} -> ${after.moved.regionId} (strength ${after.moved.strength})`);
+if (after.moved?.regionId === 'china_cn_js') throw new Error('部隊マーカーが江蘇省へ飛んでいます。');
+if (after.jiangsuHolder === 'japan' || after.jiangsuOccupied) throw new Error('江蘇省が1ターンで占領されています。');
+if (after.gain > 1) throw new Error(`1ターンの占領が隣接1州を超えています (+${after.gain})。`);
+if (!after.adjacentToStart) throw new Error('前進先が命令前の州に隣接していません。');
 if (consoleErrors.length) {
   console.error('Console errors:');
   for (const error of consoleErrors) console.error(`- ${error}`);

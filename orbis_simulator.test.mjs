@@ -1405,7 +1405,7 @@ try {
     assert.ok(api.provincePanelData(garrison.regionId).formations.some(item => item.id === garrison.id));
   });
 
-  await check('戦争中の隣接攻勢を許可し、平和時と非隣接目標を拒否する', async () => {
+  await check('戦争中の攻勢を許可し、平和時は拒否、非隣接目標は方向目標として保持する', async () => {
     const { api, context } = harness();
     await begin(api);
     const isLand = region => region && !region.isSea && !region.isSeaZone && region.type !== 'sea';
@@ -1436,8 +1436,11 @@ try {
     const targetIds = new Set(api.formationTargets(pair.formation.id).map(item => item.regionId));
     const far = context.window.ORBIS_STATES_DB.find(region => isLand(region) && (war.territories[region.id] || region.country) === 'china' && region.id !== pair.targetId && !targetIds.has(region.id));
     assert.ok(far, '非隣接の中国領');
-    assert.equal(api.setFormationOrder(pair.formation.id, { kind: 'offensive', targetRegionId: far.id }), false);
-    assert.match(api.formationOrderError(), /隣接/);
+    assert.equal(api.setFormationOrder(pair.formation.id, { kind: 'offensive', targetRegionId: far.id, targetNationId: 'china' }), true, api.formationOrderError());
+    const direction = api.snapshot().formations.find(item => item.id === pair.formation.id);
+    assert.equal(direction.order.kind, 'offensive');
+    assert.equal(direction.order.targetRegionId, far.id);
+    assert.equal(direction.order.targetNationId, 'china');
     assert.equal(api.setFormationOrder(pair.formation.id, { kind: 'defend' }), true);
     assert.equal(api.snapshot().formations.find(item => item.id === pair.formation.id).order.kind, 'defend');
   });
@@ -1448,23 +1451,28 @@ try {
     assert.equal(ordered.api.declareWar('china', '満州国境の戦線'), true);
     const isLand = region => region && !region.isSea && !region.isSeaZone && region.type !== 'sea';
     const db = id => ordered.context.window.ORBIS_STATES_DB.find(region => region.id === id);
+    const prepared = ordered.api.snapshot();
+    // 宣戦時の自動占領で満洲の前面が埋まるため、接する中国領を1州だけ戻して前線を作る。
+    prepared.territories['china_cn_he'] = 'china';
+    delete prepared.occupations['china_cn_he'];
+    delete prepared.conflicts['china_cn_he'];
+    await ordered.api.restore(prepared);
     const snapshot = ordered.api.snapshot();
-    const field = ordered.api.listFormations().find(item => item.nationId === 'japan' && item.type === 'field');
-    assert.ok(field);
-    const target = ordered.api.formationTargets(field.id).find(item => {
-      const region = db(item.regionId);
-      return isLand(region) && (snapshot.territories[item.regionId] || region.country) === 'china';
-    });
-    assert.ok(target, '攻勢可能な中国領');
-    assert.equal(ordered.api.setFormationOrder(field.id, { kind: 'offensive', targetRegionId: target.regionId }), true, ordered.api.formationOrderError());
-    const before = Object.keys(ordered.api.snapshot().occupations).length;
+    const field = ordered.api.listFormations().find(item => item.nationId === 'japan' && item.type === 'field'
+      && (ordered.api.landAdjacency().get(item.regionId) || new Set()).has('china_cn_he'));
+    assert.ok(field, '満洲側で中国領に隣接する野戦部隊');
+    const target = snapshot.territories['china_cn_he'] || db('china_cn_he').country;
+    assert.equal(target, 'china');
+    assert.equal(ordered.api.setFormationOrder(field.id, { kind: 'offensive', targetRegionId: 'china_cn_he' }), true, ordered.api.formationOrderError());
+    const before = Object.keys(snapshot.occupations).length;
     assert.equal(await ordered.api.finishTurn(), true);
     const after = ordered.api.snapshot();
     const gain = Object.keys(after.occupations).length - before;
-    assert.ok(gain >= 1, `攻勢で占領が増える (${gain})`);
+    assert.equal(gain, 1, `攻勢で占領が1州だけ増える (${gain})`);
     const moved = after.formations.find(item => item.id === field.id);
     assert.notEqual(moved.regionId, field.regionId, '野戦部隊が前進する');
     assert.ok(moved.strength > 0 && moved.strength <= 100, '戦力は0にならない');
+    assert.equal(moved.regionId, 'china_cn_he', '前進先は隣接する1州');
     assert.ok(Object.hasOwn(after.occupations, moved.regionId), '前進先は占領地');
 
     const idle = harness();
@@ -1475,6 +1483,83 @@ try {
     const idleGain = Object.keys(idle.api.snapshot().occupations).length - idleBefore;
     assert.equal(idleGain, 0, '命令のない戦線は広がらない');
     assert.ok(gain > idleGain, '攻勢命令との差');
+  });
+
+  await check('満洲から江蘇省への攻勢は1ターンで飛ばず、隣接1州までに留まる', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(api.declareWar('china', '満州国境の戦線'), true);
+    const isLand = region => region && !region.isSea && !region.isSeaZone && region.type !== 'sea';
+    const db = id => context.window.ORBIS_STATES_DB.find(region => region.id === id);
+    const jiangsu = db('china_cn_js');
+    assert.equal(jiangsu?.nameJa, '江蘇省');
+    const prepared = api.snapshot();
+    // 宣戦時の自動占領で河北省が日本領になっていても、満洲に接する中国領を1州だけ用意する。
+    prepared.territories['china_cn_he'] = 'china';
+    delete prepared.occupations['china_cn_he'];
+    delete prepared.conflicts['china_cn_he'];
+    await api.restore(prepared);
+
+    const adjacency = api.landAdjacency();
+    const field = api.listFormations().find(item => item.nationId === 'japan' && item.type === 'field'
+      && isLand(db(item.regionId)) && (adjacency.get(item.regionId) || new Set()).has('china_cn_he'));
+    assert.ok(field, '満洲国領から中国領へ隣接する日本軍野戦部隊');
+    const startRegionId = field.regionId;
+    assert.notEqual(startRegionId, 'china_cn_js');
+    assert.equal((adjacency.get(startRegionId) || new Set()).has('china_cn_js'), false, '江蘇省は非隣接');
+    const before = api.snapshot();
+    const beforeOccupations = new Set(Object.keys(before.occupations));
+    assert.equal((before.territories['china_cn_js'] || jiangsu.country), 'china');
+    assert.equal(api.setFormationOrder(field.id, { kind: 'offensive', targetRegionId: 'china_cn_js', targetNationId: 'china' }), true, api.formationOrderError());
+    const ordered = api.snapshot().formations.find(item => item.id === field.id);
+    assert.equal(ordered.order.kind, 'offensive');
+    assert.equal(ordered.order.targetRegionId, 'china_cn_js');
+
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    const moved = after.formations.find(item => item.id === field.id);
+    assert.ok(moved);
+    assert.notEqual(moved.regionId, 'china_cn_js', '江蘇省へ飛ばない');
+    assert.equal((after.territories['china_cn_js'] || jiangsu.country), 'china');
+    assert.ok(!Object.hasOwn(after.occupations, 'china_cn_js'), '江蘇省は占領されない');
+    const neighborIds = adjacency.get(startRegionId) || new Set();
+    if (moved.regionId !== startRegionId) {
+      assert.ok(neighborIds.has(moved.regionId), '移動先は命令前の州に陸続きで隣接する1州');
+      assert.ok(isLand(db(moved.regionId)), '移動先は陸州');
+    }
+    const newlyOccupied = Object.keys(after.occupations).filter(id => !beforeOccupations.has(id));
+    assert.ok(newlyOccupied.length <= 1, `1部隊が1ターンに占領する州は0または1 (${newlyOccupied.length})`);
+    if (moved.regionId !== startRegionId) {
+      assert.equal(newlyOccupied.length, 1);
+      assert.equal(newlyOccupied[0], moved.regionId);
+    }
+  });
+
+  await check('ズームアウト時は近接する部隊マーカーを集約し、拡大時は個別表示する', async () => {
+    const { context } = harness();
+    const result = vm.runInContext(`(() => {
+      const entries = [
+        { id: 'a', x: 100, y: 100 },
+        { id: 'b', x: 112, y: 106 },
+        { id: 'c', x: 300, y: 200 }
+      ];
+      const grouped = clusterFormationPoints(entries, 28, true);
+      const separate = clusterFormationPoints(entries, 28, false);
+      return {
+        grouped: grouped.map(cluster => cluster.members.map(member => member.id)),
+        separate: separate.map(cluster => cluster.members.map(member => member.id)),
+        globeOut: formationClusteringEnabled(1.05, 'globe'),
+        globeIn: formationClusteringEnabled(2.2, 'globe'),
+        flatOut: formationClusteringEnabled(1.0, 'flat'),
+        flatIn: formationClusteringEnabled(2.0, 'flat')
+      };
+    })()`, context);
+    assert.deepEqual(json(result.grouped), [['a', 'b'], ['c']]);
+    assert.deepEqual(json(result.separate), [['a'], ['b'], ['c']]);
+    assert.equal(result.globeOut, true, '球体・ズームアウトで集約');
+    assert.equal(result.globeIn, false, '球体・ズームインで個別');
+    assert.equal(result.flatOut, true, '平面・ズームアウトで集約');
+    assert.equal(result.flatIn, false, '平面・ズームインで個別');
   });
 
   await check('部隊と命令はスナップショット復元で残り、旧セーブは自動配置する', async () => {

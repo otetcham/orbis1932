@@ -1206,12 +1206,7 @@ const Orbis = (() => {
       ? order.targetNationId
       : candidates.find(id => activeWarBetween(campaign, formation.nationId, id));
     if (!enemy) return { ok: false, error: '平和時は敵領への攻勢を指示できません。対象国と戦争状態にありません。' };
-    const adj = landAdjacency();
-    const reachable = formationReachable(campaign, formation.nationId, formation.regionId);
-    const adjacent = holder === formation.nationId
-      || [...(adj.get(target.id) || [])].some(id => reachable.has(id))
-      || (adj.get(formation.regionId) || new Set()).has(target.id);
-    if (!adjacent) return { ok: false, error: '攻勢目標は現在の戦線に隣接していません。' };
+    // 遠い目標は進軍方向として保持し、解決時は現在地に隣接する陸州だけへ1歩進む。
     return { ok: true, order: { kind: 'offensive', targetRegionId: target.id, targetNationId: enemy } };
   }
 
@@ -1250,49 +1245,39 @@ const Orbis = (() => {
     return copy(rows);
   }
 
-  function seizeAlongFront(game, attacker, defender, anchor, count, notes) {
+  function adjacentLandRegions(regionId) {
     const adj = landAdjacency();
-    const seized = [];
-    const queue = [anchor.id];
-    const seen = new Set();
-    const depth = new Map([[anchor.id, 0]]);
-    while (queue.length && seized.length < count) {
-      const regionId = queue.shift();
-      if (seen.has(regionId)) continue;
-      seen.add(regionId);
-      const region = regionById(regionId);
-      if (!isLandRegion(region)) continue;
+    return [...(adj.get(regionId) || [])].map(id => regionById(id)).filter(isLandRegion);
+  }
+
+  function formationEnemyAt(game, formation, region) {
+    const holder = regionHolder(game, region);
+    if (holder !== formation.nationId && activeWarBetween(game, formation.nationId, holder)) return holder;
+    const prior = game.occupations?.[region.id];
+    if (prior && prior !== formation.nationId && activeWarBetween(game, formation.nationId, prior)) return prior;
+    return null;
+  }
+
+  // 攻勢は目標そのものではなく、現在地に陸続きで隣接する敵陸州をたかだか1つ選ぶ。
+  function pickFormationAdvance(game, formation, target, targetNation) {
+    const candidates = adjacentLandRegions(formation.regionId)
+      .filter(region => region.id !== formation.regionId
+        && regionHolder(game, region) !== formation.nationId
+        && formationEnemyAt(game, formation, region));
+    if (!candidates.length) return null;
+    const goal = target || regionById(formation.regionId);
+    const rank = region => {
       const holder = regionHolder(game, region);
-      const currentDepth = depth.get(region.id) || 0;
-      if (holder === defender) {
-        game.territories[region.id] = attacker;
-        game.occupations[region.id] = holder;
-        game.conflicts[region.id] = { attacker, defender: holder, months: 1, reason: `${shortName(attacker)}の攻勢` };
-        seized.push(region);
-        notes.push(`${regionLabel(region)}を${shortName(attacker)}が占領。`);
-      } else if (holder !== attacker || currentDepth >= 2) {
-        continue;
-      }
-      const neighbors = [...(adj.get(region.id) || [])]
-        .map(id => regionById(id))
-        .filter(item => {
-          if (!isLandRegion(item)) return false;
-          const neighborHolder = regionHolder(game, item);
-          return neighborHolder === defender || (neighborHolder === attacker && currentDepth < 2);
-        })
-        .sort((a, b) => (b.vp || 0) - (a.vp || 0));
-      for (const neighbor of neighbors) {
-        if (seen.has(neighbor.id)) continue;
-        if (!depth.has(neighbor.id)) depth.set(neighbor.id, currentDepth + 1);
-        queue.push(neighbor.id);
-      }
-    }
-    return seized;
+      const prior = game.occupations?.[region.id];
+      const nationMatch = holder === targetNation || prior === targetNation ? 0 : 1;
+      const distance = Math.hypot((region.lon || 0) - (goal?.lon || 0), (region.lat || 0) - (goal?.lat || 0));
+      return nationMatch * 10000 + distance;
+    };
+    return candidates.sort((a, b) => rank(a) - rank(b) || (b.vp || 0) - (a.vp || 0))[0] || null;
   }
 
   function resolveFormationFronts(game, notes = []) {
     if (!Array.isArray(game.formations)) return;
-    const adj = landAdjacency();
     for (const formation of game.formations) {
       if (!formation) continue;
       if (!formation.order || formation.order.kind === 'defend') {
@@ -1308,45 +1293,40 @@ const Orbis = (() => {
         formation.order = { kind: 'defend' };
         continue;
       }
-      if (!activeWarBetween(game, formation.nationId, targetNation)) {
+      if (!targetNation || !activeWarBetween(game, formation.nationId, targetNation)) {
         formation.order = { kind: 'defend' };
         notes.push(`${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}は講和により防御へ移行。`);
         continue;
       }
-      const reachable = formationReachable(game, formation.nationId, formation.regionId);
-      const adjacent = holder === formation.nationId
-        || [...(adj.get(target.id) || [])].some(id => reachable.has(id))
-        || (adj.get(formation.regionId) || new Set()).has(target.id);
-      if (!adjacent) {
-        notes.push(`${regionLabel(target)}への攻勢は戦線から離れており、進軍できなかった。`);
+      if (holder === formation.nationId) {
+        // 目標をすでに確保している場合は、同じ州へ部隊を飛ばさず防御へ戻す。
+        formation.order = { kind: 'defend' };
         continue;
       }
-      const count = clamp(1 + (formation.strength >= 60 ? 1 : 0) + (formation.strength >= 85 ? 1 : 0), 1, 3);
-      let seized = seizeAlongFront(game, formation.nationId, targetNation, target, count, notes);
-      if (!seized.length && holder === formation.nationId) {
-        const beforeOccupations = new Set(Object.keys(game.occupations));
-        seizeProvinces(game, formation.nationId, targetNation, 1, notes);
-        seized = Object.keys(game.occupations)
-          .filter(id => !beforeOccupations.has(id))
-          .map(id => regionById(id))
-          .filter(Boolean);
+      const step = pickFormationAdvance(game, formation, target, targetNation);
+      if (!step) continue;
+      const defender = formationEnemyAt(game, formation, step);
+      if (!defender) continue;
+      game.territories[step.id] = formation.nationId;
+      game.occupations[step.id] = defender;
+      game.conflicts[step.id] = { attacker: formation.nationId, defender, months: 1, reason: `${shortName(formation.nationId)}の攻勢` };
+      if (formation.type === 'field') formation.regionId = step.id;
+      formation.strength = Math.max(20, (formation.strength || 50) - 2);
+      notes.push(`${regionLabel(step)}を${shortName(formation.nationId)}が占領。`);
+      notes.push(`${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}が${regionLabel(step)}方面へ前進（戦力 ${formation.strength}）。`);
+      if (target.id === step.id) {
+        const next = adjacentLandRegions(formation.regionId)
+          .filter(region => formationEnemyAt(game, formation, region))
+          .sort((a, b) => {
+            const an = regionHolder(game, a) === targetNation || game.occupations?.[a.id] === targetNation ? 0 : 1;
+            const bn = regionHolder(game, b) === targetNation || game.occupations?.[b.id] === targetNation ? 0 : 1;
+            return an - bn || (b.vp || 0) - (a.vp || 0);
+          })[0];
+        formation.order = next
+          ? { kind: 'offensive', targetRegionId: next.id, targetNationId: targetNation }
+          : { kind: 'defend' };
       }
-      if (!seized.length) {
-        if (holder === formation.nationId) {
-          if (formation.type === 'field') formation.regionId = target.id;
-          formation.order = { kind: 'defend' };
-        }
-        continue;
-      }
-      if (formation.type === 'field') formation.regionId = seized[0].id;
-      formation.strength = Math.max(20, (formation.strength || 50) - (seized.length + 1));
-      const next = (adj.get(formation.regionId) || new Set()).size
-        ? [...(adj.get(formation.regionId) || [])].map(id => regionById(id)).find(item => isLandRegion(item) && regionHolder(game, item) === targetNation)
-        : null;
-      formation.order = next
-        ? { kind: 'offensive', targetRegionId: next.id, targetNationId: targetNation }
-        : { kind: 'defend' };
-      notes.push(`${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}が${regionLabel(seized[0])}方面へ前進（戦力 ${formation.strength}）。`);
+      // 目標が遠い場合は、その方向を保ったまま次ターンの隣接1歩に備える。
     }
   }
 
@@ -1709,7 +1689,7 @@ const Orbis = (() => {
     const civilRows = civil.map(c => `<article class="review-item"><strong>${escapeHtml(c.label || c.factionId)}</strong><p class="small">第${c.halves || 0}戦線 · ${escapeHtml(shortName(c.nationId))}</p><button class="btn btn-primary" data-civil-peace="${escapeHtml(c.nationId)}">特赦と交渉</button></article>`).join('') || '<p class="empty-state">内戦は発生していません。</p>';
     const playerFormations = (campaign.formations || []).filter(item => item.nationId === campaign.playerNationId);
     const formationRows = playerFormations.map(formationCommandHtml).join('') || '<p class="empty-state">命令できる部隊はありません。</p>';
-    html('war-panel-body', `<section><h3>国際戦争</h3>${warRows}</section><section style="margin-top:14px"><h3>内戦・反乱</h3>${civilRows}</section><section style="margin-top:14px"><h3>戦線（${fronts.length}）</h3><p class="small muted">地図上の赤枠・斜線が占領と戦闘地域です。</p></section><section style="margin-top:14px"><h3>部隊・戦線（${playerFormations.length}）</h3><p class="small muted">防御は現在地で待機、攻勢は隣接する敵領・占領地へ進みます。攻勢は戦争中の相手にだけ指示できます。</p>${formationRows}</section><div class="form-row" style="margin-top:12px"><label>宣戦<select id="war-target-select" class="form-select">${Object.keys(campaign.nations).filter(id => id !== campaign.playerNationId).map(id => `<option value="${id}">${escapeHtml(shortName(id))}</option>`).join('')}</select></label><button class="btn btn-primary" id="btn-declare-war-submit">宣戦布告</button></div>`);
+    html('war-panel-body', `<section><h3>国際戦争</h3>${warRows}</section><section style="margin-top:14px"><h3>内戦・反乱</h3>${civilRows}</section><section style="margin-top:14px"><h3>戦線（${fronts.length}）</h3><p class="small muted">地図上の赤枠・斜線が占領と戦闘地域です。</p></section><section style="margin-top:14px"><h3>部隊・戦線（${playerFormations.length}）</h3><p class="small muted">防御は現在地で待機、攻勢は目標方向の隣接する敵領へ1ターンに1州ずつ進みます。攻勢は戦争中の相手にだけ指示できます。</p>${formationRows}</section><div class="form-row" style="margin-top:12px"><label>宣戦<select id="war-target-select" class="form-select">${Object.keys(campaign.nations).filter(id => id !== campaign.playerNationId).map(id => `<option value="${id}">${escapeHtml(shortName(id))}</option>`).join('')}</select></label><button class="btn btn-primary" id="btn-declare-war-submit">宣戦布告</button></div>`);
     openDialog('modal-war-panel');
   }
 
