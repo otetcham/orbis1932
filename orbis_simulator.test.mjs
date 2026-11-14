@@ -1150,7 +1150,7 @@ try {
     assert.equal(api.provincePanelData('japan_jp_03').ownerId, 'japan');
   });
 
-  await check('中国軍閥はすべて国民政府の自治軍閥として宗主国色を共有する', async () => {
+  await check('中国軍閥はすべて自治軍閥として中華民国に近い薄青で表示される', async () => {
     const { api, context } = harness();
     await begin(api);
     const warlords = ['shanxi', 'sichuan', 'hunan', 'guangxi', 'yunnan', 'shandong', 'ma_clique', 'guangdong', 'xinjiang', 'guizhou'];
@@ -1159,10 +1159,11 @@ try {
       assert.equal(dependency.type, 'warlord', id);
       assert.equal(dependency.overlordId, 'china', id);
       assert.equal(dependency.warlordStatusLabel, '自治軍閥', id);
-      assert.equal(api.colorNation(id), 'china', id);
+      assert.equal(api.colorNation(id), 'warlord_autonomous', id);
     }
     const sharedColor = api.colonialColorGroups().map(entry => entry.id);
-    for (const id of warlords) assert.ok(sharedColor.includes(id), id);
+    for (const id of warlords) assert.ok(!sharedColor.includes(id), id);
+    assert.ok(sharedColor.includes('india') || sharedColor.includes('dutch_indies'), '植民地の同色国境は維持');
     assert.equal(api.provincePanelData('china_cn_sx').ownerId, 'shanxi');
     assert.equal(api.provincePanelData('china_cn_cq').ownerId, 'sichuan');
     assert.equal(api.provincePanelData('china_cn_sx').vassalOf.overlordName, '中国');
