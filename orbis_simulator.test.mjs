@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { auditData } from './orbis_data_audit.mjs';
-import { runLongRun } from './scripts/longrun_m6_1972.mjs';
+import { runM7aLongRun } from './scripts/longrun_m7a_1972.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
@@ -2447,15 +2447,110 @@ try {
     assert.ok(oldApi.researchSummary().branches.every(branch => branch.items.some(item => item.status === 'available')), '旧セーブでも研究を選べる');
   });
 
+  await check('史実の弧が宣戦とNPC攻勢を起こし、隣接する占領だけが進む', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'uk', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    const fired = api.forceWorldArc('germany_poland');
+    assert.equal(fired.status, 'fired', 'ポーランド侵攻の弧が発火');
+    const start = api.snapshot();
+    const war = Object.values(start.wars).find(item => item.attacker === 'germany' && item.defender === 'poland' && item.status === 'active');
+    assert.ok(war, 'ドイツ・ポーランド戦争が開始される');
+    assert.ok((war.goals?.attacker?.length || 0) >= 10, '戦争目標が複数州に設定される');
+    assert.ok(api.listFormations('germany').some(formation => formation.order?.kind === 'offensive'), 'NPC部隊に攻勢命令が付く');
+    for (let turn = 0; turn < 4; turn++) assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    const held = Object.entries(after.territories || {}).filter(([id, owner]) => owner === 'germany' && id.startsWith('poland_')).map(([id]) => id);
+    assert.ok(held.length > 0, 'NPCの前進でポーランド州が占領される');
+    assert.ok(api.verifyOccupationsAdjacent(after, 'germany'), '占領はドイツ支配圏に隣接する1州ずつ');
+  });
+
+  await check('NPC和平は戦争目標に応じて複数州を地図へ反映する', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'uk', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    assert.equal(api.forceWorldArc('germany_poland').status, 'fired');
+    const start = api.snapshot();
+    const warId = Object.keys(start.wars).find(id => start.wars[id].attacker === 'germany' && start.wars[id].defender === 'poland');
+    assert.ok(warId);
+    for (let turn = 0; turn < 14; turn++) {
+      assert.equal(await api.finishTurn(), true);
+      if (api.snapshot().wars[warId].status !== 'active') break;
+    }
+    const after = api.snapshot();
+    assert.notEqual(after.wars[warId].status, 'active', 'NPC和平で戦争が終結する');
+    assert.ok(['peace', 'resolved'].includes(after.wars[warId].status));
+    assert.ok(after.wars[warId].result, '和平結果が戦争データに残る');
+    const held = Object.entries(after.territories || {}).filter(([id, owner]) => owner === 'germany' && id.startsWith('poland_')).map(([id]) => id);
+    assert.ok(held.length >= 2, `占領地が1州だけでなく複数州処理される (${held.length}州)`);
+    assert.ok((after.wars[warId].result.annexed || []).length >= 2, '複数州の併合が和平結果に記録される');
+  });
+
+  await check('プレイヤーの常設方針は主要な史実の弧を遅延・不発にする', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'austria', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    assert.equal(api.setStandingPolicy('オーストリアの独立を保障し、独墺併合を阻止する。'), true);
+    const forced = api.forceWorldArc('germany_anschluss');
+    assert.equal(forced.status, 'delayed', '常設方針でアンシュルスが延期される');
+    assert.equal(api.snapshot().territories.austria_at_9, undefined, '阻止中はオーストリアの州が移管されない');
+    for (let turn = 0; turn < 12; turn++) assert.equal(await api.finishTurn(), true);
+    const status = api.worldArcStatus('germany_anschluss');
+    assert.ok(['delayed', 'prevented'].includes(status.status), 'プレイヤー介入で遅延または不発になる');
+    const austriaStill = ['austria_at_1', 'austria_at_2', 'austria_at_3', 'austria_at_4', 'austria_at_5', 'austria_at_6', 'austria_at_7', 'austria_at_8', 'austria_at_9']
+      .some(id => api.snapshot().territories[id] === 'germany');
+    assert.equal(austriaStill, false, 'オーストリアはドイツへ併合されない');
+  });
+
+  await check('政治的な併合は既存の領土APIで地図を変える', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'uk', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    const fired = api.forceWorldArc('germany_anschluss');
+    assert.equal(fired.status, 'fired');
+    const after = api.snapshot();
+    const austriaStates = ['austria_at_1', 'austria_at_2', 'austria_at_3', 'austria_at_4', 'austria_at_5', 'austria_at_6', 'austria_at_7', 'austria_at_8', 'austria_at_9'];
+    assert.ok(austriaStates.every(id => after.territories[id] === 'germany'), 'オーストリア全州がドイツの統治へ移る');
+    assert.equal(after.nations.austria.dissolved, true, '併合された国家は溶解状態になる');
+    assert.ok(after.worldArcs.log.some(entry => entry.id === 'germany_anschluss' && entry.status === 'fired'), '弧の記録が日付付きで残る');
+  });
+
+  await check('圧縮セーブを再開でき、ターン要約が残り、旧セーブも読める', async () => {
+    const { api, storage } = harness();
+    assert.equal(await api.start({ nationId: 'uk', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    assert.equal(api.forceWorldArc('germany_anschluss').status, 'fired');
+    for (let turn = 0; turn < 6; turn++) assert.equal(await api.finishTurn(), true);
+    const serialized = storage.get('orbis_campaign_v6');
+    assert.ok(serialized);
+    assert.ok(!serialized.includes('TEST_ONLY_NOT_A_REAL_KEY'), 'APIキーはセーブに含まれない');
+    const saved = JSON.parse(serialized);
+    assert.ok(Array.isArray(saved.turnSummaries) && saved.turnSummaries.length >= 6, 'ターン要約が保存される');
+    assert.ok(saved.articles.length <= 40, '本文付き記事は直近に絞られる');
+    assert.ok(saved.worldArcs.log.length >= 1, '史実の弧の進行が保存される');
+    const restored = harness().api;
+    assert.equal(await restored.restore(JSON.parse(serialized)), true);
+    const resumed = restored.snapshot();
+    assert.equal(resumed.completedTurns, saved.completedTurns);
+    assert.ok(resumed.turnSummaries.length >= 6);
+    assert.ok(resumed.turnSummaries.some(item => item.headline && item.date), '日付と見出しの要約が残る');
+    assert.ok(resumed.worldArcs.log.some(entry => entry.id === 'germany_anschluss'));
+
+    const old = json(saved);
+    delete old.turnSummaries;
+    delete old.worldArcs;
+    delete old.undo;
+    const oldApi = harness().api;
+    assert.equal(await oldApi.restore(old), true, '旧セーブは既定値で読める');
+    assert.ok(oldApi.snapshot().turnSummaries.length > 0, '旧セーブでも記事から要約を復元する');
+    assert.equal(oldApi.snapshot().completedTurns, saved.completedTurns);
+  });
+
   await check('長時間ラン脚本は複数開始国で完走し、異常なくレポートを残す', async () => {
-    const reportPath = '/tmp/opencode/m6-longrun-smoke.json';
-    const report = await runLongRun({ totalHalves: 4, nations: ['japan', 'usa'], reportPath, log: () => {} });
+    const reportPath = '/tmp/opencode/m7a-longrun-smoke.json';
+    const report = await runM7aLongRun({ totalHalves: 4, nations: ['japan', 'usa'], reportPath, requireArcs: false, log: () => {} });
     assert.equal(report.ok, true);
     assert.equal(report.runs.length, 2);
     assert.ok(report.runs.every(run => run.reachedTarget && run.completedHalves === 4));
     assert.ok(report.runs.every(run => run.anomalies.length === 0 && run.invariantFailures.length === 0));
     assert.ok(report.runs.every(run => run.finalSaveBytes > 0));
-    assert.ok(report.runs.every(run => run.intervals.some(interval => interval.half === 4 && interval.topOwners.length)));
+    assert.ok(report.runs.every(run => Array.isArray(run.worldArcs) && Number.isFinite(run.territoryChanges) && Number.isFinite(run.activeWars)));
+    assert.ok(report.runs.every(run => run.intervals.some(interval => interval.half === 4 && interval.topOwners.length && Array.isArray(interval.worldArcs))));
     const saved = JSON.parse(await readFile(reportPath, 'utf8'));
     assert.equal(saved.mode, 'mock-http');
     assert.equal(saved.startedNations.length, 2);
