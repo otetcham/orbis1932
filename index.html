@@ -861,11 +861,54 @@ html, body {
 .supply-low { color: #7f1d1d; border-color: #b91c1c; background: #fecaca; }
 .supply-isolated { color: #ffffff; border-color: #7f1d1d; background: #991b1b; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); font-weight: 800; }
 .economy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.economy-card { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.32); border-radius: 8px; background: rgba(15, 23, 42, 0.3); }
-.economy-card span { font-size: 10.5px; color: var(--text-muted); }
-.economy-card strong { font-size: 16px; color: var(--text-primary); }
-.economy-card small { font-size: 10px; color: var(--text-muted); }
+.economy-card { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid #b9cde2; border-radius: 8px; background: #f8fbfe; box-shadow: 0 1px 2px rgba(23, 42, 68, 0.08); }
+.economy-card span { font-size: 10.5px; color: #49627e; font-weight: 600; }
+.economy-card strong { font-size: 16px; color: #10243a; }
+.economy-card small { font-size: 10px; color: #566d86; }
 .economy-split-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.focus-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.focus-stat { padding: 10px 12px; border: 1px solid #d3dfec; border-radius: 8px; background: #f8fafd; }
+.focus-stat span { display: block; font-size: 10.5px; color: #5b7188; font-weight: 600; }
+.focus-stat strong { display: block; font: 16px var(--font-mono); color: #16283e; }
+.focus-stat small { display: block; font-size: 10px; color: #566d86; }
+.focus-tier { margin-top: 14px; }
+.focus-tier h3 { margin-bottom: 7px; font-size: 12px; color: #3d5570; }
+.focus-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.focus-card { display: flex; flex-direction: column; gap: 6px; padding: 11px 12px; border: 1px solid #d3dfec; border-radius: 9px; background: #ffffff; }
+.focus-card.is-completed { border-color: #1f7a4d; background: #f1faf5; }
+.focus-card.is-current { border-color: #2f6db8; background: #f5f9ff; box-shadow: 0 0 0 2px rgba(47, 109, 184, 0.14); }
+.focus-card.is-locked { border-color: #d9e1e9; background: #f4f6f8; }
+.focus-card.is-locked .focus-desc, .focus-card.is-locked .focus-meta { color: #6c829c; }
+.focus-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.focus-card-head strong { font-size: 12.5px; color: #16283e; }
+.focus-badge { flex-shrink: 0; padding: 1px 7px; border-radius: 999px; font-size: 9.5px; font-weight: 700; border: 1px solid #94a3b8; color: #334155; background: #f1f5f9; }
+.focus-badge.completed { border-color: #1f7a4d; color: #14532d; background: #dcfce7; }
+.focus-badge.current { border-color: #2f6db8; color: #1e3a8a; background: #dbeafe; }
+.focus-badge.locked { border-color: #b45309; color: #7c2d12; background: #fef3c7; }
+.focus-desc, .focus-meta, .focus-effects, .focus-lock { font-size: 10.5px; line-height: 1.45; }
+.focus-desc { color: #3d5570; }
+.focus-meta { color: #566d86; }
+.focus-effects { color: #1d4e8f; background: #eef5fd; border-radius: 6px; padding: 5px 7px; }
+.focus-lock { color: #8a4b16; }
+.focus-progress { height: 6px; border-radius: 999px; background: #e2eaf3; overflow: hidden; }
+.focus-progress > span { display: block; height: 100%; background: #2f6db8; }
+.focus-card .btn { margin-top: auto; }
+.focus-branch { margin-top: 18px; }
+.focus-branch h3 { margin-bottom: 4px; font-size: 13px; color: #16283e; }
+.focus-branch > p { margin-bottom: 8px; }
+.research-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 12px; }
+.research-branch { border: 1px solid #d3dfec; border-radius: 9px; background: #f8fafd; padding: 11px 12px; }
+.research-branch h3 { font-size: 13px; color: #16283e; margin-bottom: 3px; }
+.research-item { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; padding: 9px 10px; border: 1px solid #dbe4ee; border-radius: 7px; background: #ffffff; }
+.research-item.is-completed { border-color: #1f7a4d; background: #f1faf5; }
+.research-item.is-current { border-color: #2f6db8; background: #f5f9ff; }
+.research-item.is-locked { background: #f4f6f8; }
+.research-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.research-item-head strong { font-size: 12px; color: #16283e; }
+.research-item p { font-size: 10.5px; color: #3d5570; }
+.research-item .focus-effects { font-size: 10px; }
+.research-item .btn { align-self: flex-start; }
+#focus-panel-body, #research-panel-body { max-height: calc(88dvh - 58px); overflow-y: auto; }
 .formation-order-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .formation-order-row .form-select { flex: 1 1 150px; min-width: 110px; height: 28px; font-size: 10.5px; padding: 2px 6px; }
 .formation-order-row .btn { min-height: 28px; padding: 4px 9px; font-size: 10.5px; }
@@ -2522,6 +2565,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           <button class="menu-row" id="btn-help"><span class="menu-row-icon" aria-hidden="true">?</span><span>遊び方</span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-open-war-panel"><span class="menu-row-icon" aria-hidden="true">⚔</span><span>戦争・和平・紛争</span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-open-economy-panel" data-open-economy><span class="menu-row-icon" aria-hidden="true">工</span><span>動員・生産<small>兵力・装備・補給</small></span><span aria-hidden="true">›</span></button>
+          <button class="menu-row" id="btn-open-focus-panel" data-open-focus><span class="menu-row-icon" aria-hidden="true">策</span><span>国策<small>政治力で方針を進める</small></span><span aria-hidden="true">›</span></button>
+          <button class="menu-row" id="btn-open-research-panel" data-open-research><span class="menu-row-icon" aria-hidden="true">研</span><span>研究<small>産業・装備・教義・電子</small></span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-menu-lobby"><span class="menu-row-icon" aria-hidden="true">↗</span><span>キャンペーンメニュー</span><span aria-hidden="true">›</span></button>
           <div class="menu-save-status" id="save-status">自動保存済み</div>
         </div>
@@ -2611,6 +2656,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-war-panel" aria-labelledby="war-panel-title"><div class="modal-head"><strong id="war-panel-title">戦争・和平・紛争</strong><button class="btn btn-ghost" data-close-dialog="modal-war-panel">閉じる</button></div><div class="modal-body" id="war-panel-body"></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-economy" aria-labelledby="economy-title"><div class="modal-head"><strong id="economy-title">動員・生産</strong><button class="btn btn-ghost" data-close-dialog="modal-economy">閉じる</button></div><div class="modal-body" id="economy-panel-body"></div></dialog>
+  <dialog class="game-dialog wide-dialog" id="modal-focus" aria-labelledby="focus-title"><div class="modal-head"><strong id="focus-title">国策</strong><button class="btn btn-ghost" data-close-dialog="modal-focus">閉じる</button></div><div class="modal-body" id="focus-panel-body"></div></dialog>
+  <dialog class="game-dialog wide-dialog" id="modal-research" aria-labelledby="research-title"><div class="modal-head"><strong id="research-title">研究</strong><button class="btn btn-ghost" data-close-dialog="modal-research">閉じる</button></div><div class="modal-body" id="research-panel-body"></div></dialog>
   <dialog class="game-dialog" id="modal-country-card" aria-labelledby="country-card-title"><div class="modal-window"><div class="modal-head"><strong id="country-card-title">国家情報</strong><button class="btn btn-ghost" data-close-dialog="modal-country-card" aria-label="国家情報を閉じる">閉じる</button></div><div class="modal-body" id="country-card-body"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-briefing" aria-labelledby="briefing-title"><div class="modal-window"><div class="modal-head"><strong id="briefing-title">情勢分析</strong><button class="btn btn-ghost" data-close-dialog="modal-briefing">閉じる</button></div><div class="modal-body" id="briefing-body"></div></div></dialog>
   <dialog class="game-dialog" id="modal-dependent-admin" aria-labelledby="dependent-admin-title"><div class="modal-window"><div class="modal-head"><strong id="dependent-admin-title">従属政権</strong><button class="btn btn-ghost" data-close-dialog="modal-dependent-admin">閉じる</button></div><div class="modal-body" id="dependent-admin-body"></div><div class="modal-foot"><span class="muted small" id="dependent-admin-hint"></span><button class="btn btn-primary" id="btn-dependent-admin-submit">実行</button></div></div></dialog>
