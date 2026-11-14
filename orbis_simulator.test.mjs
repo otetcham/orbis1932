@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { auditData } from './orbis_data_audit.mjs';
 import { runM7aLongRun } from './scripts/longrun_m7a_1972.mjs';
+import { runM7bLongRun } from './scripts/longrun_m7b_1972.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
@@ -2539,6 +2540,132 @@ try {
     assert.equal(await oldApi.restore(old), true, '旧セーブは既定値で読める');
     assert.ok(oldApi.snapshot().turnSummaries.length > 0, '旧セーブでも記事から要約を復元する');
     assert.equal(oldApi.snapshot().completedTurns, saved.completedTurns);
+  });
+
+  await check('枢軸敗戦の講和でオーストリア・チェコ・ポーランドが復活し、ドイツが東西に分かれ、日本とイタリアが征服地を失う', async () => {
+    const { api, context } = harness();
+    assert.equal(await api.start({ nationId: 'uk', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    for (const id of ['germany_anschluss', 'germany_sudeten', 'germany_prague']) assert.equal(api.forceWorldArc(id).status, 'fired');
+    const land = vm.runInContext('ORBIS_STATES_DB', context).filter(region => !region.isSea && !region.isSeaZone && region.type !== 'sea');
+    const snap = json(api.snapshot());
+    for (const region of land.filter(region => region.country === 'poland')) snap.territories[region.id] = 'germany';
+    snap.nations.poland.dissolved = true;
+    assert.equal(await api.restore(snap), true);
+    assert.equal(api.forceWorldArc('italy_ethiopia').status, 'fired');
+    assert.equal(api.forceWorldArc('ww2_end_europe').status, 'fired');
+    assert.equal(api.forceWorldArc('ww2_end_pacific').status, 'fired');
+    const after = api.snapshot();
+    const holder = region => after.territories[region.id] || region.country;
+    const statesOf = country => land.filter(region => region.country === country);
+    for (const country of ['austria', 'czechoslovakia', 'poland']) {
+      assert.equal(after.nations[country].dissolved, false, `${country} が復活する`);
+      assert.ok(statesOf(country).every(region => holder(region) === country), `${country} の州が復帰する`);
+    }
+    assert.ok(after.nations.germany.dissolved || land.filter(region => holder(region) === 'germany').length <= 1, '統一ドイツが征服規模のまま残らない');
+    assert.equal(after.nations.west_germany?.suzerain, null, '西ドイツは独立国');
+    assert.equal(after.nations.east_germany?.suzerain, null, '東ドイツは独立国');
+    assert.ok(land.filter(region => holder(region) === 'west_germany').length > 0, '西ドイツが州を保有する');
+    assert.ok(land.filter(region => holder(region) === 'east_germany').length > 0, '東ドイツが州を保有する');
+    assert.equal(after.dynamicNations.west_germany.name, '西ドイツ');
+    assert.equal(after.dynamicNations.east_germany.name, '東ドイツ');
+    assert.match(after.dynamicNations.west_germany.color, /^#[0-9a-f]{6}$/i);
+    assert.match(after.dynamicNations.east_germany.color, /^#[0-9a-f]{6}$/i);
+    assert.equal(after.clients.col_japan_korea.independent, true, '朝鮮が独立する');
+    assert.equal(after.nations.col_japan_korea.suzerain, null);
+    assert.equal(holder(land.find(region => region.id === 'japan_empire_twn')), 'china', '台湾が中国へ戻る');
+    assert.equal(after.nations.manchukuo.dissolved, true, '満洲国が解体される');
+    assert.equal(land.filter(region => holder(region) === 'manchukuo').length, 0, '満洲国の州が残らない');
+    assert.equal(after.clients.col_italy_libya.independent, true, 'イタリア領リビアが独立する');
+    assert.equal(after.clients.col_italy_eastafrica.independent, true, 'イタリア領東アフリカが独立する');
+    assert.equal(after.nations.ethiopia.dissolved, false, 'エチオピアが復活する');
+    assert.ok(statesOf('ethiopia').every(region => holder(region) === 'ethiopia'), 'エチオピアの州がイタリアから戻る');
+  });
+
+  await check('枢軸勝利の逸脱では征服結果を地図に残し、敗戦用の再編を適用しない', async () => {
+    const { api, context } = harness();
+    assert.equal(await api.start({ nationId: 'uk', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    for (const id of ['germany_anschluss', 'germany_sudeten', 'germany_prague']) assert.equal(api.forceWorldArc(id).status, 'fired');
+    const snap = json(api.snapshot());
+    snap.territories.russia_ru_mow = 'germany';
+    assert.equal(await api.restore(snap), true);
+    const result = api.forceWorldArc('ww2_end_europe');
+    assert.equal(result.status, 'fired');
+    assert.match(result.state.result.summary, /枢軸勝利/);
+    const after = api.snapshot();
+    assert.equal(after.postwarSettlement.europe.outcome, 'axis_victory');
+    assert.equal(after.nations.germany.dissolved, false, '勝利したドイツは存続する');
+    assert.equal(after.nations.west_germany, undefined, '西ドイツは作られない');
+    assert.equal(after.nations.east_germany, undefined, '東ドイツは作られない');
+    const land = vm.runInContext('ORBIS_STATES_DB', context).filter(region => !region.isSea && !region.isSeaZone && region.type !== 'sea');
+    const holder = region => after.territories[region.id] || region.country;
+    assert.ok(land.filter(region => region.country === 'austria').every(region => holder(region) === 'germany'), 'オーストリア併合は維持される');
+  });
+
+  await check('インド独立でパキスタンが州を保有し、他の主要脱植民地化も独立国と州の保有を変える', async () => {
+    const { api, context } = harness();
+    assert.equal(await api.start({ nationId: 'uk', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    const land = vm.runInContext('ORBIS_STATES_DB', context).filter(region => !region.isSea && !region.isSeaZone && region.type !== 'sea');
+    const holder = (snapshot, region) => snapshot.territories[region.id] || region.country;
+    const initial = api.snapshot();
+    const initialIndependent = Object.values(initial.nations).filter(nation => !nation.dissolved && !nation.suzerain).length;
+    assert.equal(api.forceWorldArc('india_independence').status, 'fired');
+    let after = api.snapshot();
+    assert.equal(after.clients.india.independent, true, 'インドが独立する');
+    assert.equal(after.nations.india.suzerain, null);
+    assert.ok(after.nations.pakistan && !after.nations.pakistan.dissolved, 'パキスタンが新国家として成立する');
+    assert.equal(after.nations.pakistan.suzerain, null, 'パキスタンは宗主国を持たない');
+    assert.equal(after.dynamicNations.pakistan.name, 'パキスタン');
+    assert.match(after.dynamicNations.pakistan.color, /^#[0-9a-f]{6}$/i);
+    const pakistanStates = land.filter(region => region.id.startsWith('india_pk_') && holder(after, region) === 'pakistan');
+    assert.ok(pakistanStates.length >= 2, `パキスタンが複数州を保有する (${pakistanStates.length}州)`);
+    assert.ok(land.some(region => region.id.startsWith('india_in_') && holder(after, region) === 'india'), 'インド側の州はインドに残る');
+
+    for (const id of ['indonesia_independence', 'indochina_independence', 'philippines_independence', 'africa_french', 'africa_british', 'congo_independence']) {
+      assert.equal(api.forceWorldArc(id).status, 'fired', `${id} が発火する`);
+    }
+    after = api.snapshot();
+    for (const id of ['dutch_indies', 'col_france_indochina', 'philippines', 'col_france_fwa', 'col_france_algeria', 'col_uk_africa', 'col_uk_malaya', 'col_belgium_congo']) {
+      assert.equal(after.clients[id]?.independent, true, `${id} が独立する`);
+      assert.equal(after.nations[id]?.suzerain, null, `${id} が宗主国を持たない`);
+    }
+    for (const id of ['french_equatorial_africa', 'morocco', 'tunisia', 'madagascar', 'sudan', 'british_somaliland']) {
+      assert.ok(after.nations[id] && !after.nations[id].dissolved, `${id} が独立国として存在する`);
+      assert.equal(after.nations[id].suzerain, null);
+      assert.ok(land.some(region => holder(after, region) === id), `${id} が州を保有する`);
+    }
+    const finalIndependent = Object.values(after.nations).filter(nation => !nation.dissolved && !nation.suzerain).length;
+    assert.ok(finalIndependent > initialIndependent, `独立国数が増える (${initialIndependent}→${finalIndependent})`);
+  });
+
+  await check('米国プレイヤー・常設方針なしでも太平洋戦争弧は延期せず発火する', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'usa', difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    assert.equal(api.snapshot().standingPolicy, '', '常設方針は空');
+    const snap = json(api.snapshot());
+    snap.worldArcs.states.pacific_war = { status: 'pending', dueHalf: 0, firedHalf: null, delayedUntil: null, delayCount: 0, blockReason: '', result: null };
+    assert.equal(await api.restore(snap), true);
+    assert.equal(await api.finishTurn(), true);
+    const status = api.worldArcStatus('pacific_war');
+    assert.equal(status.status, 'fired', `太平洋戦争弧が発火する (${status.status}/${status.blockReason})`);
+    assert.ok(status.firedHalf != null);
+    const war = Object.values(api.snapshot().wars).find(item => item.arcId === 'pacific_war');
+    assert.ok(war && war.attacker === 'japan' && war.defender === 'usa', '日米開戦が記録される');
+  });
+
+  await check('M7b長時間ラン脚本は1947・1955・1972のチェックポイントと戦後検証を記録する', async () => {
+    const reportPath = '/tmp/opencode/m7b-longrun-smoke.json';
+    const report = await runM7bLongRun({ totalHalves: 4, nations: ['usa'], reportPath, requireArcs: false, postwarChecks: false, checkpointHalves: [4] });
+    assert.equal(report.ok, true);
+    assert.equal(report.mode, 'mock-http');
+    assert.equal(report.runs.length, 1);
+    const run = report.runs[0];
+    assert.ok(run.reachedTarget);
+    assert.ok(run.checkpoints.some(item => item.half === 4 && item.topOwners.length), 'チェックポイントが記録される');
+    assert.ok(Number.isFinite(run.independence.start) && Number.isFinite(run.independence.final), '独立国数が記録される');
+    assert.ok(run.postwar && run.postwar.germany && run.postwar.decolonization, '戦後検証データが記録される');
+    const saved = JSON.parse(await readFile(reportPath, 'utf8'));
+    assert.equal(saved.mode, 'mock-http');
+    assert.ok(saved.summary[0].checkpoints.length > 0);
   });
 
   await check('長時間ラン脚本は複数開始国で完走し、異常なくレポートを残す', async () => {
