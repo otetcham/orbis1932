@@ -207,6 +207,24 @@ function postwarReport(snapshot, landRegions, startOwners, startSuzerain = {}) {
   const germanyHeldBy = countryId => landRegions.filter(region => region.country === countryId && holderOf(snapshot, region) === 'germany').length;
   const koreaClient = snapshot.clients?.col_japan_korea;
   const koreaHolder = snapshot.territories?.japan_empire_kor || 'japan';
+  const northKoreaHolder = snapshot.territories?.japan_empire_prk || 'japan';
+  const southKoreaNation = snapshot.nations?.korea;
+  const northKoreaNation = snapshot.nations?.korea_communist;
+  const koreaSplit = {
+    parallel: 38,
+    southState: 'japan_empire_kor',
+    northState: 'japan_empire_prk',
+    southHolder: koreaHolder,
+    northHolder: northKoreaHolder,
+    southExists: Boolean(southKoreaNation && !southKoreaNation.dissolved && !southKoreaNation.suzerain),
+    northExists: Boolean(northKoreaNation && !northKoreaNation.dissolved && !northKoreaNation.suzerain),
+    bothHoldLand: nationLandCount(snapshot, landRegions, 'korea') > 0 && nationLandCount(snapshot, landRegions, 'korea_communist') > 0,
+    wholePeninsulaCommunist: ['japan_empire_kor', 'japan_empire_prk'].every(id => {
+      const region = landRegions.find(item => item.id === id);
+      return region && holderOf(snapshot, region) === 'korea_communist';
+    }),
+    division: snapshot.koreaDivision || snapshot.postwarSettlement?.pacific?.koreaSplit || null
+  };
   const taiwanHolder = snapshot.territories?.japan_empire_twn || 'japan';
   const taiwanRepublicOfChina = taiwanHolder === 'china';
   const taiwanChinaSide = taiwanRepublicOfChina;
@@ -236,6 +254,7 @@ function postwarReport(snapshot, landRegions, startOwners, startSuzerain = {}) {
     japan: {
       koreaHolder,
       koreaIndependent: Boolean(koreaClient?.independent) || Boolean(snapshot.nations?.[koreaHolder] && !snapshot.nations[koreaHolder].suzerain),
+      koreaSplit,
       taiwanHolder,
       taiwanRepublicOfChina,
       taiwanChinaSide,
@@ -299,6 +318,7 @@ export async function runLongRun(options = {}) {
   const requireArcs = options.requireArcs ?? totalHalves >= 120;
   const postwarChecks = Boolean(options.postwarChecks);
   const m8aChecks = Boolean(options.m8aChecks);
+  const m8bChecks = Boolean(options.m8bChecks);
   const checkpointHalves = new Set((Array.isArray(options.checkpointHalves) ? options.checkpointHalves : [])
     .map(value => Math.max(0, Math.min(totalHalves, Math.round(Number(value)))))
     .filter(Number.isFinite));
@@ -404,7 +424,7 @@ export async function runLongRun(options = {}) {
           previous = current;
 
           if (checkpointHalves.has(completed)) {
-            const checkpointPostwar = (m8aChecks || postwarChecks) ? postwarReport(snapshot, landRegions, startOwners, startSuzerain) : null;
+            const checkpointPostwar = (m8aChecks || m8bChecks || postwarChecks) ? postwarReport(snapshot, landRegions, startOwners, startSuzerain) : null;
             checkpoints.push({
               half: completed,
               date: dateLabel(Math.max(0, completed - 1)),
@@ -422,6 +442,18 @@ export async function runLongRun(options = {}) {
               }
               if (checkpointPostwar.italy.somaliaHolder === 'ethiopia') {
                 failures.push(`${nationId}: 1955年にソマリアがエチオピア保有になっている`);
+              }
+            }
+            if (m8bChecks && completed >= 381 && checkpointPostwar) {
+              const pacificOutcome = checkpointPostwar.settlement?.pacific?.outcome;
+              const koreaSplit = checkpointPostwar.japan.koreaSplit;
+              if (pacificOutcome !== 'axis_victory') {
+                if (!koreaSplit.southExists || !koreaSplit.northExists || !koreaSplit.bothHoldLand) {
+                  failures.push(`${nationId}: ${dateLabel(completed - 1)}に大韓民国と北朝鮮がともに陸州を持っていない (南:${koreaSplit.southHolder}/北:${koreaSplit.northHolder})`);
+                }
+                if (koreaSplit.wholePeninsulaCommunist) {
+                  failures.push(`${nationId}: ${dateLabel(completed - 1)}に半島全体が korea_communist の単一保有`);
+                }
               }
             }
           }
@@ -530,6 +562,16 @@ export async function runLongRun(options = {}) {
           if (!postwar.italy.somaliaHoldsSomaliland) failures.push(`${nationId}: 1972年にソマリアがソマリランドを保有していない (${postwar.italy.somalilandHolder})`);
           if (!postwar.italy.eritreaEthiopian) failures.push(`${nationId}: 1972年にエリトリアがエチオピア保有ではない (${postwar.italy.eritreaHolder})`);
           if (postwar.italy.somaliaHolder === 'ethiopia') failures.push(`${nationId}: ソマリアがエチオピア保有になっている`);
+        }
+        if (m8bChecks) {
+          const pacificOutcome = postwar.settlement?.pacific?.outcome;
+          const koreaSplit = postwar.japan.koreaSplit;
+          if (pacificOutcome !== 'axis_victory') {
+            if (!koreaSplit.southExists || !koreaSplit.northExists || !koreaSplit.bothHoldLand) {
+              failures.push(`${nationId}: 1972年に大韓民国と北朝鮮がともに陸州を持っていない (南:${koreaSplit.southHolder}/北:${koreaSplit.northHolder})`);
+            }
+            if (koreaSplit.wholePeninsulaCommunist) failures.push(`${nationId}: 1972年に半島全体が korea_communist の単一保有`);
+          }
         }
       }
       log(`[${nationId}] ${completed}/${totalHalves} 半月 ${run.lastCompletedDate} 完了 平均 ${run.avgTurnMs}ms 最終セーブ ${run.finalSaveBytes} bytes 最大保有 ${run.peakOwner.nationId || '-'} ${run.peakOwner.landStates}州 戦争 ${run.totalWars}件 領土変更 ${run.territoryChanges}州 主要弧 ${run.worldArcs.length}件`);

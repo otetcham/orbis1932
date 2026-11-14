@@ -49,6 +49,19 @@ globalThis.ORBIS_CREDITS = Object.freeze({
       ])
     },
     {
+      title: '効果音',
+      items: Object.freeze([
+        {
+          name: 'ORBIS//1932 効果音（ターン終了・宣戦・和平・国策完了）',
+          source: '本プロジェクト内で Web Audio API の波形合成により自作（外部音源・サンプルなし）',
+          license: 'プロジェクト内素材（自作。第三者の非CC0素材は不使用）',
+          usage: 'orbis_audio.js が実行時に短い音を合成する。音声ファイルは同梱しない。',
+          status: '商用利用可',
+          note: 'ミュート切替は設定画面にあり、localStorage の orbis_sound_muted_v1 に保存する。APIキーとは別管理。'
+        }
+      ])
+    },
+    {
       title: '画像素材',
       items: Object.freeze([
         {

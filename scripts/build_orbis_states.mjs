@@ -49,7 +49,8 @@ const UNIT_ADM0 = {
   nicaragua: 'NIC',
 };
 // Blocs: whole ADM0 groups become one province each.
-// Note: KOR + PRK are unified under empire_kor so the post-1945 38th parallel / DMZ is dissolved.
+// Korea is split into south (KOR) and north (PRK) provinces at the 38th parallel.
+// The post-1945 division is represented by separate state IDs so both Koreas can hold land.
 const BLOCS = {
   uk: {
     gulf: 'KWT QAT BHR ARE OMN', iraq: 'IRQ', palestine_jordan: 'ISR PSX JOR WSB', mediterranean: 'CYP MLT GIB ESB CYN',
@@ -71,7 +72,7 @@ const BLOCS = {
   netherlands: { suriname: 'SUR', antilles: 'CUW ABW SXM' },
   denmark: { greenland: 'GRL', iceland: 'ISL', faroe: 'FRO' },
   usa: { caribbean: 'PRI VIR USG', pacific: 'GUM ASM UMI', liberia: 'LBR' },
-  japan: { empire_kor: 'KOR PRK', empire_twn: 'TWN', empire_pacific: 'FSM MHL MNP PLW' },
+  japan: { empire_kor: 'KOR', empire_prk: 'PRK', empire_twn: 'TWN', empire_pacific: 'FSM MHL MNP PLW' },
   australia: { png: 'PNG', pacific: 'NRU NFK HMD IOA CCK CXR' },
   new_zealand: { pacific: 'WSM COK NIU' },
   south_africa: { swa: 'NAM' },

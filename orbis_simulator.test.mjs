@@ -11,6 +11,7 @@ import { buildDist } from './scripts/build_dist.mjs';
 import { runM7aLongRun } from './scripts/longrun_m7a_1972.mjs';
 import { runM7bLongRun } from './scripts/longrun_m7b_1972.mjs';
 import { runM8aLongRun } from './scripts/longrun_m8a_1972.mjs';
+import { runM8bLongRun } from './scripts/longrun_m8b_1972.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
@@ -19,6 +20,7 @@ const coreSource = await readFile(new URL('./orbis_campaign_core.js', import.met
 const timelineSource = await readFile(new URL('./orbis_timeline_engine.js', import.meta.url), 'utf8');
 const playbackSource = await readFile(new URL('./orbis_turn_playback.js', import.meta.url), 'utf8');
 const focusSource = await readFile(new URL('./orbis_focus.js', import.meta.url), 'utf8');
+const audioSource = await readFile(new URL('./orbis_audio.js', import.meta.url), 'utf8');
 const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), 'utf8');
 const regionLabelsSource = await readFile(new URL('./orbis_region_labels.js', import.meta.url), 'utf8');
 const eventsSource = await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8');
@@ -102,6 +104,7 @@ function harness(provider = 'custom', sharedStorage = null) {
   vm.runInContext(timelineSource, context, { timeout: 4000 });
   vm.runInContext(playbackSource, context, { timeout: 4000 });
   vm.runInContext(focusSource, context, { timeout: 4000 });
+  vm.runInContext(audioSource, context, { timeout: 4000 });
   vm.runInContext(gameSource, context, { timeout: 4000 });
   const api = vm.runInContext('Orbis', context);
   const apiEndpoint = provider === 'gemini' ? `${endpoint}/gemini/v1beta` : `${endpoint}/${provider}`;
@@ -2997,6 +3000,160 @@ try {
     assert.equal(resumed.focusSummary().treeLabel, '西ドイツ');
   });
 
+  await check('国策グラフの前提線はカード矩形を横切らず、パンとズームのAPIを持つ', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const summary = api.focusSummary();
+    const layout = vm.runInContext(`ORBIS_FOCUS_GRAPH.layout(${JSON.stringify(summary.focuses)})`, context);
+    assert.ok(layout.nodes.length >= 25, '国策ノードが25件以上ある');
+    assert.ok(layout.edges.length >= 15, '前提エッジがある');
+    const crossesNodes = vm.runInContext('ORBIS_FOCUS_GRAPH.edgeCrossesNodes', context);
+    for (const edge of layout.edges) {
+      assert.ok(edge.points.length >= 3, `${edge.from}->${edge.to}: 直交ルートが短すぎる`);
+      assert.match(edge.d, /^M /);
+      assert.equal(crossesNodes(edge, layout.nodes).length, 0, `${edge.from}->${edge.to}: カード矩形を横切る`);
+    }
+    const before = api.focusGraphView();
+    const zoomed = api.zoomFocusGraph(1.3);
+    assert.ok(zoomed.scale > before.scale, 'ズームAPIで拡大できる');
+    const panned = api.panFocusGraph(24, -12);
+    assert.equal(panned.x, 24);
+    assert.equal(panned.y, -12);
+    assert.equal(api.resetFocusGraphView().scale, 1);
+    assert.equal(typeof api.showFocusDetail, 'function');
+  });
+
+  await check('国策の効果全文を詳細パネル用データから読める', async () => {
+    const { api } = harness();
+    await begin(api);
+    const detail = api.focusDetail('jp_manchukuo');
+    assert.ok(detail);
+    assert.equal(detail.id, 'jp_manchukuo');
+    assert.ok(detail.desc.length >= 10, '説明文がある');
+    assert.ok(detail.effectText.includes('安定度') || detail.effectText.includes('装備'), '効果の全文がある');
+    assert.ok(detail.fullText.includes(detail.desc), '詳細に説明文が含まれる');
+    assert.ok(Array.isArray(detail.requires), '前提が読める');
+    assert.equal(api.focusDetail('missing_focus'), null);
+  });
+
+  await check('地図ラベルはズームと国サイズで抑制され、部隊バッジはラベル占有域を避ける', async () => {
+    const { context } = harness();
+    const labels = vm.runInContext('ORBIS_MAP_LABELS', context);
+    assert.equal(labels.countryLabelVisible({ span: 8, zoom: 1, isMajor: false }), false, '低ズームの小国は隠す');
+    assert.equal(labels.countryLabelVisible({ span: 12, zoom: 6, isMajor: false }), true, '高ズームでは小国も出す');
+    assert.equal(labels.countryLabelVisible({ span: 1, zoom: 1, isMajor: true }), true, '主要国は優先する');
+    const placed = [{ x: 100, y: 100, hw: 20, hh: 8 }];
+    assert.equal(labels.fits(100, 100, 20, 8, placed), false, '重なるラベルは置かない');
+    assert.equal(labels.fits(200, 100, 20, 8, placed), true, '離れたラベルは置ける');
+    const labelRects = [{ x: 100, y: 100, hw: 12, hh: 8 }];
+    const badge = labels.placeBadge({ x: 100, y: 100, half: 9, labelRects });
+    assert.equal(badge.hidden, false, 'ラベルを避けてバッジをずらす');
+    assert.ok(Math.abs(badge.x - 100) > 20 || Math.abs(badge.y - 100) > 15, 'バッジが占有域の外へ移動する');
+    const blocked = labels.placeBadge({ x: 100, y: 100, half: 9, labelRects: [{ x: 100, y: 100, hw: 200, hh: 200 }] });
+    assert.equal(blocked.hidden, true, '逃げ場がなければバッジを隠す');
+  });
+
+  await check('ミュート中は効果音を再生せず、音源の自作クレジットがある', async () => {
+    const { api, context } = harness();
+    const audio = vm.runInContext('ORBIS_AUDIO', context);
+    const starts = [];
+    const fake = {
+      currentTime: 0,
+      destination: {},
+      createOscillator() {
+        return { type: '', frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, start() { starts.push('start'); }, stop() {} };
+      },
+      createGain() {
+        return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} };
+      }
+    };
+    audio.setContextForTest(fake);
+    audio.setMuted(true);
+    assert.equal(audio.isMuted(), true);
+    assert.equal(audio.play('turn'), false);
+    assert.equal(api.playSound('turn'), false, 'ゲームAPIもミュートを尊重する');
+    assert.equal(starts.length, 0, 'ミュート中は発音しない');
+    audio.setMuted(false);
+    for (const id of ['turn', 'war', 'peace', 'focus']) {
+      assert.ok(audio.SOUND_IDS.includes(id), `${id} の効果音定義`);
+      assert.equal(audio.play(id), true);
+    }
+    assert.equal(api.playSound('turn'), true, 'ゲームAPIから再生できる');
+    assert.ok(starts.length > 0, 'ミュート解除時は発音する');
+    const credits = api.creditsInfo();
+    const soundSection = credits.sections.find(section => section.title === '効果音');
+    assert.ok(soundSection, 'クレジットに効果音の節');
+    assert.match(soundSection.items[0].source, /自作/);
+    assert.match(soundSection.items[0].license, /プロジェクト内素材/);
+  });
+
+  await check('日本敗戦後、朝鮮は38度線で大韓民国と北朝鮮に分かれ、停戦後も双方が州を持つ', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(api.forceWorldArc('ww2_end_pacific').status, 'fired');
+    let after = api.snapshot();
+    assert.equal(after.territories.japan_empire_kor, 'korea', '南は大韓民国');
+    assert.equal(after.territories.japan_empire_prk, 'korea_communist', '北は朝鮮民主主義人民共和国');
+    assert.notEqual(after.territories.japan_empire_kor, 'korea_communist', '半島全体を単一保有にしない');
+    assert.equal(after.nations.korea.dissolved, false);
+    assert.equal(after.nations.korea.suzerain, null);
+    assert.equal(after.nations.korea_communist.dissolved, false);
+    assert.equal(after.nations.korea_communist.suzerain, null);
+    assert.equal(after.dynamicNations.korea.name, '大韓民国');
+    assert.equal(after.dynamicNations.korea_communist.name, '朝鮮民主主義人民共和国');
+    assert.match(after.dynamicNations.korea.color, /^#[0-9a-f]{6}$/i);
+    assert.match(after.dynamicNations.korea_communist.color, /^#[0-9a-f]{6}$/i);
+    assert.notEqual(after.dynamicNations.korea.color, after.dynamicNations.korea_communist.color, '地図色が区別できる');
+    const mapColors = vm.runInContext("({ south: nationMapColor('korea'), north: nationMapColor('korea_communist') })", context);
+    assert.notEqual(mapColors.south, mapColors.north, '実際の地図色が南北で異なる');
+    const land = vm.runInContext('ORBIS_STATES_DB', context);
+    const southRegion = land.find(region => region.id === 'japan_empire_kor');
+    const northRegion = land.find(region => region.id === 'japan_empire_prk');
+    assert.ok(southRegion.lat < 38 && northRegion.lat > 38, '南北の代表点が38度線の上下にある');
+
+    assert.equal(api.forceWorldArc('korea_war').status, 'fired');
+    after = api.snapshot();
+    assert.equal(after.koreaWar.status, 'active');
+    assert.equal(after.territories.japan_empire_kor, 'korea');
+    assert.equal(after.territories.japan_empire_prk, 'korea_communist');
+    assert.equal(api.forceWorldArc('korea_armistice').status, 'fired');
+    after = api.snapshot();
+    assert.equal(after.koreaWar.status, 'armistice');
+    assert.equal(after.territories.japan_empire_kor, 'korea', '停戦後も南が州を保持');
+    assert.equal(after.territories.japan_empire_prk, 'korea_communist', '停戦後も北が州を保持');
+  });
+
+  await check('枢軸勝利では朝鮮の分断を強制しない', async () => {
+    const { api } = harness();
+    await begin(api);
+    const snap = json(api.snapshot());
+    snap.territories.usa_us_dc = 'japan';
+    assert.equal(await api.restore(snap), true);
+    assert.equal(api.forceWorldArc('ww2_end_pacific').status, 'fired');
+    let after = api.snapshot();
+    assert.equal(after.postwarSettlement.pacific.outcome, 'axis_victory');
+    assert.equal(after.territories.japan_empire_kor, 'japan', '枢軸勝利では南朝鮮を独立させない');
+    assert.equal(after.territories.japan_empire_prk, 'japan', '枢軸勝利では北朝鮮を独立させない');
+    assert.equal(api.forceWorldArc('korea_division').status, 'fired');
+    after = api.snapshot();
+    assert.equal(after.territories.japan_empire_kor, 'japan');
+    assert.equal(after.territories.japan_empire_prk, 'japan');
+  });
+
+  await check('敗戦処理後も台湾は中華民国に残り、イタリア植民地の再割当を維持する', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(api.forceWorldArc('ww2_end_pacific').status, 'fired');
+    assert.equal(api.forceWorldArc('ww2_end_europe').status, 'fired');
+    const after = api.snapshot();
+    assert.equal(after.territories.japan_empire_twn, 'china', '台湾は中華民国');
+    assert.notEqual(after.territories.japan_empire_twn, 'china_communist');
+    assert.notEqual(after.territories.japan_empire_twn, 'china_rebels');
+    assert.equal(after.territories.italy_eritrea, 'ethiopia', 'エリトリアはエチオピアへ');
+    assert.equal(after.territories.italy_libya, 'libya', 'リビアは信託統治を経て独立');
+    assert.notEqual(after.territories.italy_somalia, 'ethiopia', 'ソマリアはエチオピアへ渡さない');
+  });
+
   await check('M8a長時間ラン脚本はモックで完走し、台湾とイタリア植民地の検証項目を記録する', async () => {
     const reportPath = '/tmp/opencode/m8a-longrun-smoke.json';
     const report = await runM8aLongRun({ totalHalves: 4, nations: ['usa'], reportPath, requireArcs: false, postwarChecks: false, m8aChecks: false, checkpointHalves: [4], log: () => {} });
@@ -3006,6 +3163,20 @@ try {
     const run = report.runs[0];
     assert.ok(run.reachedTarget);
     assert.ok(run.postwar && run.postwar.japan.taiwanHolder && run.postwar.italy.libyaHolder, '台湾・イタリアの検証データ');
+    const saved = JSON.parse(await readFile(reportPath, 'utf8'));
+    assert.equal(saved.mode, 'mock-http');
+  });
+
+  await check('M8b長時間ラン脚本はモックで完走し、朝鮮分断の検証項目を記録する', async () => {
+    const reportPath = '/tmp/opencode/m8b-longrun-smoke.json';
+    const report = await runM8bLongRun({ totalHalves: 4, nations: ['usa'], reportPath, requireArcs: false, postwarChecks: false, m8aChecks: false, m8bChecks: false, checkpointHalves: [4], log: () => {} });
+    assert.equal(report.ok, true);
+    assert.equal(report.mode, 'mock-http');
+    assert.equal(report.runs.length, 1);
+    const run = report.runs[0];
+    assert.ok(run.reachedTarget);
+    assert.ok(run.postwar.japan.koreaSplit, '朝鮮分断の検証データ');
+    assert.ok(Object.hasOwn(run.postwar.japan.koreaSplit, 'southHolder'));
     const saved = JSON.parse(await readFile(reportPath, 'utf8'));
     assert.equal(saved.mode, 'mock-http');
   });

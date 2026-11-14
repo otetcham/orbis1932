@@ -528,50 +528,58 @@ const Orbis = (() => {
     },
     {
       id: 'korea_division', label: '朝鮮の独立・分断', major: true,
-      from: [1945, 8], to: [1948, 12], keywords: ['朝鮮', '韓国', '分断'],
+      from: [1945, 8], to: [1948, 12], keywords: ['朝鮮', '韓国', '分断', '38度線'],
       playerCanBlock: ['japan', 'col_japan_korea'],
-      requires: game => Boolean(game.clients.col_japan_korea && !game.clients.col_japan_korea.independent && !game.clients.col_japan_korea.dissolved),
+      requires: game => game.postwarSettlement?.pacific?.outcome !== 'axis_victory'
+        && (Boolean(game.clients.col_japan_korea && !game.clients.col_japan_korea.independent && !game.clients.col_japan_korea.dissolved)
+          || Boolean(game.nations.korea && game.nations.korea_communist && game.koreaDivision?.outcome !== 'divided')),
       run(game, notes) {
-        const ok = arcGrantIndependence(game, 'col_japan_korea', '朝鮮', notes);
-        if (!ok) return null;
-        return { headline: '朝鮮が独立', body: '日本の統治下にあった朝鮮が独立し、戦後の東アジア秩序が再編された。南北の政治対立は続く。', summary: '朝鮮総督府を独立国「朝鮮」へ', location: '朝鮮', stateId: 'japan_empire_kor' };
+        const result = arcSplitKorea(game, notes);
+        if (result.skipped) {
+          notes.push(result.reason);
+          return { headline: '朝鮮の分断は適用されない', body: '枢軸側が勝利したため、朝鮮半島の南北分断は機械適用されず、日本の統治が維持された。', summary: '枢軸勝利のため朝鮮分断を適用せず', location: '朝鮮', stateId: KOREA_SOUTH_STATE };
+        }
+        if (!result.south && !result.north && game.koreaDivision?.outcome === 'divided') {
+          return { headline: '朝鮮は南北に分断済み', body: '北緯38度線を境に大韓民国と朝鮮民主主義人民共和国が並立している。', summary: '朝鮮の南北分断を維持', location: '朝鮮', stateId: KOREA_SOUTH_STATE };
+        }
+        if (!result.south && !result.north) return null;
+        return { headline: '朝鮮が南北に分断', body: '日本の統治下にあった朝鮮半島は、北緯38度線を境に南の大韓民国と北の朝鮮民主主義人民共和国へ分かれた。', summary: `北緯38度線で南北に分割（南${result.south}州・北${result.north}州）`, location: '朝鮮', stateId: KOREA_SOUTH_STATE };
       }
     },
     {
       id: 'korea_war', label: '朝鮮戦争', major: true,
       from: [1950, 5], to: [1950, 8], keywords: ['朝鮮', '戦争'],
-      playerCanBlock: ['col_japan_korea'],
-      requires: game => Boolean(game.clients.col_japan_korea?.independent && !game.civilWars.col_japan_korea),
+      playerCanBlock: ['korea', 'korea_communist'],
+      requires: game => Boolean(game.nations.korea && game.nations.korea_communist
+        && !game.nations.korea.dissolved && !game.nations.korea_communist.dissolved
+        && regionHolder(game, regionById(KOREA_SOUTH_STATE)) === 'korea'
+        && regionHolder(game, regionById(KOREA_NORTH_STATE)) === 'korea_communist'
+        && game.koreaWar?.status !== 'active'),
       run(game, notes) {
-        const started = arcStartCivilWar(game, 'col_japan_korea', 'korea_communist', '朝鮮人民軍', { arcId: 'korea_war', holdUntil: arcHalfIndex(1953, 7, 'first') });
-        if (!started) return null;
+        if (!game.nations.korea || !game.nations.korea_communist
+          || regionHolder(game, regionById(KOREA_SOUTH_STATE)) !== 'korea'
+          || regionHolder(game, regionById(KOREA_NORTH_STATE)) !== 'korea_communist') return null;
+        game.koreaWar = { status: 'active', startedTurn: game.completedTurns, south: 'korea', north: 'korea_communist', armisticeYear: 1953 };
+        game.conflicts[KOREA_NORTH_STATE] = { attacker: 'korea_communist', defender: 'korea', months: 1, reason: '朝鮮戦争の戦線' };
         game.tension = clamp((game.tension || 0) + 8, 0, 100);
-        notes.push('朝鮮半島で内戦が始まり、南北の勢力が衝突。');
-        return { headline: '朝鮮戦争が始まる', body: '朝鮮半島で南北の武力衝突が始まった。単一州の内戦として既存システムに接続し、1953年頃に停戦する。', summary: '朝鮮戦争開始（既存の内戦システム）', location: '朝鮮', stateId: 'japan_empire_kor' };
-      },
-      tick(game, state, notes) {
-        if (state.flipped || game.completedTurns < (state.firedHalf || 0) + 2) return;
-        const war = game.civilWars.col_japan_korea;
-        if (!war || war.status !== 'active') return;
-        const region = regionById('japan_empire_kor');
-        if (region && regionHolder(game, region) === 'col_japan_korea') {
-          game.territories[region.id] = 'korea_communist';
-          game.occupations[region.id] = 'col_japan_korea';
-          game.conflicts[region.id] = { attacker: 'korea_communist', defender: 'col_japan_korea', months: 1, reason: '朝鮮戦争の戦線' };
-          evolveFaction(game, 'korea_communist', 'col_japan_korea', '朝鮮人民軍');
-          state.flipped = true;
-          notes.push('朝鮮人民軍が半島の主要州を掌握。');
-        }
+        notes.push('朝鮮半島で南北の武力衝突が始まり、38度線沿いで戦線が動いた。');
+        return { headline: '朝鮮戦争が始まる', body: '大韓民国と朝鮮民主主義人民共和国が38度線沿いで衝突した。南北はそれぞれの州を保持したまま1953年頃の停戦を待つ。', summary: '朝鮮戦争開始（南北は州を保持）', location: '朝鮮', stateId: KOREA_NORTH_STATE };
       }
     },
     {
       id: 'korea_armistice', label: '朝鮮戦争の停戦', major: true,
       from: [1953, 7], to: [1953, 12], keywords: ['朝鮮', '停戦'],
-      requires: game => Boolean(game.civilWars.col_japan_korea && game.civilWars.col_japan_korea.status === 'active'),
+      requires: game => game.koreaWar?.status === 'active',
       run(game, notes) {
-        const result = arcSettleCivilWar(game, 'col_japan_korea', 'autonomy', notes);
-        if (!result) return null;
-        return { headline: '朝鮮戦争が停戦', body: `朝鮮戦争が停戦し、${result.affected}州で分断線が固定された。`, summary: `朝鮮戦争停戦、${result.affected}州を分断状態で確定`, location: '朝鮮', stateId: 'japan_empire_kor' };
+        if (game.koreaWar?.status !== 'active') return null;
+        game.koreaWar = { ...(game.koreaWar || {}), status: 'armistice', resolvedTurn: game.completedTurns, armisticeYear: 1953 };
+        delete game.conflicts[KOREA_NORTH_STATE];
+        delete game.conflicts[KOREA_SOUTH_STATE];
+        const south = regionHolder(game, regionById(KOREA_SOUTH_STATE));
+        const north = regionHolder(game, regionById(KOREA_NORTH_STATE));
+        notes.push(`朝鮮戦争が停戦。38度線沿いで${shortName(south)}と${shortName(north)}が州を保持した。`);
+        game.establishedFacts = [...(game.establishedFacts || []), '朝鮮戦争が停戦し、大韓民国と朝鮮民主主義人民共和国が38度線で並立した'].slice(-400);
+        return { headline: '朝鮮戦争が停戦', body: `1953年、朝鮮戦争が停戦した。${shortName(south)}は南の州を、${shortName(north)}は北の州を保持し、38度線が分断線として固定された。`, summary: `朝鮮戦争停戦、南北が州を保持（南:${south} / 北:${north}）`, location: '朝鮮', stateId: KOREA_SOUTH_STATE };
       }
     }
   ];
@@ -588,7 +596,7 @@ const Orbis = (() => {
     warlord: { label: '軍閥政府', badge: '軍閥', autonomy: 78, loyalty: 44, legitimacy: 30, tax: 0, unrest: 2 }
   };
   const COLONIAL_PRESETS = [
-    { slug: 'korea', parentId: 'japan', name: '朝鮮総督府', kind: 'colonial', stateIds: ['japan_empire_kor'], governor: '宇垣一成 総督' },
+    { slug: 'korea', parentId: 'japan', name: '朝鮮総督府', kind: 'colonial', stateIds: ['japan_empire_kor', 'japan_empire_prk'], governor: '宇垣一成 総督' },
     { slug: 'taiwan', parentId: 'japan', name: '台湾総督府', kind: 'colonial', stateIds: ['japan_empire_twn'], governor: '太田政弘 総督' },
     { slug: 'kwantung', parentId: 'japan', name: '関東州庁', kind: 'colonial', stateIds: ['japan_empire_kwantung'], governor: '関東長官' },
     { slug: 'fwa', parentId: 'france', name: '仏領西アフリカ政庁', kind: 'colonial', stateIds: ['france_fwa'], governor: 'ダカール総督' },
@@ -670,6 +678,10 @@ const Orbis = (() => {
   const uid = prefix => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   const copy = value => JSON.parse(JSON.stringify(value));
   const shortName = id => SHORT_NAMES[id] || (nationMeta(id)?.name || '').split(/[（(・]/)[0] || id;
+  const playSound = id => {
+    try { return Boolean(globalThis.ORBIS_AUDIO?.play?.(id)); } catch { return false; }
+  };
+  const completedFocusIds = () => new Set(Object.values(campaign?.nationalFocus || {}).flatMap(state => state?.completed || []));
   const resolveCore = () => {
     const c = CORE();
     if (!c) throw new Error('ORBIS_CAMPAIGN (orbis_campaign_core.js) が読み込まれていません。');
@@ -718,7 +730,7 @@ const Orbis = (() => {
       nations, relations, leaders: {}, actorState: {}, threads: {}, activeActorId: 'adviser',
       articles: [], briefing: null, turnActions: [], commitments: [], treaties: [], clients: copy(CLIENTS), territories: {},
       dynamicNations: {},
-      nationalAction: null, actionDraft: '', standingPolicy: '', actionHistory: [], adviserBriefings: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, peaceConferences: {}, warScores: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [], economy: {}, nationalFocus: {}, research: {},
+      nationalAction: null, actionDraft: '', standingPolicy: '', actionHistory: [], adviserBriefings: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, peaceConferences: {}, warScores: {}, npcAgreements: [], occupations: {}, cleanTransfers: {}, claims: {}, formations: [], economy: {}, nationalFocus: {}, research: {},
       maritime: { navy: {}, air: {}, seaControl: {}, turn: -1 },
       establishedFacts: [], timelineFired: {}, turnPlaybackQueue: [], turnSummaries: [], worldArcs: { seed: null, states: {}, log: [] }, worldMemory: '', stress: { collapse: 0, bankruptcy: 0, war: 0, civil: 0 },
       globalWarHalves: 0, worldWarActive: false, lastResolutionIssues: [],
@@ -2253,6 +2265,164 @@ const Orbis = (() => {
     return { ok: true, research: copy(item) };
   }
 
+  const focusGraphViewState = { scale: 1, x: 0, y: 0 };
+
+  function focusGraphView() {
+    return { ...focusGraphViewState };
+  }
+
+  function applyFocusGraphTransform() {
+    if (typeof document === 'undefined') return;
+    const graph = $('focus-graph');
+    if (graph) graph.style.transform = `translate(${focusGraphViewState.x}px, ${focusGraphViewState.y}px) scale(${focusGraphViewState.scale})`;
+    const label = $('focus-zoom-label');
+    if (label) label.textContent = `${Math.round(focusGraphViewState.scale * 100)}%`;
+  }
+
+  function setFocusGraphView(next = {}) {
+    const scale = clamp(Number(next.scale ?? focusGraphViewState.scale) || 1, 0.55, 2.4);
+    focusGraphViewState.scale = scale;
+    focusGraphViewState.x = Number.isFinite(Number(next.x)) ? Number(next.x) : focusGraphViewState.x;
+    focusGraphViewState.y = Number.isFinite(Number(next.y)) ? Number(next.y) : focusGraphViewState.y;
+    applyFocusGraphTransform();
+    return focusGraphView();
+  }
+
+  function zoomFocusGraph(factor = 1.15, origin = null) {
+    const previous = focusGraphViewState.scale;
+    const next = clamp(previous * (Number(factor) || 1), 0.55, 2.4);
+    if (next === previous) return focusGraphView();
+    let x = focusGraphViewState.x;
+    let y = focusGraphViewState.y;
+    if (origin && Number.isFinite(origin.x) && Number.isFinite(origin.y)) {
+      x = origin.x - (origin.x - x) * (next / previous);
+      y = origin.y - (origin.y - y) * (next / previous);
+    }
+    return setFocusGraphView({ scale: next, x, y });
+  }
+
+  function panFocusGraph(dx = 0, dy = 0) {
+    return setFocusGraphView({ x: focusGraphViewState.x + (Number(dx) || 0), y: focusGraphViewState.y + (Number(dy) || 0) });
+  }
+
+  function resetFocusGraphView() {
+    focusGraphViewState.scale = 1;
+    focusGraphViewState.x = 0;
+    focusGraphViewState.y = 0;
+    applyFocusGraphTransform();
+    return focusGraphView();
+  }
+
+  function focusDetail(focusId) {
+    if (!campaign) return null;
+    const summary = focusSummary();
+    const focus = summary?.focuses.find(item => item.id === focusId);
+    if (!focus) return null;
+    const requires = (focus.requires || []).map(id => summary.focuses.find(item => item.id === id)?.name || id);
+    return {
+      id: focus.id,
+      name: focus.name,
+      desc: focus.desc,
+      effectText: focus.effectText,
+      fullText: `${focus.desc}\n効果: ${focus.effectText}`,
+      pathLabel: focus.pathLabel,
+      eraLabel: focus.eraLabel,
+      status: focus.status,
+      reason: focus.reason || '',
+      cost: focus.cost,
+      tier: focus.tier,
+      requires
+    };
+  }
+
+  function showFocusDetail(focusId) {
+    const detail = focusDetail(focusId);
+    if (!detail) return false;
+    const statusLabel = { completed: '完了', current: '進行中', locked: 'ロック', available: '選択可' }[detail.status] || detail.status;
+    const effects = detail.effectText || '効果なし';
+    html('focus-detail', `<div class="focus-detail-head"><strong>${escapeHtml(detail.name)}</strong><span class="focus-badge">${escapeHtml(statusLabel)}</span></div>
+      <p class="focus-detail-desc">${escapeHtml(detail.desc)}</p>
+      <dl class="focus-detail-meta">
+        <dt>効果</dt><dd>${escapeHtml(effects)}</dd>
+        <dt>経路</dt><dd>${escapeHtml(detail.pathLabel)} · ${escapeHtml(detail.eraLabel)} · 第${detail.tier}段階</dd>
+        <dt>前提</dt><dd>${escapeHtml(detail.requires.length ? detail.requires.join('、') : 'なし')}</dd>
+        <dt>費用</dt><dd>政治力 ${detail.cost}${detail.reason ? ` · ${escapeHtml(detail.reason)}` : ''}</dd>
+      </dl>`);
+    $('focus-detail')?.setAttribute('data-focus-detail-id', detail.id);
+    return true;
+  }
+
+  function bindFocusGraph(summary) {
+    if (typeof document === 'undefined') return;
+    const viewport = $('focus-graph-viewport');
+    if (!viewport) return;
+    const nodes = [...document.querySelectorAll('#focus-panel-body [data-focus-node]')];
+    for (const node of nodes) {
+      const id = node.getAttribute('data-focus-node');
+      node.addEventListener('pointerenter', () => showFocusDetail(id));
+      node.addEventListener('focusin', () => showFocusDetail(id));
+      node.addEventListener('click', () => showFocusDetail(id));
+    }
+    const initial = summary.current?.id
+      || summary.focuses.find(focus => focus.status === 'available')?.id
+      || summary.focuses[0]?.id;
+    if (initial) showFocusDetail(initial);
+
+    let drag = null;
+    let suppressClick = false;
+    viewport.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || event.target.closest('button, a, input, select')) return;
+      drag = { id: event.pointerId, startX: event.clientX, startY: event.clientY, x: focusGraphViewState.x, y: focusGraphViewState.y, moved: false };
+      viewport.setPointerCapture?.(event.pointerId);
+    });
+    viewport.addEventListener('pointermove', event => {
+      if (!drag || drag.id !== event.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      drag.moved = true;
+      event.preventDefault();
+      setFocusGraphView({ x: drag.x + dx, y: drag.y + dy });
+    });
+    const endDrag = event => {
+      if (!drag || drag.id !== event.pointerId) return;
+      suppressClick = drag.moved;
+      drag = null;
+      viewport.releasePointerCapture?.(event.pointerId);
+    };
+    viewport.addEventListener('pointerup', endDrag);
+    viewport.addEventListener('pointercancel', endDrag);
+    viewport.addEventListener('click', event => {
+      if (!suppressClick) return;
+      suppressClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    viewport.addEventListener('wheel', event => {
+      const rect = viewport.getBoundingClientRect();
+      event.preventDefault();
+      zoomFocusGraph(event.deltaY < 0 ? 1.12 : 0.89, { x: event.clientX - rect.left, y: event.clientY - rect.top });
+    }, { passive: false });
+    viewport.addEventListener('keydown', event => {
+      if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomFocusGraph(1.15); }
+      else if (event.key === '-') { event.preventDefault(); zoomFocusGraph(0.87); }
+      else if (event.key === '0') { event.preventDefault(); resetFocusGraphView(); }
+      else if (event.key === 'ArrowLeft') { event.preventDefault(); panFocusGraph(-24, 0); }
+      else if (event.key === 'ArrowRight') { event.preventDefault(); panFocusGraph(24, 0); }
+      else if (event.key === 'ArrowUp') { event.preventDefault(); panFocusGraph(0, -24); }
+      else if (event.key === 'ArrowDown') { event.preventDefault(); panFocusGraph(0, 24); }
+    });
+    for (const button of document.querySelectorAll('#focus-panel-body [data-focus-zoom]')) {
+      button.addEventListener('click', () => {
+        const action = button.getAttribute('data-focus-zoom');
+        if (action === 'in') zoomFocusGraph(1.15);
+        else if (action === 'out') zoomFocusGraph(0.87);
+        else resetFocusGraphView();
+      });
+    }
+    applyFocusGraphTransform();
+  }
+
   function openFocusPanel() {
     if (!campaign) return;
     const summary = focusSummary();
@@ -2263,40 +2433,10 @@ const Orbis = (() => {
     const warGoals = summary.warGoals.length
       ? summary.warGoals.map(id => `<span class="focus-badge">${escapeHtml(shortName(id))}</span>`).join(' ')
       : '<span class="small muted">なし</span>';
-    const tiers = summary.graph.tiers;
-    const pathOrder = { common: 0, historical: 1, alt1: 2, alt2: 3 };
-    const cardWidth = 176;
-    const cardHeight = 120;
-    const gapX = 34;
-    const gapY = 16;
-    const pad = 26;
-    const byTier = new Map(tiers.map(tier => [tier, summary.focuses.filter(focus => focus.tier === tier)]));
-    for (const list of byTier.values()) {
-      list.sort((a, b) => (pathOrder[a.path] ?? 9) - (pathOrder[b.path] ?? 9) || a.id.localeCompare(b.id));
-    }
-    const maxRows = Math.max(1, ...[...byTier.values()].map(list => list.length));
-    const width = pad * 2 + tiers.length * cardWidth + Math.max(0, tiers.length - 1) * gapX;
-    const height = pad * 2 + maxRows * cardHeight + Math.max(0, maxRows - 1) * gapY;
-    const positions = new Map();
-    tiers.forEach((tier, column) => {
-      byTier.get(tier).forEach((focus, row) => {
-        positions.set(focus.id, {
-          x: pad + column * (cardWidth + gapX),
-          y: pad + row * (cardHeight + gapY)
-        });
-      });
-    });
-    const edges = summary.graph.edges.map(edge => {
-      const from = positions.get(edge.from);
-      const to = positions.get(edge.to);
-      if (!from || !to) return '';
-      const x1 = from.x + cardWidth / 2;
-      const y1 = from.y + cardHeight;
-      const x2 = to.x + cardWidth / 2;
-      const y2 = to.y;
-      const bend = Math.max(18, Math.abs(y2 - y1) * 0.45);
-      return `<path class="focus-edge path-${escapeHtml(edge.path)}" data-focus-edge="${escapeHtml(edge.from)}-${escapeHtml(edge.to)}" d="M ${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}" marker-end="url(#focus-arrow)"></path>`;
-    }).join('');
+    const layout = globalThis.ORBIS_FOCUS_GRAPH.layout(summary.focuses);
+    const { width, height, cardWidth, cardHeight } = layout;
+    const positions = new Map(layout.nodes.map(node => [node.id, node]));
+    const edges = layout.edges.map(edge => `<path class="focus-edge path-${escapeHtml(edge.path)}" data-focus-edge="${escapeHtml(edge.from)}-${escapeHtml(edge.to)}" d="${escapeHtml(edge.d)}" marker-end="url(#focus-arrow)"></path>`).join('');
     const nodes = summary.focuses.map(focus => {
       const position = positions.get(focus.id);
       const statusLabel = { completed: '完了', current: '進行中', locked: 'ロック', available: '選択可' }[focus.status];
@@ -2308,7 +2448,7 @@ const Orbis = (() => {
       const pathClass = `path-${focus.path || 'common'}`;
       const exclusive = focus.exclusive ? '<span class="focus-exclusive-badge">排他</span>' : '';
       const lock = focus.status === 'locked' ? `<p class="focus-lock">${escapeHtml(focus.reason)}</p>` : `<p class="focus-desc">${escapeHtml(focus.desc)}</p>`;
-      return `<article class="focus-card focus-node is-${focus.status} ${pathClass}" data-focus-node="${escapeHtml(focus.id)}" style="left:${position.x}px;top:${position.y}px;width:${cardWidth}px;height:${cardHeight}px" title="${escapeHtml(`${focus.name} / ${focus.pathLabel} / ${focus.eraLabel} / ${focus.effectText}`)}">
+      return `<article class="focus-card focus-node is-${focus.status} ${pathClass}" data-focus-node="${escapeHtml(focus.id)}" data-focus-detail-id="${escapeHtml(focus.id)}" tabindex="0" style="left:${position.x}px;top:${position.y}px;width:${cardWidth}px;height:${cardHeight}px" title="${escapeHtml(`${focus.name} / ${focus.pathLabel} / ${focus.eraLabel} / ${focus.desc} / ${focus.effectText}`)}">
         <div class="focus-card-head"><strong>${escapeHtml(focus.name)}</strong><span class="focus-badge ${badgeClass}">${statusLabel}</span></div>
         <p class="focus-node-meta">${escapeHtml(focus.pathLabel)}${exclusive} · ${escapeHtml(focus.eraLabel)} · 第${focus.tier}段階</p>
         ${lock}
@@ -2325,16 +2465,27 @@ const Orbis = (() => {
     </section>
     <p class="small muted">1932年3月を起点とする。前提を線で結んだノードグラフで、史実経路と2本の代替経路をたどる。排他分岐は片方を選ぶと他方がロックされる。</p>
     <div class="focus-branch"><h3>${escapeHtml(summary.treeLabel)} · 国策ノードグラフ</h3>
-      <div class="focus-graph-head"><p class="small muted">線は前提関係を示す。色は経路、枠は状態（完了・進行中・選択可・ロック）を示す。</p><div class="focus-legend">${legend}</div></div>
-      <div class="focus-graph-scroll"><div class="focus-graph" style="width:${width}px;height:${height}px">
-        <svg class="focus-graph-edges" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">
-          <defs><marker id="focus-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7b8fa3"></path></marker></defs>
-          ${edges}
-        </svg>
-        ${nodes}
-      </div></div>
+      <div class="focus-graph-head"><p class="small muted">線は列間・行間のガターを通る。色は経路、枠は状態（完了・進行中・選択可・ロック）を示す。</p><div class="focus-legend">${legend}</div></div>
+      <div class="focus-graph-toolbar" role="group" aria-label="国策グラフの表示操作">
+        <span class="focus-graph-hint">ドラッグで移動 · ホイールで拡大縮小 · 矢印キーでも移動</span>
+        <span class="focus-graph-zoom"><button type="button" class="btn btn-ghost" data-focus-zoom="out" aria-label="国策グラフを縮小">－</button><span id="focus-zoom-label" class="focus-zoom-label">100%</span><button type="button" class="btn btn-ghost" data-focus-zoom="in" aria-label="国策グラフを拡大">＋</button><button type="button" class="btn btn-ghost" data-focus-zoom="reset">リセット</button></span>
+      </div>
+      <div class="focus-detail" id="focus-detail" aria-live="polite"></div>
+      <div class="focus-graph-viewport" id="focus-graph-viewport" tabindex="0" aria-label="国策ノードグラフ。ドラッグで移動、ホイールで拡大縮小できる。">
+        <div class="focus-graph" id="focus-graph" style="width:${width}px;height:${height}px;transform:translate(0px, 0px) scale(1)">
+          <svg class="focus-graph-edges" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+            <defs><marker id="focus-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7b8fa3"></path></marker></defs>
+            ${edges}
+          </svg>
+          ${nodes}
+        </div>
+      </div>
     </div>`);
+    focusGraphViewState.scale = 1;
+    focusGraphViewState.x = 0;
+    focusGraphViewState.y = 0;
     openDialog('modal-focus');
+    bindFocusGraph(summary);
   }
 
   function openResearchPanel() {
@@ -3200,6 +3351,8 @@ const Orbis = (() => {
     game.territories[stateId] = toNationId;
     delete game.occupations?.[stateId];
     delete game.conflicts?.[stateId];
+    game.cleanTransfers = game.cleanTransfers || {};
+    game.cleanTransfers[stateId] = true;
     addClaim(game, stateId, oldOwner, String(reason || '史実の弧による領土移管').slice(0, 120));
     game.establishedFacts = [...(game.establishedFacts || []), `${regionLabel(region)}が${shortName(oldOwner)}から${shortName(toNationId)}へ移管（${reason}）`].slice(-400);
     return true;
@@ -3222,8 +3375,10 @@ const Orbis = (() => {
 
   const NEW_NATION_COLORS = {
     west_germany: '#1d4ed8', east_germany: '#b91c1c', pakistan: '#15803d',
-    libya: '#0f766e', eritrea_somalia: '#b45309', korea: '#dc2626'
+    libya: '#0f766e', eritrea_somalia: '#b45309', korea: '#2563eb', korea_communist: '#b91c1c'
   };
+  const KOREA_SOUTH_STATE = 'japan_empire_kor';
+  const KOREA_NORTH_STATE = 'japan_empire_prk';
   const NEW_NATION_PALETTE = ['#1d4ed8', '#b91c1c', '#0f766e', '#7c3aed', '#c2410c', '#4d7c0f', '#0369a1', '#a16207', '#be123c', '#4338ca'];
 
   function dynamicNationColor(id) {
@@ -3366,6 +3521,131 @@ const Orbis = (() => {
     const region = regionById(regionId);
     if (!region || regionHolder(game, region) !== sponsorId) return false;
     return arcCreateIndependentFromStates(game, sponsorId, newId, name, [regionId], notes, { type }) > 0;
+  }
+
+  function arcEnsureKoreaNation(game, stateId, id, name, options = {}) {
+    const region = regionById(stateId);
+    if (!region || !game?.nations) return 0;
+    const createMeta = () => {
+      const meta = ensureDynamicNationMeta(game, id, name, options);
+      if (meta) {
+        meta.name = name;
+        meta.code = options.code || meta.code;
+        meta.color = options.color || meta.color || dynamicNationColor(id);
+        meta.summary = id === 'korea_communist'
+          ? '北緯38度線の北側に成立した朝鮮民主主義人民共和国。朝鮮戦争を経ても南北の分断は固定された。'
+          : '北緯38度線の南側に成立した大韓民国。朝鮮戦争の停戦後も独立を維持した。';
+      }
+      return meta;
+    };
+    if (regionHolder(game, region) === id) {
+      reviveNation(game, id);
+      game.cleanTransfers = game.cleanTransfers || {};
+      game.cleanTransfers[stateId] = true;
+      createMeta();
+      return 0;
+    }
+    if (!game.nations[id]) {
+      let sponsorId = options.sponsorId || 'japan';
+      if (!game.nations[sponsorId]) sponsorId = Object.keys(game.nations).find(key => !game.nations[key].dissolved) || 'japan';
+      if (regionHolder(game, region) !== sponsorId && !arcTransferRegion(game, stateId, sponsorId, `${name}成立の準備`)) return 0;
+      const created = createDependentFromRegion(sponsorId, stateId, id, name, 'colony', game);
+      if (!created.ok) return 0;
+    } else {
+      reviveNation(game, id);
+    }
+    if (regionHolder(game, region) !== id && !arcTransferRegion(game, stateId, id, `${name}の成立`)) return 0;
+    game.cleanTransfers = game.cleanTransfers || {};
+    game.cleanTransfers[stateId] = true;
+    arcGrantIndependence(game, id, name, [], { ...options, stateIds: [stateId], noTransfer: true });
+    createMeta();
+    return 1;
+  }
+
+  function arcSplitKorea(game, notes = [], options = {}) {
+    const outcome = game?.postwarSettlement?.pacific?.outcome;
+    if (outcome === 'axis_victory') {
+      return { skipped: true, reason: '枢軸勝利のため分断を適用しない', south: 0, north: 0 };
+    }
+    const south = arcEnsureKoreaNation(game, KOREA_SOUTH_STATE, 'korea', '大韓民国', {
+      sponsorId: options.sponsorId || 'japan', color: NEW_NATION_COLORS.korea, code: 'KOR'
+    });
+    const north = arcEnsureKoreaNation(game, KOREA_NORTH_STATE, 'korea_communist', '朝鮮民主主義人民共和国', {
+      sponsorId: options.sponsorId || 'japan', color: NEW_NATION_COLORS.korea_communist, code: 'PRK'
+    });
+    const unified = game.clients?.col_japan_korea;
+    if (unified && !unified.dissolved) {
+      unified.independent = true;
+      unified.dissolved = true;
+      unified.integratedInto = 'korea';
+      unified.name = '朝鮮';
+      if (game.nations.col_japan_korea) {
+        game.nations.col_japan_korea.dissolved = true;
+        game.nations.col_japan_korea.suzerain = null;
+      }
+    }
+    game.koreaDivision = {
+      ...(game.koreaDivision || {}),
+      parallel: 38,
+      southState: KOREA_SOUTH_STATE,
+      northState: KOREA_NORTH_STATE,
+      southNation: 'korea',
+      northNation: 'korea_communist',
+      appliedAt: game.completedTurns,
+      outcome: 'divided'
+    };
+    if (south || north) {
+      game.establishedFacts = [...(game.establishedFacts || []), '朝鮮半島が北緯38度線で大韓民国と朝鮮民主主義人民共和国に分かれた'].slice(-400);
+      notes.push(`朝鮮半島を北緯38度線で大韓民国と朝鮮民主主義人民共和国に分割（南${south}州・北${north}州）。`);
+    }
+    return {
+      south,
+      north,
+      skipped: false,
+      southHolder: regionHolder(game, regionById(KOREA_SOUTH_STATE)),
+      northHolder: regionHolder(game, regionById(KOREA_NORTH_STATE))
+    };
+  }
+
+  function arcRestoreKoreaUnderJapan(game, notes = []) {
+    if (!game?.nations) return 0;
+    let moved = 0;
+    reviveNation(game, 'japan');
+    for (const stateId of [KOREA_SOUTH_STATE, KOREA_NORTH_STATE]) {
+      const region = regionById(stateId);
+      if (!region || regionHolder(game, region) === 'japan') continue;
+      if (arcTransferRegion(game, stateId, 'japan', '枢軸勝利による朝鮮統治の維持')) moved++;
+    }
+    for (const id of ['korea', 'korea_communist']) {
+      if (!game.nations[id]) continue;
+      game.nations[id].dissolved = true;
+      game.nations[id].suzerain = null;
+      if (game.clients?.[id]) {
+        game.clients[id].dissolved = true;
+        game.clients[id].integratedInto = 'japan';
+      }
+    }
+    const client = game.clients?.col_japan_korea;
+    if (client) {
+      client.dissolved = false;
+      client.independent = false;
+      delete client.integratedInto;
+      client.sponsorId = 'japan';
+      client.name = '朝鮮総督府';
+      if (game.nations.col_japan_korea) {
+        game.nations.col_japan_korea.dissolved = false;
+        game.nations.col_japan_korea.suzerain = 'japan';
+        game.nations.col_japan_korea.vassalType = 'colony';
+      }
+    }
+    if (moved) {
+      game.koreaDivision = { ...(game.koreaDivision || {}), outcome: 'axis_victory_retained', parallel: 38, appliedAt: null };
+      game.establishedFacts = [...(game.establishedFacts || []), '枢軸勝利により朝鮮の分断を適用せず、日本の統治を維持'].slice(-400);
+      notes.push('枢軸勝利のため朝鮮の南北分断を適用せず、日本の統治を維持した。');
+    } else if (game.koreaDivision?.outcome === 'divided') {
+      game.koreaDivision = { ...(game.koreaDivision || {}), outcome: 'axis_victory_retained', appliedAt: null };
+    }
+    return moved;
   }
 
   function arcRestoreOriginalStates(game, countryId, fromIds, reason) {
@@ -3614,23 +3894,15 @@ const Orbis = (() => {
     const victory = arcAxisVictoryPacific(game);
     if (victory) {
       const result = arcEndWarsFor(game, ['japan'], 'axis', notes);
-      game.postwarSettlement = { ...(game.postwarSettlement || {}), pacific: { outcome: 'axis_victory', ended: result.ended, changed: result.changed } };
-      notes.push('太平洋では日本の勝利が確認され、征服結果を維持した。');
-      return { outcome: 'axis_victory', ended: result.ended, changed: result.changed, summary: `日本の勝利を認定、${result.ended}戦争を終結し征服地を維持` };
+      const koreaRetained = arcRestoreKoreaUnderJapan(game, notes);
+      game.postwarSettlement = { ...(game.postwarSettlement || {}), pacific: { outcome: 'axis_victory', ended: result.ended, changed: result.changed, koreaRetained } };
+      notes.push('太平洋では日本の勝利が確認され、征服結果と朝鮮の統治を維持した。');
+      return { outcome: 'axis_victory', ended: result.ended, changed: result.changed, koreaRetained, summary: `日本の勝利を認定、${result.ended}戦争を終結し征服地と朝鮮統治を維持` };
     }
     const ended = arcEndWarsFor(game, ['japan'], 'defender', notes);
     let returned = arcReturnConquests(game, 'japan', '日本の敗戦による征服地返還');
-    let korea = 0;
-    const koreaClient = game.clients?.col_japan_korea;
-    if (koreaClient) {
-      if (koreaClient.dissolved) reviveNation(game, 'col_japan_korea');
-      if (!koreaClient.independent && arcGrantIndependence(game, 'col_japan_korea', '朝鮮', notes, { stateIds: ['japan_empire_kor'], color: NEW_NATION_COLORS.korea })) korea = 1;
-      else if (koreaClient.independent && regionHolder(game, regionById('japan_empire_kor')) !== 'col_japan_korea' && regionHolder(game, regionById('japan_empire_kor')) === 'japan') {
-        if (arcTransferRegion(game, 'japan_empire_kor', 'col_japan_korea', '朝鮮独立の確定')) korea = 1;
-      }
-    } else if (regionHolder(game, regionById('japan_empire_kor')) === 'japan') {
-      korea = arcCreateIndependentFromStates(game, 'japan', 'korea', '朝鮮', ['japan_empire_kor'], notes, { color: NEW_NATION_COLORS.korea, code: 'KOR' }) ? 1 : 0;
-    }
+    const koreaSplit = arcSplitKorea(game, notes);
+    let korea = (koreaSplit.south || 0) + (koreaSplit.north || 0);
     reviveNation(game, 'china');
     let taiwan = 0;
     if (regionHolder(game, regionById('japan_empire_twn')) !== 'china'
@@ -3650,9 +3922,13 @@ const Orbis = (() => {
       game.clients.manchukuo = { ...(game.clients.manchukuo || CLIENTS.manchukuo), dissolved: true, integratedInto: 'china' };
     }
     const changed = ended.changed + returned + korea + taiwan + manchukuo;
-    game.postwarSettlement = { ...(game.postwarSettlement || {}), pacific: { outcome: 'axis_defeat', ended: ended.ended, changed, returned, korea, taiwan, manchukuo } };
-    notes.push(`日本の敗戦講和を適用。征服地${returned}州を返還、朝鮮独立、台湾を中国へ、満洲国${manchukuo}州を解体。`);
-    return { outcome: 'axis_defeat', ended: ended.ended, changed, returned, korea, taiwan, manchukuo, summary: `日本の敗戦を認定、${ended.ended}戦争を終結、${returned}州を返還、朝鮮独立・台湾中国復帰・満洲国解体` };
+    const koreaHolders = {
+      south: regionHolder(game, regionById(KOREA_SOUTH_STATE)),
+      north: regionHolder(game, regionById(KOREA_NORTH_STATE))
+    };
+    game.postwarSettlement = { ...(game.postwarSettlement || {}), pacific: { outcome: 'axis_defeat', ended: ended.ended, changed, returned, korea, taiwan, manchukuo, koreaSplit: { ...koreaSplit, holders: koreaHolders } } };
+    notes.push(`日本の敗戦講和を適用。征服地${returned}州を返還、朝鮮半島を38度線で南北分割、台湾を中国へ、満洲国${manchukuo}州を解体。`);
+    return { outcome: 'axis_defeat', ended: ended.ended, changed, returned, korea, taiwan, manchukuo, koreaSplit, summary: `日本の敗戦を認定、${ended.ended}戦争を終結、${returned}州を返還、朝鮮を南北分割・台湾中国復帰・満洲国解体` };
   }
 
   function evolveFaction(game, factionId, parentNationId, label) {
@@ -4347,6 +4623,7 @@ const Orbis = (() => {
     syncWorld();
     render();
     toast(facts.length ? `和平が成立：${facts.join('、')}。` : '和平が成立し、戦争が終結した。');
+    playSound('peace');
     return { ok: true, warId, cost, available: summary.available, demands: picks.map(demand => demand.id), facts };
   }
 
@@ -4474,6 +4751,7 @@ const Orbis = (() => {
     saveCampaign();
     syncWorld();
     render();
+    playSound('war');
     return true;
   }
 
@@ -4489,6 +4767,7 @@ const Orbis = (() => {
     saveCampaign();
     syncWorld();
     render();
+    playSound('peace');
     return true;
   }
 
@@ -6215,7 +6494,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       const db = window.ORBIS_STATES_DB[i];
       const sovereign = campaign?.territories[region.id] || db.country;
       region.country = sovereign;
-      if (campaign?.occupations?.[region.id]) region.originalOwner = campaign.occupations[region.id];
+      if (campaign?.cleanTransfers?.[region.id]) region.originalOwner = sovereign;
+      else if (campaign?.occupations?.[region.id]) region.originalOwner = campaign.occupations[region.id];
       else if (sovereign !== db.country) region.originalOwner = db.country;
       else region.originalOwner = sovereign;
     }
@@ -6493,6 +6773,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if (!hasConnection()) { openSettings(); return false; }
     rememberDraft();
     closeDialog('turn-review');
+    const focusBefore = completedFocusIds();
     const finished = await runOperation('GMが今月の交渉と世界の動きを裁定しています…', 'resolution', async () => {
       const evaluation = await generateEvaluation(campaign);
       rememberUndo(campaign);
@@ -6506,7 +6787,15 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (campaign.ending) { showEnding(); return; }
       await receiveBriefing();
     });
-    if (finished) maybeShowOnboarding();
+    if (finished) {
+      playSound('turn');
+      const focusAfter = completedFocusIds();
+      if ([...focusAfter].some(id => !focusBefore.has(id))) {
+        if (typeof setTimeout === 'function') setTimeout(() => playSound('focus'), 320);
+        else playSound('focus');
+      }
+      maybeShowOnboarding();
+    }
     return finished;
   }
 
@@ -7765,6 +8054,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if ($('input-api-endpoint')) $('input-api-endpoint').value = config.endpoint;
     if ($('input-api-key')) $('input-api-key').value = config.apiKey;
     if ($('remember-api-key')) $('remember-api-key').checked = config.remember;
+    if ($('toggle-audio-muted')) $('toggle-audio-muted').checked = Boolean(globalThis.ORBIS_AUDIO?.isMuted?.());
     settingsFeedback('APIキーは指定先のLLMへ直接送信。セーブデータには含めません。');
     renderControls();
     openDialog('modal-ai-settings');
@@ -8202,6 +8492,17 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (!regionIds.has(rid) || !validTerritoryHolder(owner)) throw new Error('統治地域のIDが不正です。');
       game.territories[rid] = owner;
     }
+    // M8b 以前の単一朝鮮セーブを、南北2州のセーブへ引き継ぐ。
+    if (regionIds.has(KOREA_NORTH_STATE) && !Object.hasOwn(raw.territories, KOREA_NORTH_STATE) && Object.hasOwn(raw.territories, KOREA_SOUTH_STATE)) {
+      const southOwner = game.territories[KOREA_SOUTH_STATE];
+      if (southOwner === 'korea_communist') {
+        const fallback = game.nations.korea ? 'korea' : (game.clients?.col_japan_korea?.independent ? 'col_japan_korea' : 'japan');
+        game.territories[KOREA_SOUTH_STATE] = fallback;
+        game.territories[KOREA_NORTH_STATE] = 'korea_communist';
+      } else if (['japan', 'col_japan_korea', 'korea'].includes(southOwner)) {
+        game.territories[KOREA_NORTH_STATE] = southOwner;
+      }
+    }
     for (const entry of Object.values(game.localGovernments || {})) {
       entry.stateIds = entry.stateIds.filter(stateId => {
         const region = window.ORBIS_STATES_DB.find(region => region.id === stateId);
@@ -8227,6 +8528,12 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       const rid = mapRegionId(id);
       if (!regionIds.has(rid) || !validTerritoryHolder(owner) || !game.territories[rid] || game.territories[rid] === owner) throw new Error('セーブの占領地域が不正です。');
       game.occupations[rid] = owner;
+    }
+    if (raw.cleanTransfers && typeof raw.cleanTransfers === 'object' && !Array.isArray(raw.cleanTransfers)) {
+      for (const [id, value] of Object.entries(raw.cleanTransfers)) {
+        const rid = mapRegionId(id);
+        if (value && regionIds.has(rid)) game.cleanTransfers[rid] = true;
+      }
     }
     if (raw.formations !== undefined && !Array.isArray(raw.formations)) throw new Error('セーブの部隊データは配列である必要があります。');
     if (Array.isArray(raw.formations) && raw.formations.length) {
@@ -8522,6 +8829,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     on('btn-open-ai-settings', 'click', openSettings);
     on('btn-lobby-open-api', 'click', openSettings);
     on('btn-save-ai-settings', 'click', saveAISettings);
+    on('toggle-audio-muted', 'change', () => {
+      const muted = Boolean(globalThis.ORBIS_AUDIO?.setMuted?.($('toggle-audio-muted')?.checked));
+      toast(muted ? '効果音をミュートしました。' : '効果音のミュートを解除しました。');
+    });
     on('btn-test-ai', 'click', () => testConnection());
     on('btn-lobby-about', 'click', openAbout);
     on('btn-lobby-credits', 'click', openCredits);
@@ -8764,7 +9075,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     };
   };
   return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, setStandingPolicy, clearStandingPolicy, finishTurn, retryBriefing, openSettings, openAbout, openCredits, versionInfo, creditsInfo, settingsInfo, reloadSettings, testAIConnection: testConnection, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, openPanel, setKnowledgeLevel, knowledgeProfiles: KNOWLEDGE_PROFILES, dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
-colorNation, nationMeta: nationId => nationMeta(nationId),
+colorNation, nationMeta: nationId => nationMeta(nationId), audioState: () => globalThis.ORBIS_AUDIO?.state?.() || null, playSound,
 dependentsFor: nationId => Object.values(campaign?.clients || {}).filter(client => client.sponsorId === (nationId || campaign?.playerNationId) && !client.dissolved),
 createDependent: (sponsorId, vassalId, type, name) => createDependent(sponsorId, vassalId, type, name, campaign),
 integrateDependent: vassalId => integrateDependent(vassalId, campaign),
@@ -8772,5 +9083,5 @@ transferDependent: (vassalId, newSponsorId) => transferDependent(vassalId, newSp
 grantAutonomy: (vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) => grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign),
 actorRoster: () => Object.keys(actors),
 createDependentCommand, createDependentRegionCommand, integrateDependentCommand, transferDependentCommand, grantAutonomyCommand,
-warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, onboardingInfo, openOnboarding, maybeShowOnboarding, advanceOnboarding, previousOnboarding, completeOnboarding, dismissOnboarding, undoInfo, undoLastTurn, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, worldArcStatus, worldArcList, worldArcLog, forceWorldArc, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, onboardingInfo, openOnboarding, maybeShowOnboarding, advanceOnboarding, previousOnboarding, completeOnboarding, dismissOnboarding, undoInfo, undoLastTurn, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, focusDetail, focusGraphView, setFocusGraphView, zoomFocusGraph, panFocusGraph, resetFocusGraphView, showFocusDetail, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, worldArcStatus, worldArcList, worldArcLog, forceWorldArc, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();
