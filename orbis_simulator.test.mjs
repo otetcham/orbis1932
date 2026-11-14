@@ -981,6 +981,157 @@ try {
     assert.equal(api.listConflicts().wars.filter(w => w.status === 'active').length, 0);
   });
 
+  await check('戦時得点の範囲内で和平要求が通り、不足要求は拒否され、確定後に領土へ反映される', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(api.declareWar('china', '和平会議テスト'), true);
+    const warm = api.snapshot();
+    const warId = Object.keys(warm.wars).find(id => warm.wars[id].status === 'active');
+    assert.ok(warId);
+    for (const stateId of ['cn_beijing', 'china_cn_hb']) warm.territories[stateId] = 'japan', warm.occupations[stateId] = 'china';
+    await api.restore(warm);
+    const summary = api.peaceConferenceSummary(warId);
+    assert.ok(summary, '和平会議の要約');
+    assert.ok(summary.available > 0, `戦時得点 ${summary.available}`);
+    const annex = summary.demands.find(demand => demand.type === 'annex' && demand.affordable);
+    assert.ok(annex, '得点内の併合要求');
+    const vassalize = summary.demands.find(demand => demand.type === 'vassalize');
+    assert.ok(vassalize, '従属化要求');
+    assert.ok(vassalize.cost > summary.available, `従属化 ${vassalize.cost} > 得点 ${summary.available}`);
+    assert.equal(api.togglePeaceDemand(warId, vassalize.id).ok, false, '得点不足の要求は選べない');
+    const rejected = api.confirmPeaceConference(warId, [vassalize.id]);
+    assert.equal(rejected.ok, false, '得点不足の要求は確定できない');
+    assert.equal(api.snapshot().wars[warId].status, 'active', '拒否時は戦争継続');
+    assert.equal(api.togglePeaceDemand(warId, annex.id).ok, true);
+    const confirmed = api.confirmPeaceConference(warId);
+    assert.equal(confirmed.ok, true, confirmed.error);
+    const after = api.snapshot();
+    assert.equal(after.wars[warId].status, 'peace');
+    assert.equal(after.territories[annex.stateId], 'japan');
+    assert.equal(after.occupations[annex.stateId], undefined, '併合で占領状態を解除');
+    assert.ok((after.claims[annex.stateId] || []).some(claim => claim.nationId === 'china'), '旧所有者の請求権');
+    assert.ok(api.warScoreSummary(warId));
+    assert.ok(context.window.ORBIS_STATES_DB.some(region => region.id === annex.stateId));
+  });
+
+  await check('敵の制海下では海を隔てた部隊の補給が悪化する', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const warm = api.snapshot();
+    const field = warm.formations.find(item => item.nationId === 'japan' && item.type === 'field');
+    assert.ok(field, '野戦部隊');
+    field.regionId = 'usa_pacific';
+    warm.territories.usa_pacific = 'japan';
+    warm.occupations.usa_pacific = 'usa';
+    const region = context.window.ORBIS_STATES_DB.find(item => item.id === 'usa_pacific');
+    assert.ok(region);
+    const zoneDistance = (a, b) => {
+      let dLon = Math.abs((Number(a.lon) || 0) - (Number(b.lon) || 0)) % 360;
+      if (dLon > 180) dLon = 360 - dLon;
+      return Math.hypot(dLon, (Number(a.lat) || 0) - (Number(b.lat) || 0));
+    };
+    const zone = context.window.ORBIS_STATES_DB
+      .filter(item => item.isSea || item.isSeaZone)
+      .sort((a, b) => zoneDistance(region, a) - zoneDistance(region, b))[0];
+    assert.ok(zone, '最寄りの海域');
+    warm.wars['war-sea-test'] = { attacker: 'japan', defender: 'usa', startedTurn: 0, status: 'active', reason: '制海テスト' };
+    warm.maritime = { navy: { japan: 100, usa: 50 }, air: { japan: 50, usa: 20 }, seaControl: { [zone.id]: 'japan' }, turn: 0 };
+    await api.restore(warm);
+    const friendly = api.formationSupply(field.id);
+    assert.ok(friendly.level > 10, `自国制海の海路補給 ${friendly.level}`);
+    assert.equal(friendly.seaControl, 'japan');
+    const hostileSnap = api.snapshot();
+    hostileSnap.maritime.seaControl[zone.id] = 'usa';
+    await api.restore(hostileSnap);
+    const hostile = api.formationSupply(field.id);
+    assert.ok(hostile.level < friendly.level, `敵制海 ${hostile.level} < 自国制海 ${friendly.level}`);
+    assert.equal(hostile.status, 'isolated');
+    assert.equal(hostile.seaControl, 'usa');
+  });
+
+  await check('空軍の薄い効果が前線の補給に出る', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const warm = api.snapshot();
+    const field = warm.formations.find(item => item.nationId === 'japan' && item.type === 'field');
+    assert.ok(field);
+    const homeRegion = context.window.ORBIS_STATES_DB.find(region => !region.isSea && !region.isSeaZone
+      && region.type !== 'sea' && (warm.territories[region.id] || region.country) === 'japan');
+    assert.ok(homeRegion);
+    field.regionId = homeRegion.id;
+    warm.wars['war-air-test'] = { attacker: 'china', defender: 'japan', startedTurn: 0, status: 'active', reason: '航空妨害テスト' };
+    warm.conflicts[field.regionId] = { attacker: 'china', defender: 'japan', months: 1, reason: '航空妨害' };
+    warm.maritime = { navy: {}, air: { japan: 10, china: 200 }, seaControl: {}, turn: 0 };
+    await api.restore(warm);
+    const weak = api.formationSupply(field.id);
+    const strongSnap = api.snapshot();
+    strongSnap.maritime.air = { japan: 200, china: 10 };
+    await api.restore(strongSnap);
+    const strong = api.formationSupply(field.id);
+    assert.ok(strong.level > weak.level, `自国航空優勢 ${strong.level} > 敵航空優勢 ${weak.level}`);
+    assert.ok((weak.interdiction || 0) > 0, '敵航空優勢の補給妨害');
+  });
+
+  await check('内戦を戦争パネルと同じ和平会議から妥結できる', async () => {
+    const { api } = harness();
+    await begin(api);
+    const warm = api.snapshot();
+    warm.civilWars.japan = { factionId: 'japan_rebels', label: '日本反乱軍', status: 'active', startedTurn: 0, halves: 2 };
+    warm.factions.japan_rebels = { parent: 'japan', label: '日本反乱軍', color: '#c2410c' };
+    warm.territories.jp_kanto = 'japan_rebels';
+    warm.occupations.jp_kanto = 'japan';
+    await api.restore(warm);
+    const summary = api.civilWarPeaceSummary('japan');
+    assert.ok(summary, '内戦和平の要約');
+    assert.ok(summary.held.some(item => item.stateId === 'jp_kanto'), '反乱勢力の支配州');
+    assert.ok(summary.demands.some(demand => demand.id === 'civil_return'));
+    assert.ok(summary.demands.some(demand => demand.id === 'civil_autonomy'));
+    const result = api.settleCivilWar('japan', 'return');
+    assert.equal(result.ok, true, result.error);
+    const after = api.snapshot();
+    assert.equal(after.civilWars.japan.status, 'resolved');
+    assert.equal(after.territories.jp_kanto, 'japan');
+    assert.equal(after.occupations.jp_kanto, undefined);
+    assert.ok(!api.listConflicts().civil.some(item => item.nationId === 'japan'));
+  });
+
+  await check('戦時得点・和平会議の草案・海空軍状態は保存と再開で残り、旧セーブは既定値で読む', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(api.declareWar('china', '保存テスト'), true);
+    const warm = api.snapshot();
+    const warId = Object.keys(warm.wars).find(id => warm.wars[id].status === 'active');
+    warm.territories.cn_beijing = 'japan';
+    warm.occupations.cn_beijing = 'china';
+    const zone = context.window.ORBIS_STATES_DB.find(item => item.isSea || item.isSeaZone);
+    warm.maritime = { navy: { japan: 123 }, air: { japan: 45 }, seaControl: { [zone.id]: 'japan' }, turn: 0 };
+    await api.restore(warm);
+    const summary = api.peaceConferenceSummary(warId);
+    const hold = summary.demands.find(demand => demand.type === 'hold');
+    assert.ok(hold);
+    assert.equal(api.togglePeaceDemand(warId, hold.id).ok, true);
+    const saved = api.snapshot();
+    assert.ok(saved.warScores[warId], '戦時得点');
+    assert.deepEqual(json(saved.peaceConferences[warId].draft), [hold.id]);
+    const restored = harness().api;
+    assert.equal(await restored.restore(saved), true);
+    const after = restored.snapshot();
+    assert.equal(after.warScores[warId].available, saved.warScores[warId].available);
+    assert.deepEqual(json(after.peaceConferences[warId].draft), [hold.id]);
+    assert.equal(after.maritime.navy.japan, 123);
+    assert.equal(after.maritime.air.japan, 45);
+    assert.equal(after.maritime.seaControl[zone.id], 'japan');
+    const old = json(saved);
+    delete old.maritime;
+    delete old.peaceConferences;
+    delete old.warScores;
+    const oldApi = harness().api;
+    assert.equal(await oldApi.restore(old), true);
+    assert.deepEqual(json(oldApi.snapshot().maritime), { navy: {}, air: {}, seaControl: {}, turn: -1 });
+    assert.deepEqual(json(oldApi.snapshot().peaceConferences), {});
+    assert.deepEqual(json(oldApi.snapshot().warScores), {});
+  });
+
   await check('統治危機が4半月続くと内戦が発生し紛争一覧に載る', async () => {
     const { api } = harness();
     await begin(api);

@@ -48,11 +48,16 @@ window.ORBIS_PLAYBACK = (() => {
     const loc = item.location ? `<div class="tp-location">${item.location}</div>` : '';
     const body = (item.body || '').slice(0, 180);
     el.innerHTML = `<div class="tp-date">${item.date || ''}</div><strong>${item.headline || ''}</strong>${loc}<p>${body}</p>`;
+    el.hidden = false;
     el.classList.add('visible');
   }
 
   function hideCard() {
-    document.getElementById('turn-playback-card')?.classList.remove('visible');
+    const el = document.getElementById('turn-playback-card');
+    if (!el) return;
+    el.classList.remove('visible');
+    el.hidden = true;
+    el.innerHTML = '';
   }
 
   function pulseRegion(stateId) {
