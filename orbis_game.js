@@ -189,7 +189,7 @@ const Orbis = (() => {
       nations, relations, leaders: {}, actorState: {}, threads: {}, activeActorId: 'adviser',
       articles: [], briefing: null, turnActions: [], commitments: [], treaties: [], clients: copy(CLIENTS), territories: {},
       dynamicNations: {},
-      nationalAction: null, actionDraft: '', actionHistory: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [],
+      nationalAction: null, actionDraft: '', actionHistory: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [], economy: {},
       establishedFacts: [], timelineFired: {}, turnPlaybackQueue: [], worldMemory: '', stress: { collapse: 0, bankruptcy: 0, war: 0, civil: 0 },
       globalWarHalves: 0, worldWarActive: false, lastResolutionIssues: [],
       cumulative: { treaties: 0, fulfilled: 0, broken: 0 }, ending: null, savedAt: null,
@@ -197,6 +197,7 @@ const Orbis = (() => {
     };
     seedColonialDependents(game);
     seedFormations(game);
+    seedEconomy(game);
     return game;
   }
 
@@ -1032,6 +1033,10 @@ const Orbis = (() => {
   const isLandRegion = r => r && !r.isSea && !r.isSeaZone && r.type !== 'sea';
 
   const FORMATION_TYPE_LABELS = { field: '野戦部隊', garrison: '守備隊' };
+  const MOBILIZATION_LABELS = ['平時', '警戒', '動員', '総動員'];
+  const SUPPLY_LABELS = { full: '十分', stretched: '伸びた', low: '不足', isolated: '孤立' };
+  const RECRUIT_MANPOWER_COST = 30;
+  const RECRUIT_EQUIPMENT_COST = 20;
   let lastFormationOrderError = '';
 
   function formationTypeLabel(type) {
@@ -1065,6 +1070,247 @@ const Orbis = (() => {
     }
     for (const id of extraIds) if (id) reachable.add(id);
     return reachable;
+  }
+
+  function factoryCounts(game, nationId) {
+    const sphere = formationSphereIds(game, nationId);
+    let civil = 0;
+    let military = 0;
+    let regions = 0;
+    for (const region of window.ORBIS_STATES_DB) {
+      if (!isLandRegion(region) || !sphere.has(regionHolder(game, region))) continue;
+      civil += Math.max(0, Number(region.cic) || 0);
+      military += Math.max(0, Number(region.mic) || 0);
+      regions++;
+    }
+    return { civil, military, regions };
+  }
+
+  function economyEntry(game, nationId, create = true) {
+    if (!game || !nationId) return null;
+    if (!game.economy || typeof game.economy !== 'object') game.economy = {};
+    let entry = game.economy[nationId];
+    if (!entry && create) {
+      const sphere = formationSphereIds(game, nationId);
+      let vp = 0;
+      for (const region of window.ORBIS_STATES_DB) {
+        if (isLandRegion(region) && sphere.has(regionHolder(game, region))) vp += Math.max(0, Number(region.vp) || 0);
+      }
+      const factories = factoryCounts(game, nationId);
+      entry = game.economy[nationId] = {
+        manpower: clamp(30 + Math.round(vp * 0.6), 20, 5000),
+        mobilization: 0,
+        equipment: clamp(15 + Math.round(factories.military / 25), 10, 400),
+        militaryShare: 50,
+        lastProduction: null,
+        pendingNotes: []
+      };
+    }
+    return entry || null;
+  }
+
+  function seedEconomy(game) {
+    if (!game) return;
+    game.economy = {};
+    for (const nationId of Object.keys(game.nations || {})) economyEntry(game, nationId);
+  }
+
+  function mobilizationGrowth(entry) {
+    return 2 + Math.max(0, Math.min(MOBILIZATION_LABELS.length - 1, Number(entry?.mobilization) || 0)) * 3;
+  }
+
+  function economySummary(nationId) {
+    if (!campaign) return null;
+    const id = nationId || campaign.playerNationId;
+    const entry = economyEntry(campaign, id);
+    if (!entry) return null;
+    const factories = factoryCounts(campaign, id);
+    const formations = (campaign.formations || []).filter(item => item.nationId === id);
+    return {
+      nationId: id,
+      manpower: entry.manpower,
+      mobilization: entry.mobilization,
+      mobilizationLabel: MOBILIZATION_LABELS[entry.mobilization] || MOBILIZATION_LABELS[0],
+      equipment: entry.equipment,
+      militaryShare: entry.militaryShare,
+      factories,
+      formations: formations.length,
+      lastProduction: entry.lastProduction ? copy(entry.lastProduction) : null,
+      pendingNotes: copy(entry.pendingNotes || []),
+      recruitCost: { manpower: RECRUIT_MANPOWER_COST, equipment: RECRUIT_EQUIPMENT_COST }
+    };
+  }
+
+  function setMobilizationLevel(level) {
+    if (!campaign || campaign.phase !== 'playing') return false;
+    const next = Math.round(Number(level));
+    if (!Number.isFinite(next) || next < 0 || next >= MOBILIZATION_LABELS.length) return false;
+    const entry = economyEntry(campaign, campaign.playerNationId);
+    const previous = entry.mobilization;
+    if (next === previous) return true;
+    const nation = campaign.nations[campaign.playerNationId];
+    if (next > previous) {
+      const steps = next - previous;
+      campaign.treasury = clamp(campaign.treasury - steps * 3, 0, 100);
+      nation.stb = clamp(nation.stb - steps, 0, 100);
+      entry.pendingNotes = [...(entry.pendingNotes || []), `動員段階を${MOBILIZATION_LABELS[next]}へ引き上げ（財政 -${steps * 3}、安定度 -${steps}）。`].slice(-10);
+    } else {
+      entry.pendingNotes = [...(entry.pendingNotes || []), `動員段階を${MOBILIZATION_LABELS[next]}へ引き下げ。`].slice(-10);
+    }
+    entry.mobilization = next;
+    saveCampaign();
+    syncWorld();
+    render();
+    if ($('modal-economy')?.open) openEconomyPanel();
+    return true;
+  }
+
+  function setProductionSplit(share) {
+    if (!campaign || campaign.phase !== 'playing') return false;
+    const value = Math.round(Number(share));
+    if (!Number.isFinite(value) || value < 0 || value > 100) return false;
+    const entry = economyEntry(campaign, campaign.playerNationId);
+    entry.militaryShare = value;
+    saveCampaign();
+    if ($('modal-economy')?.open) openEconomyPanel();
+    return true;
+  }
+
+  function controlledRecruitRegion(game, nationId) {
+    const sphere = formationSphereIds(game, nationId);
+    const candidates = window.ORBIS_STATES_DB.filter(region => isLandRegion(region) && sphere.has(regionHolder(game, region)));
+    if (!candidates.length) return null;
+    const home = globalThis.ORBIS_MAP_META?.countryAnchors?.[nationId]?.homeRegionId;
+    const homeRegion = home ? candidates.find(region => region.id === home) : null;
+    if (homeRegion) return homeRegion;
+    return candidates.slice().sort((a, b) => (b.vp || 0) - (a.vp || 0) || (b.cic || 0) + (b.mic || 0) - (a.cic || 0) - (a.mic || 0))[0];
+  }
+
+  function recruitFormation() {
+    if (!campaign || campaign.phase !== 'playing') return { ok: false, error: 'キャンペーン進行中のみ新編制できます。' };
+    const nationId = campaign.playerNationId;
+    const entry = economyEntry(campaign, nationId);
+    if (entry.manpower < RECRUIT_MANPOWER_COST || entry.equipment < RECRUIT_EQUIPMENT_COST) {
+      return { ok: false, error: `新編制には兵力 ${RECRUIT_MANPOWER_COST} と装備 ${RECRUIT_EQUIPMENT_COST} が必要です。` };
+    }
+    const region = controlledRecruitRegion(campaign, nationId);
+    if (!region) return { ok: false, error: '新編制できる支配陸州がありません。' };
+    if (!Array.isArray(campaign.formations)) campaign.formations = [];
+    const used = new Set(campaign.formations.map(item => item.id));
+    let index = campaign.formations.filter(item => item.nationId === nationId && item.type === 'field').length + 1;
+    let id = `formation-${nationId}-field-new-${index}`;
+    while (used.has(id)) { index++; id = `formation-${nationId}-field-new-${index}`; }
+    const formation = {
+      id,
+      nationId,
+      type: 'field',
+      regionId: region.id,
+      strength: 55,
+      order: { kind: 'defend' }
+    };
+    campaign.formations.push(formation);
+    entry.manpower -= RECRUIT_MANPOWER_COST;
+    entry.equipment -= RECRUIT_EQUIPMENT_COST;
+    entry.pendingNotes = [...(entry.pendingNotes || []), `新編制：${regionLabel(region)}で野戦部隊を編成（兵力 -${RECRUIT_MANPOWER_COST}、装備 -${RECRUIT_EQUIPMENT_COST}）。`].slice(-10);
+    saveCampaign();
+    syncWorld();
+    render();
+    if ($('modal-economy')?.open) openEconomyPanel();
+    return { ok: true, formation: copy(formation) };
+  }
+
+  function regionSupplyInfo(game, regionId, nationId) {
+    const region = regionById(regionId);
+    if (!isLandRegion(region)) return { level: 100, status: 'full', label: SUPPLY_LABELS.full, distance: 0 };
+    const sphere = formationSphereIds(game, nationId);
+    if (!sphere.has(regionHolder(game, region))) return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null };
+    const hubs = [];
+    for (const candidate of window.ORBIS_STATES_DB) {
+      if (!isLandRegion(candidate)) continue;
+      // 本国・従属圏の元来の領土を補給の起点にする。島国の首都もここで扱える。
+      if (!sphere.has(candidate.country)) continue;
+      if (!sphere.has(regionHolder(game, candidate))) continue;
+      hubs.push(candidate.id);
+    }
+    const home = globalThis.ORBIS_MAP_META?.countryAnchors?.[nationId]?.homeRegionId;
+    if (home) {
+      const homeRegion = regionById(home);
+      if (homeRegion && sphere.has(regionHolder(game, homeRegion))) hubs.push(home);
+    }
+    if (!hubs.length) hubs.push(regionId);
+    const adjacency = landAdjacency();
+    const distance = new Map();
+    const queue = [];
+    for (const id of new Set(hubs)) { distance.set(id, 0); queue.push(id); }
+    while (queue.length) {
+      const id = queue.shift();
+      for (const nextId of adjacency.get(id) || []) {
+        if (distance.has(nextId)) continue;
+        const next = regionById(nextId);
+        if (!isLandRegion(next) || !sphere.has(regionHolder(game, next))) continue;
+        distance.set(nextId, distance.get(id) + 1);
+        queue.push(nextId);
+      }
+    }
+    if (!distance.has(regionId)) return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null };
+    const steps = distance.get(regionId);
+    const level = clamp(100 - steps * 7, 20, 100);
+    const status = level >= 70 ? 'full' : level >= 40 ? 'stretched' : 'low';
+    return { level, status, label: SUPPLY_LABELS[status], distance: steps };
+  }
+
+  function formationSupplyInfo(game, formation) {
+    if (!formation) return { level: 100, status: 'full', label: SUPPLY_LABELS.full, distance: 0 };
+    return regionSupplyInfo(game, formation.regionId, formation.nationId);
+  }
+
+  function tickEconomy(game, notes = []) {
+    if (!game || !game.nations) return;
+    if (!Array.isArray(game.formations)) game.formations = [];
+    const activeWars = Object.values(game.wars || {}).filter(war => war.status === 'active');
+    for (const nationId of Object.keys(game.nations)) {
+      const entry = economyEntry(game, nationId);
+      if (!entry) continue;
+      const atWar = activeWars.some(war => war.attacker === nationId || war.defender === nationId);
+      if (nationId !== game.playerNationId) {
+        entry.mobilization = atWar ? 2 : Math.max(0, entry.mobilization - 1);
+        entry.militaryShare = atWar ? 70 : 45;
+      }
+      const factories = factoryCounts(game, nationId);
+      const share = clamp(Math.round(entry.militaryShare), 0, 100);
+      const manpowerGain = mobilizationGrowth(entry);
+      entry.manpower += manpowerGain;
+      const equipmentGain = Math.max(0, Math.round(factories.military * share / 1000));
+      entry.equipment += equipmentGain;
+      let treasuryGain = 0;
+      if (nationId === game.playerNationId) {
+        const civilianLean = Math.max(0, 50 - share);
+        treasuryGain = civilianLean > 0 ? Math.min(2, Math.round(factories.civil * civilianLean / 20000)) : 0;
+        game.treasury = clamp(game.treasury + treasuryGain, 0, 100);
+      }
+      const replenishBudget = 1 + Math.round(share / 25);
+      let replenished = 0;
+      for (const formation of game.formations) {
+        if (formation.nationId !== nationId || formation.strength >= 100) continue;
+        const spend = Math.min(replenishBudget, 100 - formation.strength, Math.floor(entry.equipment));
+        if (spend <= 0) break;
+        formation.strength += spend;
+        entry.equipment -= spend;
+        replenished += spend;
+      }
+      const upkeep = Math.max(0, entry.mobilization - 1);
+      if (nationId === game.playerNationId && upkeep > 0) {
+        game.treasury = clamp(game.treasury - upkeep, 0, 100);
+        if (entry.mobilization >= MOBILIZATION_LABELS.length - 1) game.nations[nationId].stb = clamp(game.nations[nationId].stb - 1, 0, 100);
+      }
+      entry.lastProduction = { equipment: equipmentGain, manpower: manpowerGain, replenished, treasury: treasuryGain - upkeep, turn: game.completedTurns };
+      if (nationId === game.playerNationId) {
+        for (const note of entry.pendingNotes || []) notes.push(note);
+        entry.pendingNotes = [];
+        notes.push(`動員（${MOBILIZATION_LABELS[entry.mobilization]}）：兵力 +${manpowerGain}。`);
+        if (equipmentGain || replenished) notes.push(`生産：装備 +${equipmentGain}、補充 ${replenished}。`);
+      }
+    }
   }
 
   // 開始時に各国の陸上領土へ守備隊と野戦部隊を置く。
@@ -1162,8 +1408,8 @@ const Orbis = (() => {
       if (!isLandRegion(region)) continue;
       const holder = regionHolder(campaign, region);
       const prior = campaign.occupations?.[region.id];
-      const candidates = [holder, prior].filter(id => id && id !== formation.nationId);
-      const enemy = candidates.find(id => activeWarBetween(campaign, formation.nationId, id));
+      const enemy = warEnemyAgainst(campaign, formation.nationId, holder, formation.order?.targetNationId || null)
+        || (prior && prior !== formation.nationId ? warEnemyAgainst(campaign, formation.nationId, prior, formation.order?.targetNationId || null) : null);
       if (!enemy) continue;
       if (holder === formation.nationId && prior !== enemy) continue;
       targets.push({
@@ -1197,14 +1443,16 @@ const Orbis = (() => {
     if (targetId === formation.regionId) return { ok: false, error: '部隊の現在地へ攻勢は指示できません。' };
     const holder = regionHolder(campaign, target);
     const prior = campaign.occupations?.[target.id];
-    const candidates = [holder, prior].filter(id => id && id !== formation.nationId);
     if (holder === formation.nationId && !prior) return { ok: false, error: '自国が統治する州へは攻勢を指示できません。' };
-    if (order.targetNationId && !candidates.includes(order.targetNationId)) {
+    const preferred = typeof order.targetNationId === 'string' ? order.targetNationId : null;
+    const holderEnemy = warEnemyAgainst(campaign, formation.nationId, holder, preferred);
+    const priorEnemy = prior && prior !== formation.nationId ? warEnemyAgainst(campaign, formation.nationId, prior, preferred) : null;
+    if (preferred && ![holderEnemy, priorEnemy].includes(preferred)) {
       return { ok: false, error: '指定した敵国はこの州の支配国・元領有国と一致しません。' };
     }
-    const enemy = order.targetNationId && activeWarBetween(campaign, formation.nationId, order.targetNationId)
-      ? order.targetNationId
-      : candidates.find(id => activeWarBetween(campaign, formation.nationId, id));
+    const enemy = preferred && activeWarBetween(campaign, formation.nationId, preferred)
+      ? preferred
+      : holderEnemy || priorEnemy;
     if (!enemy) return { ok: false, error: '平和時は敵領への攻勢を指示できません。対象国と戦争状態にありません。' };
     // 遠い目標は進軍方向として保持し、解決時は現在地に隣接する陸州だけへ1歩進む。
     return { ok: true, order: { kind: 'offensive', targetRegionId: target.id, targetNationId: enemy } };
@@ -1250,12 +1498,109 @@ const Orbis = (() => {
     return [...(adj.get(regionId) || [])].map(id => regionById(id)).filter(isLandRegion);
   }
 
+  function warPartyIds(game, nationId, seen = new Set()) {
+    if (!nationId || seen.has(nationId)) return [];
+    seen.add(nationId);
+    const ids = [nationId];
+    const client = game.clients?.[nationId];
+    if (client && !client.dissolved && !client.independent && !client.annexed && client.sponsorId) {
+      ids.push(...warPartyIds(game, client.sponsorId, seen));
+    }
+    return ids;
+  }
+
+  // 従属国は宗主国の戦争に巻き込まれる。地域の実際の支配国と、その戦争当事国を分けて返す。
+  function warEnemyAgainst(game, nationId, holderId, preferred = null) {
+    if (!holderId || holderId === nationId) return null;
+    const party = warPartyIds(game, holderId);
+    if (preferred && party.includes(preferred) && activeWarBetween(game, nationId, preferred)) return preferred;
+    if (activeWarBetween(game, nationId, holderId)) return holderId;
+    return party.find(id => id !== holderId && activeWarBetween(game, nationId, id)) || null;
+  }
+
   function formationEnemyAt(game, formation, region) {
     const holder = regionHolder(game, region);
-    if (holder !== formation.nationId && activeWarBetween(game, formation.nationId, holder)) return holder;
+    const holderEnemy = warEnemyAgainst(game, formation.nationId, holder, formation.order?.targetNationId || null);
+    if (holderEnemy) return holderEnemy;
     const prior = game.occupations?.[region.id];
-    if (prior && prior !== formation.nationId && activeWarBetween(game, formation.nationId, prior)) return prior;
+    if (prior && prior !== formation.nationId) return warEnemyAgainst(game, formation.nationId, prior, formation.order?.targetNationId || null);
     return null;
+  }
+
+  // 退却先として扱える自国・宗主国・従属圏を双方向にたどる。
+  function formationFriendlyNations(game, nationId) {
+    const ids = new Set([nationId]);
+    let current = nationId;
+    for (let depth = 0; depth < 6; depth++) {
+      const client = game?.clients?.[current];
+      if (!client || client.dissolved || client.independent || client.annexed || !client.sponsorId) break;
+      if (ids.has(client.sponsorId)) break;
+      ids.add(client.sponsorId);
+      current = client.sponsorId;
+    }
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [clientId, client] of Object.entries(game?.clients || {})) {
+        if (!client || client.dissolved || client.independent || client.annexed) continue;
+        if (ids.has(client.sponsorId) && !ids.has(clientId)) {
+          ids.add(clientId);
+          changed = true;
+        }
+      }
+    }
+    return ids;
+  }
+
+  function retreatRegionScore(game, formation, region, friendlies, adjacency) {
+    const supply = regionSupplyInfo(game, region.id, formation.nationId);
+    const hostileNeighbors = [...(adjacency.get(region.id) || [])].filter(id => {
+      const neighbor = regionById(id);
+      if (!isLandRegion(neighbor)) return false;
+      const holder = regionHolder(game, neighbor);
+      return !friendlies.has(holder) && warEnemyAgainst(game, formation.nationId, holder);
+    }).length;
+    const contested = game.formations.some(item => item && item !== formation && item.regionId === region.id
+      && item.nationId !== formation.nationId && warEnemyAgainst(game, formation.nationId, item.nationId));
+    return { supply, hostileNeighbors, contested };
+  }
+
+  function pickRetreatRegion(game, formation, capturedRegion) {
+    const friendlies = formationFriendlyNations(game, formation.nationId);
+    const adjacency = landAdjacency();
+    const candidates = [...(adjacency.get(capturedRegion.id) || [])]
+      .map(regionById)
+      .filter(region => region && region.id !== capturedRegion.id && isLandRegion(region) && friendlies.has(regionHolder(game, region)));
+    if (!candidates.length) return null;
+    return candidates
+      .map(region => ({ region, ...retreatRegionScore(game, formation, region, friendlies, adjacency) }))
+      .sort((a, b) => {
+        if (a.contested !== b.contested) return a.contested ? 1 : -1;
+        if (a.supply.level !== b.supply.level) return b.supply.level - a.supply.level;
+        if (a.hostileNeighbors !== b.hostileNeighbors) return a.hostileNeighbors - b.hostileNeighbors;
+        return (b.region.vp || 0) - (a.region.vp || 0);
+      })[0].region;
+  }
+
+  // 占領・奪還の副作用として、新しい支配者の敵部隊を隣接する友邦陸州へ退かす。
+  // 退却先がなければ捕捉・撃破して編成から除く。追加の占領は行わない。
+  function retreatEnemyFormations(game, region, newHolderId, notes = []) {
+    const defenders = game.formations.filter(formation => formation && formation.regionId === region.id
+      && formation.nationId !== newHolderId
+      && warEnemyAgainst(game, newHolderId, formation.nationId));
+    for (const formation of defenders) {
+      const destination = pickRetreatRegion(game, formation, region);
+      const label = `${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}`;
+      if (destination) {
+        formation.regionId = destination.id;
+        formation.order = { kind: 'defend' };
+        notes.push(`${label}は${regionLabel(region)}から${regionLabel(destination)}へ退却。`);
+      } else {
+        const index = game.formations.indexOf(formation);
+        if (index >= 0) game.formations.splice(index, 1);
+        notes.push(`${label}は${regionLabel(region)}で撃破または捕捉され、編成から除去。`);
+      }
+    }
   }
 
   // 攻勢は目標そのものではなく、現在地に陸続きで隣接する敵陸州をたかだか1つ選ぶ。
@@ -1276,15 +1621,83 @@ const Orbis = (() => {
     return candidates.sort((a, b) => rank(a) - rank(b) || (b.vp || 0) - (a.vp || 0))[0] || null;
   }
 
+  // 国際戦争中のNPC国家は自国部隊へ防御・攻勢を割り当てる。
+  // プレイヤー部隊には触れず、攻勢目標も隣接する敵陸州に限る。
+  function assignNpcFormationOrders(game) {
+    if (!Array.isArray(game.formations)) return;
+    const enemiesByNation = new Map();
+    for (const war of Object.values(game.wars || {})) {
+      if (war.status !== 'active') continue;
+      for (const [nationId, enemyId] of [[war.attacker, war.defender], [war.defender, war.attacker]]) {
+        if (!game.nations?.[nationId] || !game.nations?.[enemyId]) continue;
+        if (!enemiesByNation.has(nationId)) enemiesByNation.set(nationId, new Set());
+        enemiesByNation.get(nationId).add(enemyId);
+      }
+    }
+    if (!enemiesByNation.size) return;
+    const adjacency = landAdjacency();
+    const assignments = new Map();
+    for (const formation of game.formations) {
+      if (!formation || formation.nationId === game.playerNationId) continue;
+      const enemies = enemiesByNation.get(formation.nationId);
+      if (!enemies || !enemies.size) continue;
+      if (formation.type !== 'field') {
+        formation.order = { kind: 'defend' };
+        continue;
+      }
+      const candidates = [];
+      for (const regionId of adjacency.get(formation.regionId) || []) {
+        if (regionId === formation.regionId) continue;
+        const region = regionById(regionId);
+        if (!isLandRegion(region)) continue;
+        const holder = regionHolder(game, region);
+        const prior = game.occupations?.[regionId];
+        const holderEnemy = warEnemyAgainst(game, formation.nationId, holder);
+        const priorEnemy = prior && prior !== formation.nationId ? warEnemyAgainst(game, formation.nationId, prior) : null;
+        const enemy = [holderEnemy, priorEnemy].find(id => id && enemies.has(id));
+        if (!enemy) continue;
+        if (holder === formation.nationId && prior !== enemy) continue;
+        candidates.push({ region, enemy, reclaim: prior === formation.nationId });
+      }
+      if (!candidates.length) {
+        formation.order = { kind: 'defend' };
+        continue;
+      }
+      const origin = regionById(formation.regionId);
+      candidates.sort((a, b) => {
+        const countA = assignments.get(a.region.id) || 0;
+        const countB = assignments.get(b.region.id) || 0;
+        if (countA !== countB) return countA - countB;
+        if (a.reclaim !== b.reclaim) return a.reclaim ? -1 : 1;
+        const distanceA = Math.hypot((a.region.lon || 0) - (origin?.lon || 0), (a.region.lat || 0) - (origin?.lat || 0));
+        const distanceB = Math.hypot((b.region.lon || 0) - (origin?.lon || 0), (b.region.lat || 0) - (origin?.lat || 0));
+        return distanceA - distanceB || (b.region.vp || 0) - (a.region.vp || 0);
+      });
+      const pick = candidates[0];
+      formation.order = { kind: 'offensive', targetRegionId: pick.region.id, targetNationId: pick.enemy };
+      assignments.set(pick.region.id, (assignments.get(pick.region.id) || 0) + 1);
+    }
+  }
+
   function resolveFormationFronts(game, notes = []) {
     if (!Array.isArray(game.formations)) return;
-    for (const formation of game.formations) {
-      if (!formation) continue;
+    for (const formation of game.formations.slice()) {
+      if (!formation || !game.formations.includes(formation)) continue;
+      const supply = formationSupplyInfo(game, formation);
+      formation.supply = supply.level;
+      formation.supplyStatus = supply.status;
+      const playerFormation = formation.nationId === game.playerNationId;
       if (!formation.order || formation.order.kind === 'defend') {
-        formation.strength = clamp((formation.strength || 1) + 1, 1, 100);
+        if (supply.level < 40) formation.strength = Math.max(10, (formation.strength || 1) - 1);
+        else formation.strength = clamp((formation.strength || 1) + 1, 1, 100);
         continue;
       }
       if (formation.order.kind !== 'offensive') continue;
+      if (supply.level < 40) {
+        formation.strength = Math.max(10, (formation.strength || 1) - 2);
+        if (playerFormation) notes.push(`${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}は補給不足（${supply.label}）のため攻勢が停滞。`);
+        continue;
+      }
       const target = regionById(formation.order.targetRegionId);
       const holder = target ? regionHolder(game, target) : null;
       const prior = target ? game.occupations?.[target.id] : null;
@@ -1307,13 +1720,22 @@ const Orbis = (() => {
       if (!step) continue;
       const defender = formationEnemyAt(game, formation, step);
       if (!defender) continue;
+      const sovereign = regionHolder(game, step);
+      const originalOwner = game.occupations?.[step.id] || sovereign;
+      const liberated = originalOwner === formation.nationId;
       game.territories[step.id] = formation.nationId;
-      game.occupations[step.id] = defender;
-      game.conflicts[step.id] = { attacker: formation.nationId, defender, months: 1, reason: `${shortName(formation.nationId)}の攻勢` };
+      if (liberated) {
+        delete game.occupations[step.id];
+        delete game.conflicts[step.id];
+      } else {
+        game.occupations[step.id] = originalOwner;
+        game.conflicts[step.id] = { attacker: formation.nationId, defender: originalOwner, months: 1, reason: `${shortName(formation.nationId)}の攻勢` };
+      }
       if (formation.type === 'field') formation.regionId = step.id;
-      formation.strength = Math.max(20, (formation.strength || 50) - 2);
-      notes.push(`${regionLabel(step)}を${shortName(formation.nationId)}が占領。`);
+      formation.strength = Math.max(20, (formation.strength || 50) - 2 - (supply.level < 70 ? 1 : 0));
+      notes.push(liberated ? `${regionLabel(step)}を${shortName(formation.nationId)}が奪還。` : `${regionLabel(step)}を${shortName(formation.nationId)}が占領。`);
       notes.push(`${shortName(formation.nationId)}の${formationTypeLabel(formation.type)}が${regionLabel(step)}方面へ前進（戦力 ${formation.strength}）。`);
+      retreatEnemyFormations(game, step, formation.nationId, notes);
       if (target.id === step.id) {
         const next = adjacentLandRegions(formation.regionId)
           .filter(region => formationEnemyAt(game, formation, region))
@@ -1383,79 +1805,6 @@ const Orbis = (() => {
     return footprint;
   }
 
-  function attackOrigin(game, attacker) {
-    const anchors = globalThis.ORBIS_MAP_META?.countryAnchors || {};
-    const sphere = attackerSphereIds(game, attacker);
-    const pts = [...sphere].map(id => anchors[id]).filter(Boolean);
-    if (pts.length) {
-      return { lon: pts.reduce((sum, p) => sum + p.lon, 0) / pts.length, lat: pts.reduce((sum, p) => sum + p.lat, 0) / pts.length };
-    }
-    return anchors[attacker] || { lon: 0, lat: 20 };
-  }
-
-  function rankByFrontline(regions, origin) {
-    return regions.slice().sort((a, b) => {
-      const da = Math.hypot((a.lon || 0) - origin.lon, (a.lat || 0) - origin.lat);
-      const db = Math.hypot((b.lon || 0) - origin.lon, (b.lat || 0) - origin.lat);
-      if (Math.abs(da - db) > 0.01) return da - db;
-      return (b.vp || 0) - (a.vp || 0);
-    });
-  }
-
-  function pickFrontierSeizures(game, attacker, defender, count) {
-    const adj = landAdjacency();
-    const footprint = attackerFootprint(game, attacker);
-    const origin = attackOrigin(game, attacker);
-    const seized = [];
-    const occupiedByAttacker = new Set();
-    let frontier = new Set();
-    const refreshFrontier = () => {
-      frontier = new Set();
-      for (const id of footprint) {
-        for (const n of adj.get(id) || []) {
-          const r = regionById(n);
-          if (!isLandRegion(r)) continue;
-          if (regionHolder(game, r) !== defender) continue;
-          if (game.territories[r.id] === attacker) continue;
-          frontier.add(n);
-        }
-      }
-    };
-    refreshFrontier();
-    while (seized.length < count && frontier.size) {
-      const ranked = rankByFrontline([...frontier].map(id => regionById(id)).filter(Boolean), origin);
-      const target = ranked[0];
-      if (!target) break;
-      frontier.delete(target.id);
-      seized.push(target);
-      footprint.add(target.id);
-      occupiedByAttacker.add(target.id);
-      for (const n of adj.get(target.id) || []) {
-        const r = regionById(n);
-        if (!isLandRegion(r)) continue;
-        if (regionHolder(game, r) !== defender) continue;
-        if (game.territories[r.id] === attacker || occupiedByAttacker.has(n)) continue;
-        frontier.add(n);
-      }
-    }
-    if (seized.length < count) {
-      const heldList = [...footprint].map(id => regionById(id)).filter(Boolean);
-      const pool = window.ORBIS_STATES_DB.filter(r => isLandRegion(r) && regionHolder(game, r) === defender && game.territories[r.id] !== attacker);
-      pool.sort((a, b) => {
-        const distFromHeld = r => Math.min(...heldList.map(h => Math.hypot((h.lon || 0) - (r.lon || 0), (h.lat || 0) - (r.lat || 0))));
-        const da = distFromHeld(a) + Math.hypot((a.lon || 0) - origin.lon, (a.lat || 0) - origin.lat) * 0.35;
-        const db = distFromHeld(b) + Math.hypot((b.lon || 0) - origin.lon, (b.lat || 0) - origin.lat) * 0.35;
-        return da - db || (b.vp || 0) - (a.vp || 0);
-      });
-      for (const r of pool) {
-        if (seized.length >= count) break;
-        if (seized.some(s => s.id === r.id)) continue;
-        seized.push(r);
-      }
-    }
-    return seized;
-  }
-
   function verifyOccupationsAdjacent(game, attacker) {
     const adj = landAdjacency();
     const footprint = attackerFootprint(game, attacker);
@@ -1471,17 +1820,6 @@ const Orbis = (() => {
       if (!ok) return false;
     }
     return true;
-  }
-
-  function seizeProvinces(game, attacker, defender, count = 4, notes = []) {
-    const targets = pickFrontierSeizures(game, attacker, defender, count);
-    for (const r of targets) {
-      const sovereign = regionHolder(game, r);
-      game.territories[r.id] = attacker;
-      game.occupations[r.id] = sovereign;
-      game.conflicts[r.id] = { attacker, defender: sovereign, months: 1, reason: `${shortName(attacker)}の進攻` };
-      notes.push(`${regionLabel(r)}を${shortName(attacker)}が占領。`);
-    }
   }
 
   function tickCivilWars(game, notes) {
@@ -1515,13 +1853,7 @@ const Orbis = (() => {
   }
 
   function tickNpcWars(game, notes) {
-    for (const war of Object.values(game.wars || {})) {
-      if (war.status !== 'active') continue;
-      // プレイヤーが開始した戦線は命令がある場合だけ機械的に進める。
-      if (war.attacker === game.playerNationId) continue;
-      if (game.completedTurns % 6 !== 0) continue;
-      seizeProvinces(game, war.attacker, war.defender, 1, notes);
-    }
+    // 戦争の自動発生のみを扱う。占領は部隊前進（resolveFormationFronts）だけが行う。
     if (game.tension >= 88 && game.completedTurns % 80 === 0 && game.completedTurns > 0) {
       const pairs = [['germany', 'poland'], ['japan', 'china']];
       const [a, b] = pairs[Math.floor(game.completedTurns / 80) % pairs.length];
@@ -1529,8 +1861,7 @@ const Orbis = (() => {
       if (game.nations[a] && game.nations[b] && !exists) {
         const warId = uid('war');
         game.wars[warId] = { attacker: a, defender: b, startedTurn: game.completedTurns, status: 'active', reason: '国境紛争の拡大', npc: true };
-        seizeProvinces(game, a, b, 2, notes);
-        notes.push(`${shortName(a)}と${shortName(b)}の間で武力衝突がエスカレート。`);
+        notes.push(`${shortName(a)}と${shortName(b)}の間で武力衝突がエスカレート。部隊の前進を待つ。`);
       }
     }
   }
@@ -1572,8 +1903,9 @@ const Orbis = (() => {
       delete game.occupations[stateId];
       delete game.conflicts[stateId];
     }
+    const warParties = new Set([...warPartyIds(game, war.attacker), ...warPartyIds(game, war.defender)]);
     for (const [rid, c] of Object.entries(game.conflicts || {})) {
-      if ([c.attacker, c.defender].includes(war.attacker) && [c.attacker, c.defender].includes(war.defender)) delete game.conflicts[rid];
+      if (warParties.has(c.attacker) && warParties.has(c.defender)) delete game.conflicts[rid];
     }
     game.tension = clamp((game.tension || 40) - 4, 0, 100);
     return true;
@@ -1662,6 +1994,10 @@ const Orbis = (() => {
     return `第 ${game.completedTurns + 1} / ${game.maxTurns} 半月`;
   }
 
+  function supplyBadgeHtml(supply) {
+    return `<span class="supply-badge supply-${escapeHtml(supply.status)}">補給 ${escapeHtml(supply.label)}${supply.distance != null ? `（${supply.distance}）` : ''}</span>`;
+  }
+
   function formationCommandHtml(formation) {
     const region = regionById(formation.regionId);
     const targetRegion = formation.order?.targetRegionId ? regionById(formation.order.targetRegionId) : null;
@@ -1674,7 +2010,8 @@ const Orbis = (() => {
       ? targets.map(item => `<option value="${escapeHtml(item.regionId)}">${escapeHtml(item.regionName)}（${escapeHtml(item.nationName)}）</option>`).join('')
       : '<option value="">隣接する敵領・占領地なし</option>';
     const flag = typeof getCountryFlagSvg === 'function' ? getCountryFlagSvg(formation.nationId) : '';
-    return `<article class="review-item formation-row"><div class="formation-row-head">${flag}<strong>${escapeHtml(formationTypeLabel(formation.type))}</strong><span class="small muted">${escapeHtml(shortName(formation.nationId))} · ${escapeHtml(region ? regionLabel(region) : formation.regionId)}</span><span class="formation-strength">戦力 ${formation.strength}</span></div><p class="small ${formation.order?.kind === 'offensive' ? 'formation-order-offensive' : ''}">${escapeHtml(orderLabel)}</p><div class="formation-order-row"><label class="sr-only" for="war-formation-target-${escapeHtml(formation.id)}">攻勢目標</label><select class="form-select formation-target-select" id="war-formation-target-${escapeHtml(formation.id)}" ${targets.length ? '' : 'disabled'}>${options}</select><button class="btn btn-ghost" data-formation-defend="${escapeHtml(formation.id)}">防御</button><button class="btn btn-primary" data-formation-offensive="${escapeHtml(formation.id)}" ${targets.length ? '' : 'disabled'}>攻勢</button></div></article>`;
+    const supply = formationSupplyInfo(campaign, formation);
+    return `<article class="review-item formation-row"><div class="formation-row-head">${flag}<strong>${escapeHtml(formationTypeLabel(formation.type))}</strong><span class="small muted">${escapeHtml(shortName(formation.nationId))} · ${escapeHtml(region ? regionLabel(region) : formation.regionId)}</span><span class="formation-strength">戦力 ${formation.strength}</span>${supplyBadgeHtml(supply)}</div><p class="small ${formation.order?.kind === 'offensive' ? 'formation-order-offensive' : ''}">${escapeHtml(orderLabel)}</p><div class="formation-order-row"><label class="sr-only" for="war-formation-target-${escapeHtml(formation.id)}">攻勢目標</label><select class="form-select formation-target-select" id="war-formation-target-${escapeHtml(formation.id)}" ${targets.length ? '' : 'disabled'}>${options}</select><button class="btn btn-ghost" data-formation-defend="${escapeHtml(formation.id)}">防御</button><button class="btn btn-primary" data-formation-offensive="${escapeHtml(formation.id)}" ${targets.length ? '' : 'disabled'}>攻勢</button></div></article>`;
   }
 
   function openWarPanel() {
@@ -1689,6 +2026,39 @@ const Orbis = (() => {
     const formationRows = playerFormations.map(formationCommandHtml).join('') || '<p class="empty-state">命令できる部隊はありません。</p>';
     html('war-panel-body', `<section><h3>国際戦争</h3>${warRows}</section><section style="margin-top:14px"><h3>内戦・反乱</h3>${civilRows}</section><section style="margin-top:14px"><h3>戦線（${fronts.length}）</h3><p class="small muted">地図上の赤枠・斜線が占領と戦闘地域です。</p></section><section style="margin-top:14px"><h3>部隊・戦線（${playerFormations.length}）</h3><p class="small muted">防御は現在地で待機、攻勢は目標方向の隣接する敵領へ1ターンに1州ずつ進みます。攻勢は戦争中の相手にだけ指示できます。</p>${formationRows}</section><div class="form-row" style="margin-top:12px"><label>宣戦<select id="war-target-select" class="form-select">${Object.keys(campaign.nations).filter(id => id !== campaign.playerNationId).map(id => `<option value="${id}">${escapeHtml(shortName(id))}</option>`).join('')}</select></label><button class="btn btn-primary" id="btn-declare-war-submit">宣戦布告</button></div>`);
     openDialog('modal-war-panel');
+  }
+
+  function openEconomyPanel() {
+    if (!campaign) return;
+    const summary = economySummary();
+    if (!summary) return;
+    const entry = economyEntry(campaign, campaign.playerNationId);
+    const factories = summary.factories;
+    const share = summary.militaryShare;
+    const mobilizationButtons = MOBILIZATION_LABELS.map((label, index) => `<button class="btn ${index === summary.mobilization ? 'btn-primary' : 'btn-ghost'}" data-economy-mobilization="${index}">${escapeHtml(label)}</button>`).join('');
+    const last = summary.lastProduction
+      ? `前回：装備 +${summary.lastProduction.equipment}、補充 ${summary.lastProduction.replenished}、兵力 +${summary.lastProduction.manpower}、財政 ${signed(summary.lastProduction.treasury || 0)}。`
+      : 'まだ生産結果はありません。ターンを進めると反映されます。';
+    const formations = (campaign.formations || []).filter(item => item.nationId === campaign.playerNationId).map(formation => {
+      const region = regionById(formation.regionId);
+      const supply = formationSupplyInfo(campaign, formation);
+      const orderLabel = formation.order?.kind === 'offensive'
+        ? `攻勢 → ${regionLabel(regionById(formation.order.targetRegionId) || region)}`
+        : formation.order?.kind === 'defend' ? '防御' : '待機';
+      return `<article class="review-item formation-row"><div class="formation-row-head"><strong>${escapeHtml(formationTypeLabel(formation.type))}</strong><span class="small muted">${escapeHtml(region ? regionLabel(region) : formation.regionId)}</span><span class="formation-strength">戦力 ${formation.strength}</span>${supplyBadgeHtml(supply)}</div><p class="small">${escapeHtml(orderLabel)}${supply.status === 'low' || supply.status === 'isolated' ? ' · 補給不足のため攻勢が停滞しやすい。' : supply.status === 'stretched' ? ' · 補給線が伸びており消耗が増える。' : ''}</p></article>`;
+    }).join('') || '<p class="empty-state">配置部隊はありません。</p>';
+    const canRecruit = entry.manpower >= RECRUIT_MANPOWER_COST && entry.equipment >= RECRUIT_EQUIPMENT_COST;
+    html('economy-panel-body', `<section class="economy-grid">
+      <div class="economy-card"><span>支配陸州の工場</span><strong>民用 ${factories.civil} / 軍需 ${factories.military}</strong><small>${factories.regions}州</small></div>
+      <div class="economy-card"><span>兵力</span><strong>${entry.manpower}</strong><small>新編制に ${RECRUIT_MANPOWER_COST}</small></div>
+      <div class="economy-card"><span>装備</span><strong>${entry.equipment}</strong><small>補充と新編制に使用</small></div>
+      <div class="economy-card"><span>動員段階</span><strong>${escapeHtml(summary.mobilizationLabel)}</strong><small>半月ごと兵力 +${mobilizationGrowth(entry)}</small></div>
+    </section>
+    <section style="margin-top:16px"><h3>動員</h3><div class="form-row">${mobilizationButtons}</div><p class="small muted">段階を上げると兵力の増加が伸びる。財政と安定度に軽い負担がかかる。現在の部隊数 ${summary.formations}。</p></section>
+    <section style="margin-top:16px"><h3>生産配分</h3><label for="economy-military-share">軍需 ${share}% / 民用 ${100 - share}%</label><input type="range" id="economy-military-share" min="0" max="100" step="5" value="${share}"><div class="economy-split-row"><button class="btn btn-ghost" data-economy-split="25">民用寄り 25%</button><button class="btn btn-ghost" data-economy-split="50">折半 50%</button><button class="btn btn-ghost" data-economy-split="75">軍需寄り 75%</button><button class="btn btn-ghost" data-economy-split="100">総軍需 100%</button></div><p class="small muted">軍需を増やすほど装備の生産と補充が増え、民用を残すと国庫をわずかに支える。${escapeHtml(last)}</p></section>
+    <section style="margin-top:16px"><h3>新編制</h3><p class="small">兵力 ${RECRUIT_MANPOWER_COST} と装備 ${RECRUIT_EQUIPMENT_COST} を消費し、首都または後方の支配陸州に野戦部隊を編成する。</p><button class="btn btn-primary" data-economy-recruit ${canRecruit ? '' : 'disabled'}>野戦部隊を編成</button></section>
+    <section style="margin-top:16px"><h3>部隊と補給</h3><p class="small muted">補給は本国・従属圏の支配領から陸続きで辿った距離で決まる。孤立・不足の部隊は攻勢が停滞する。</p>${formations}</section>`);
+    openDialog('modal-economy');
   }
 
   function playtestStabilize() {
@@ -2845,6 +3215,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     tickDependencies(game, notes);
     if (losses.size) game.tension = Math.max(game.tension, 55);
     tickCivilWars(game, notes);
+    tickEconomy(game, notes);
+    assignNpcFormationOrders(game);
     resolveFormationFronts(game, notes);
     tickNpcWars(game, notes);
     tickGlobalWorldWar(game, notes);
@@ -3546,7 +3918,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const goal = mandateInfo(campaign);
     const budget = monthlyBudget(campaign);
     const ownClient = campaign.clients[campaign.playerNationId];
-    html('domestic-overview-box', `<div class="nation-overview"><div class="mini-metrics"><div><span class="muted small">財政余力</span><strong>${campaign.treasury}<small class="small muted"> / 100</small></strong><span class="small">経常収支 ${signed(budget.net)}${budget.admin ? ` · 自治政府 +${budget.admin}` : ''}${budget.tribute ? ` · 貢納 -${budget.tribute}` : ''}</span></div><div><span class="muted small">国家威信</span><strong>${campaign.prestige}<small class="small muted"> / 100</small></strong><span class="small">履行 ${campaign.cumulative.fulfilled} · 違反 ${campaign.cumulative.broken}</span></div></div><details class="compact-disclosure"><summary>国家目標 · ${escapeHtml(goal.name)} <span class="muted">${goal.conditions.filter(condition => condition.met).length}/${goal.conditions.length}</span></summary><div class="goal-box">${goal.conditions.map(condition => `<div>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</div>`).join('')}</div><p class="small">任期末までに全条件を満たす。</p></details>${ownClient ? `<p class="small" style="margin-top:9px">${escapeHtml(shortName(ownClient.sponsorId))}の影響下 · 自治 ${ownClient.autonomy} / 忠誠 ${ownClient.loyalty}</p>` : ''}<button class="text-button" data-situation-briefing style="margin-top:6px">情勢分析 ↗</button></div>`);
+    html('domestic-overview-box', `<div class="nation-overview"><div class="mini-metrics"><div><span class="muted small">財政余力</span><strong>${campaign.treasury}<small class="small muted"> / 100</small></strong><span class="small">経常収支 ${signed(budget.net)}${budget.admin ? ` · 自治政府 +${budget.admin}` : ''}${budget.tribute ? ` · 貢納 -${budget.tribute}` : ''}</span></div><div><span class="muted small">国家威信</span><strong>${campaign.prestige}<small class="small muted"> / 100</small></strong><span class="small">履行 ${campaign.cumulative.fulfilled} · 違反 ${campaign.cumulative.broken}</span></div></div><details class="compact-disclosure"><summary>国家目標 · ${escapeHtml(goal.name)} <span class="muted">${goal.conditions.filter(condition => condition.met).length}/${goal.conditions.length}</span></summary><div class="goal-box">${goal.conditions.map(condition => `<div>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</div>`).join('')}</div><p class="small">任期末までに全条件を満たす。</p></details>${ownClient ? `<p class="small" style="margin-top:9px">${escapeHtml(shortName(ownClient.sponsorId))}の影響下 · 自治 ${ownClient.autonomy} / 忠誠 ${ownClient.loyalty}</p>` : ''}<div class="form-row" style="margin-top:6px"><button class="text-button" data-situation-briefing>情勢分析 ↗</button><button class="text-button" data-open-economy>動員・生産 ↗</button></div></div>`);
     const dependencyCards = [];
     const ownDependency = dependencyInfo(campaign.playerNationId);
     if (ownDependency && !ownDependency.independent && !ownDependency.annexed && !ownDependency.dissolved) {
@@ -3944,6 +4316,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       const orderLabel = item.order?.kind === 'offensive'
         ? `攻勢 → ${targetRegion ? regionLabel(targetRegion) : '目標不明'}${targetNation ? `（${shortName(targetNation)}）` : ''}`
         : item.order?.kind === 'defend' ? '防御' : '待機';
+      const supply = formationSupplyInfo(campaign, item);
       return {
         id: item.id,
         nationId: item.nationId,
@@ -3954,6 +4327,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         strength: item.strength,
         order: item.order ? copy(item.order) : null,
         orderLabel,
+        supply,
         isPlayer: item.nationId === playerId,
         targets: item.nationId === playerId ? formationTargets(item.id) : []
       };
@@ -4537,11 +4911,35 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
             }
           }
         }
-        return { id, nationId: data.nationId, type, regionId, strength: saveNumber(data.strength, '部隊の戦力', 1, 100), order };
+        const formation = { id, nationId: data.nationId, type, regionId, strength: saveNumber(data.strength, '部隊の戦力', 1, 100), order };
+        if (data.supply !== undefined) formation.supply = saveNumber(data.supply, '部隊の補給', 0, 100);
+        if (['full', 'stretched', 'low', 'isolated'].includes(data.supplyStatus)) formation.supplyStatus = data.supplyStatus;
+        return formation;
       });
     } else {
       // formations を持たない v6 以前のセーブは、読み込み時の領土から自動配置する。
       seedFormations(game);
+    }
+    game.economy = {};
+    const rawEconomy = raw.economy && typeof raw.economy === 'object' && !Array.isArray(raw.economy) ? raw.economy : {};
+    for (const nationId of Object.keys(game.nations)) {
+      const entry = economyEntry(game, nationId);
+      const saved = rawEconomy[nationId];
+      if (!entry || !saved || typeof saved !== 'object' || Array.isArray(saved)) continue;
+      entry.manpower = saveNumber(saved.manpower ?? entry.manpower, '兵力', 0, 1000000);
+      entry.mobilization = saveNumber(saved.mobilization ?? entry.mobilization, '動員段階', 0, MOBILIZATION_LABELS.length - 1);
+      entry.equipment = saveNumber(saved.equipment ?? entry.equipment, '装備', 0, 1000000);
+      entry.militaryShare = saveNumber(saved.militaryShare ?? entry.militaryShare, '生産配分', 0, 100);
+      entry.pendingNotes = array(saved.pendingNotes || [], '動員・生産の予告', 20).map(item => requiredText(item, '動員・生産の予告', 300));
+      if (saved.lastProduction && typeof saved.lastProduction === 'object' && !Array.isArray(saved.lastProduction)) {
+        entry.lastProduction = {
+          equipment: saveNumber(saved.lastProduction.equipment ?? 0, '前回の装備生産', 0, 1000000),
+          manpower: saveNumber(saved.lastProduction.manpower ?? 0, '前回の兵力増', 0, 1000000),
+          replenished: saveNumber(saved.lastProduction.replenished ?? 0, '前回の補充', 0, 1000000),
+          treasury: saveNumber(saved.lastProduction.treasury ?? 0, '前回の財政収支', -100, 100),
+          turn: saveNumber(saved.lastProduction.turn ?? 0, '前回の生産ターン', 0, turnCap)
+        };
+      }
     }
     requireObject(raw.conflicts, '紛争');
     for (const [id, item] of Object.entries(raw.conflicts)) {
@@ -4729,6 +5127,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if ($('input-api-key')) $('input-api-key').value = '';
       settingsFeedback('このプロバイダーのAPIキーを入力し、接続をテストしてください。');
     });
+    document.addEventListener('change', event => {
+      const input = event.target.closest?.('#economy-military-share');
+      if (input) setProductionSplit(Number(input.value));
+    });
     document.addEventListener('click', event => {
       const countryLink = event.target.closest?.('[data-orbis-country]');
       if (!countryLink) return;
@@ -4799,6 +5201,16 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (button.hasAttribute('data-retry-briefing')) retryBriefing();
       if (button.hasAttribute('data-open-settings')) openSettings();
       if (button.hasAttribute('data-open-war')) openWarPanel();
+      if (button.hasAttribute('data-open-economy')) openEconomyPanel();
+      if (data.economyMobilization !== undefined) {
+        if (!setMobilizationLevel(Number(data.economyMobilization))) toast('動員段階を変更できません。');
+      }
+      if (data.economySplit !== undefined) setProductionSplit(Number(data.economySplit));
+      if (button.hasAttribute('data-economy-recruit')) {
+        const result = recruitFormation();
+        if (!result.ok) toast(result.error);
+        else toast(`${regionLabel(regionById(result.formation.regionId))}で野戦部隊を編成した。`);
+      }
       if (button.id === 'dock-homeland') focusHomeland();
       if (button.hasAttribute('data-dismiss-error')) { runtime.error = ''; renderStatus(); }
       if (button.hasAttribute('data-show-ending')) showEnding();
@@ -4875,5 +5287,5 @@ transferDependent: (vassalId, newSponsorId) => transferDependent(vassalId, newSp
 grantAutonomy: (vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) => grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign),
 actorRoster: () => Object.keys(actors),
 createDependentCommand, createDependentRegionCommand, integrateDependentCommand, transferDependentCommand, grantAutonomyCommand,
-warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, declareWar, signPeace, proposePeace, negotiateCivilWar, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();

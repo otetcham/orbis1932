@@ -855,6 +855,17 @@ html, body {
 .formation-strength { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--cyan-bright); }
 .formation-order-line { font-size: 10.5px; color: var(--text-secondary); }
 .formation-order-offensive { color: #f59e0b; font-weight: 700; }
+.supply-badge { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 999px; border: 1px solid rgba(148, 163, 184, 0.45); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.supply-full { color: #14532d; border-color: #15803d; background: #bbf7d0; }
+.supply-stretched { color: #78350f; border-color: #b45309; background: #fde68a; }
+.supply-low { color: #7f1d1d; border-color: #b91c1c; background: #fecaca; }
+.supply-isolated { color: #ffffff; border-color: #7f1d1d; background: #991b1b; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); font-weight: 800; }
+.economy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.economy-card { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.32); border-radius: 8px; background: rgba(15, 23, 42, 0.3); }
+.economy-card span { font-size: 10.5px; color: var(--text-muted); }
+.economy-card strong { font-size: 16px; color: var(--text-primary); }
+.economy-card small { font-size: 10px; color: var(--text-muted); }
+.economy-split-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .formation-order-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .formation-order-row .form-select { flex: 1 1 150px; min-width: 110px; height: 28px; font-size: 10.5px; padding: 2px 6px; }
 .formation-order-row .btn { min-height: 28px; padding: 4px 9px; font-size: 10.5px; }
@@ -2510,6 +2521,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           <button class="menu-row" id="btn-menu-import"><span class="menu-row-icon" aria-hidden="true">↑</span><span>セーブを読み込む</span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-help"><span class="menu-row-icon" aria-hidden="true">?</span><span>遊び方</span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-open-war-panel"><span class="menu-row-icon" aria-hidden="true">⚔</span><span>戦争・和平・紛争</span><span aria-hidden="true">›</span></button>
+          <button class="menu-row" id="btn-open-economy-panel" data-open-economy><span class="menu-row-icon" aria-hidden="true">工</span><span>動員・生産<small>兵力・装備・補給</small></span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-menu-lobby"><span class="menu-row-icon" aria-hidden="true">↗</span><span>キャンペーンメニュー</span><span aria-hidden="true">›</span></button>
           <div class="menu-save-status" id="save-status">自動保存済み</div>
         </div>
@@ -2598,6 +2610,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   <dialog class="game-dialog wide-dialog" id="actor-directory" aria-labelledby="directory-title"><div class="modal-head"><strong id="directory-title">交渉先を選ぶ</strong><button class="btn btn-ghost" data-close-dialog="actor-directory">閉じる</button></div><div class="modal-body"><label class="sr-only" for="actor-search">国名・組織・人物を検索</label><input class="form-input" id="actor-search" type="search" placeholder="国名・組織・人物を検索"><div class="directory-filters" id="directory-filters"><button class="filter-btn active" data-actor-kind="all">すべて</button><button class="filter-btn" data-actor-kind="domestic">国内</button><button class="filter-btn" data-actor-kind="ministry">外務省</button><button class="filter-btn" data-actor-kind="embassy">大使館</button><button class="filter-btn" data-actor-kind="client">従属国・自治領</button><button class="filter-btn" data-actor-kind="foreign_group">国外の利益団体</button></div><div id="actor-directory-list"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-war-panel" aria-labelledby="war-panel-title"><div class="modal-head"><strong id="war-panel-title">戦争・和平・紛争</strong><button class="btn btn-ghost" data-close-dialog="modal-war-panel">閉じる</button></div><div class="modal-body" id="war-panel-body"></div></dialog>
+  <dialog class="game-dialog wide-dialog" id="modal-economy" aria-labelledby="economy-title"><div class="modal-head"><strong id="economy-title">動員・生産</strong><button class="btn btn-ghost" data-close-dialog="modal-economy">閉じる</button></div><div class="modal-body" id="economy-panel-body"></div></dialog>
   <dialog class="game-dialog" id="modal-country-card" aria-labelledby="country-card-title"><div class="modal-window"><div class="modal-head"><strong id="country-card-title">国家情報</strong><button class="btn btn-ghost" data-close-dialog="modal-country-card" aria-label="国家情報を閉じる">閉じる</button></div><div class="modal-body" id="country-card-body"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-briefing" aria-labelledby="briefing-title"><div class="modal-window"><div class="modal-head"><strong id="briefing-title">情勢分析</strong><button class="btn btn-ghost" data-close-dialog="modal-briefing">閉じる</button></div><div class="modal-body" id="briefing-body"></div></div></dialog>
   <dialog class="game-dialog" id="modal-dependent-admin" aria-labelledby="dependent-admin-title"><div class="modal-window"><div class="modal-head"><strong id="dependent-admin-title">従属政権</strong><button class="btn btn-ghost" data-close-dialog="modal-dependent-admin">閉じる</button></div><div class="modal-body" id="dependent-admin-body"></div><div class="modal-foot"><span class="muted small" id="dependent-admin-hint"></span><button class="btn btn-primary" id="btn-dependent-admin-submit">実行</button></div></div></dialog>
@@ -6732,8 +6745,9 @@ function renderStateInspector(s) {
         const targetOptions = formation.targets?.length
           ? formation.targets.map(target => `<option value="${escapeHtml(target.regionId)}" ${formation.order?.targetRegionId === target.regionId ? 'selected' : ''}>${escapeHtml(target.regionName)}（${escapeHtml(target.nationName)}）</option>`).join('')
           : '<option value="">隣接する敵領・占領地なし</option>';
+        const supply = formation.supply || { status: 'full', label: '十分' };
         return `<article class="formation-card ${formation.isPlayer ? 'is-player' : ''}">
-          <div class="formation-card-head">${getCountryFlagSvg(formation.nationId)}<strong>${escapeHtml(formation.typeLabel)}</strong><span class="muted">${escapeHtml(formation.nationName)}</span><span class="formation-strength">戦力 ${formation.strength}</span></div>
+          <div class="formation-card-head">${getCountryFlagSvg(formation.nationId)}<strong>${escapeHtml(formation.typeLabel)}</strong><span class="muted">${escapeHtml(formation.nationName)}</span><span class="formation-strength">戦力 ${formation.strength}</span><span class="supply-badge supply-${escapeHtml(supply.status)}">補給 ${escapeHtml(supply.label)}</span></div>
           <div class="formation-order-line ${formation.order?.kind === 'offensive' ? 'formation-order-offensive' : ''}">${escapeHtml(formation.orderLabel)}</div>
           ${formation.isPlayer ? `<div class="formation-order-row"><label class="sr-only" for="insp-formation-target-${escapeHtml(formation.id)}">攻勢目標</label><select class="form-select formation-target-select" id="insp-formation-target-${escapeHtml(formation.id)}" ${formation.targets?.length ? '' : 'disabled'}>${targetOptions}</select><button class="btn btn-ghost" data-formation-defend="${escapeHtml(formation.id)}">防御</button><button class="btn btn-primary" data-formation-offensive="${escapeHtml(formation.id)}" ${formation.targets?.length ? '' : 'disabled'}>攻勢</button></div>` : ''}
         </article>`;
