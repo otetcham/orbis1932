@@ -1517,7 +1517,7 @@ body.turn-playback-active #game-toast { visibility: hidden !important; pointer-e
 }
 
 
-:root { --left-w: 286px; --right-w: 438px; --bg-void: #f2f6fb; --bg-ocean: #cfe3f4; --bg-ocean-deep: #b9d4ec; --bg-space: #e3ecf5; --bg-panel: rgba(255, 255, 255, 0.92); --bg-panel-solid: #ffffff; --bg-elevated: #eef3f9; --bg-surface: #e6edf5; --bg-surface-hover: #dbe6f1; --bg-muted: #f4f8fc; --text-primary: #16283e; --text-secondary: #3d5570; --text-muted: #6c829c; --blue-primary: #2f6db8; --blue-glow: rgba(47, 109, 184, 0.18); --cyan: #1d8ac4; --cyan-bright: #1f6fc4; --cyan-bg: rgba(31, 111, 196, 0.10); --brass: #c78a1d; --brass-bright: #b7791f; --brass-dim: rgba(183, 121, 31, 0.35); --brass-bg: rgba(183, 121, 31, 0.12); --crimson: #d24444; --crimson-bright: #c23b3b; --crimson-dim: rgba(194, 59, 59, 0.35); --crimson-bg: rgba(194, 59, 59, 0.10); --emerald: #1f9d6b; --emerald-bright: #1f7a4d; --emerald-dim: rgba(31, 122, 77, 0.35); --emerald-bg: rgba(31, 122, 77, 0.10); --indigo: #5563d8; --indigo-bright: #4a5ccc; --indigo-bg: rgba(85, 99, 216, 0.10); --border-subtle: #e2eaf3; --border-panel: #d3dfec; --border-brass: rgba(183, 121, 31, 0.45); --border-blue: rgba(47, 109, 184, 0.35); --font-mono: 'JetBrains Mono', ui-monospace, monospace; }
+:root { --left-w: 286px; --right-w: 438px; --bg-void: #f2f6fb; --bg-ocean: #cfe3f4; --bg-ocean-deep: #b9d4ec; --bg-space: #e3ecf5; --bg-panel: rgba(255, 255, 255, 0.92); --bg-panel-solid: #ffffff; --bg-elevated: #eef3f9; --bg-surface: #e6edf5; --bg-surface-hover: #dbe6f1; --bg-muted: #f4f8fc; --text-primary: #16283e; --text-secondary: #3d5570; --text-muted: #6c829c; --blue-primary: #2f6db8; --blue-glow: rgba(47, 109, 184, 0.18); --cyan: #1d8ac4; --cyan-bright: #1f6fc4; --cyan-bg: rgba(31, 111, 196, 0.10); --brass: #c78a1d; --brass-bright: #b7791f; --brass-dim: rgba(183, 121, 31, 0.35); --brass-bg: rgba(183, 121, 31, 0.12); --crimson: #d24444; --crimson-bright: #c23b3b; --crimson-dim: rgba(194, 59, 59, 0.35); --crimson-bg: rgba(194, 59, 59, 0.10); --emerald: #1f9d6b; --emerald-bright: #1f7a4d; --emerald-dim: rgba(31, 122, 77, 0.35); --emerald-bg: rgba(31, 122, 77, 0.10); --indigo: #5563d8; --indigo-bright: #4a5ccc; --indigo-bg: rgba(85, 99, 216, 0.10); --border-subtle: #e2eaf3; --border-panel: #d3dfec; --border-brass: rgba(183, 121, 31, 0.45); --border-blue: rgba(47, 109, 184, 0.35); --font-sans: 'Inter', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', system-ui, sans-serif; --font-mono: 'JetBrains Mono', ui-monospace, monospace; }
 body { user-select: text; background: var(--bg-void); }
 ::-webkit-scrollbar-track { background: #e6eef6; }
 ::-webkit-scrollbar-thumb { background: #b9c9db; border-radius: 4px; }
@@ -2111,6 +2111,29 @@ svg path:focus-visible,
 .settings-feedback { padding: 11px; border: 1px solid #d3dfec; border-radius: 4px; color: #3d5570; font-size: 11px; line-height: 1.8; white-space: pre-line; overflow-wrap: anywhere; }
 .settings-feedback.error { border-color: #e3b6b8; color: #a83a3a; }
 .settings-feedback.success { border-color: #cfe7da; color: #1f7a4d; }
+.settings-section-label { margin-top: 4px; font: 600 10px var(--font-mono); letter-spacing: 0.12em; color: #6c829c; text-transform: uppercase; }
+.settings-key-note { padding: 9px 11px; border-left: 2px solid #2f6db8; background: #f4f8fc; color: #3d5570; font-size: 10.5px; line-height: 1.8; }
+.about-content { gap: 10px; }
+.about-hero { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid #e2eaf3; }
+.about-brand { font: 700 24px var(--font-mono); letter-spacing: 0.02em; color: #16283e; }
+.about-version { font: 600 11px var(--font-mono); color: #2f6db8; background: #eaf2fb; border: 1px solid #c9d8ea; border-radius: 4px; padding: 3px 7px; white-space: nowrap; }
+.about-description { color: #3d5570; font-size: 12px; line-height: 1.9; }
+.about-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.about-legal { color: #6c829c; font-size: 10px; line-height: 1.8; }
+.credits-content { gap: 14px; }
+.credits-intro { color: #3d5570; font-size: 11px; line-height: 1.8; }
+.credits-section { display: grid; gap: 8px; }
+.credits-section h3 { margin: 0; padding-bottom: 5px; border-bottom: 1px solid #e2eaf3; font-size: 12px; color: #16283e; }
+.credits-item { padding: 9px 11px; border: 1px solid #e2eaf3; border-radius: 6px; background: #f8fafd; }
+.credits-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.credits-item-name { font-size: 11.5px; font-weight: 700; color: #16283e; overflow-wrap: anywhere; }
+.credits-status { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; border: 1px solid #cfe7da; background: #eef7f1; color: #1f7a4d; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.credits-status.is-pending { border-color: #ecd9b9; background: #fbf5e9; color: #8a5a12; }
+.credits-meta { display: grid; grid-template-columns: 70px 1fr; gap: 2px 8px; margin-top: 6px; color: #3d5570; font-size: 10.5px; line-height: 1.75; }
+.credits-meta dt { color: #6c829c; }
+.credits-meta dd { margin: 0; overflow-wrap: anywhere; }
+.credits-note { margin-top: 5px; color: #6c829c; font-size: 10px; line-height: 1.75; }
+.lobby-legal-links { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .directory-filters { display: flex; flex-wrap: wrap; gap: 4px; }
 .directory-filters button { font-size: 10px; }
 #actor-directory-list { display: grid; gap: 6px; max-height: 48dvh; overflow-y: auto; }
@@ -2327,7 +2350,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           <div class="lobby-section-label">
             <span class="lobby-step-num">1932年3月1日</span>
             <span>担当する国家を選ぶ</span>
-            <span id="orbis-build-version" style="font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:var(--cyan-bright); margin-left:6px; letter-spacing:0.5px;">Rev 1932.5</span>
+            <span id="orbis-build-version" style="font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:var(--cyan-bright); margin-left:6px; letter-spacing:0.5px;"></span>
           </div>
           <div class="filter-group-box">
             <button class="filter-btn active" data-lobby-region="all">全カ国</button>
@@ -2357,7 +2380,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           <svg class="ico" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
         </button>
       </div>
-      <div class="lobby-resume"><button class="btn" id="btn-resume-campaign" hidden>保存した歴史を再開</button><button class="btn btn-ghost" id="btn-lobby-import">セーブを読み込む</button><span>1ターン＝1か月。会話では時は進まず、月末の裁定で結果が確定する。</span></div>
+      <div class="lobby-resume"><button class="btn" id="btn-resume-campaign" hidden>保存した歴史を再開</button><button class="btn btn-ghost" id="btn-lobby-import">セーブを読み込む</button><span class="lobby-legal-links"><button class="btn btn-ghost" id="btn-lobby-about">このソフトについて</button><button class="btn btn-ghost" id="btn-lobby-credits">クレジット</button></span><span>1ターン＝1か月。会話では時は進まず、月末の裁定で結果が確定する。</span></div>
     </div>
   </div>
 
@@ -2619,6 +2642,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           <button class="menu-row" id="btn-open-focus-panel" data-open-focus><span class="menu-row-icon" aria-hidden="true">策</span><span>国策<small>政治力で方針を進める</small></span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-open-research-panel" data-open-research><span class="menu-row-icon" aria-hidden="true">研</span><span>研究<small>産業・装備・教義・電子</small></span><span aria-hidden="true">›</span></button>
           <button class="menu-row" id="btn-menu-lobby"><span class="menu-row-icon" aria-hidden="true">↗</span><span>キャンペーンメニュー</span><span aria-hidden="true">›</span></button>
+          <button class="menu-row" id="btn-open-about"><span class="menu-row-icon" aria-hidden="true">i</span><span>このソフトについて<small id="about-version-menu">バージョン</small></span><span aria-hidden="true">›</span></button>
+          <button class="menu-row" id="btn-open-credits"><span class="menu-row-icon" aria-hidden="true">©</span><span>クレジット／ライセンス<small>素材・データ・ソフトウェア</small></span><span aria-hidden="true">›</span></button>
           <div class="menu-save-status" id="save-status">自動保存済み</div>
         </div>
         <div class="window-resize-handle" data-window-resize="menu" role="separator" tabindex="0" aria-label="メニューのサイズを変更" title="ドラッグ、または矢印キーでサイズ変更"></div>
@@ -2672,16 +2697,17 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   </div>
 
   <!-- ========================================================================
-       3. AI ENGINE SETTINGS MODAL (Strictly Required)
+       3. SETTINGS / ABOUT / CREDITS
        ======================================================================== -->
   <dialog class="game-dialog" id="modal-ai-settings" aria-labelledby="ai-settings-title">
     <div class="modal-window">
       <div class="modal-head">
-        <strong id="ai-settings-title">LLM接続設定</strong>
-        <button class="btn btn-ghost" data-close-dialog="modal-ai-settings" aria-label="AI設定を閉じる">閉じる</button>
+        <strong id="ai-settings-title">設定</strong>
+        <button class="btn btn-ghost" data-close-dialog="modal-ai-settings" aria-label="設定を閉じる">閉じる</button>
       </div>
       <div class="modal-body">
-        <p class="muted">GMと登場人物は同じモデルを使い、別々の人格・記憶で応答する。</p>
+        <div class="settings-section-label">AI接続</div>
+        <p class="muted">GMと登場人物は同じモデルを使い、別々の人格・記憶で応答する。APIキーは自分のものを使う。</p>
         <div id="ai-modal-alert-banner" class="settings-feedback" role="status">APIキーは指定先のLLMへ直接送信。セーブデータには含めない。</div>
         <label for="select-ai-provider">プロバイダー</label>
         <select id="select-ai-provider" class="form-select"><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic Claude</option><option value="openrouter">OpenRouter</option><option value="opencode_go">OpenCode Go</option><option value="custom">OpenAI互換 API</option></select>
@@ -2701,7 +2727,13 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           <label for="input-custom-model">モデルIDを直接指定（任意）</label>
           <input type="text" id="input-custom-model" class="form-input" placeholder="上の候補以外を使う場合" spellcheck="false">
         </div>
-        <label class="checkbox-label"><input type="checkbox" id="remember-api-key">このブラウザにAPIキーを保存</label>
+        <label class="checkbox-label"><input type="checkbox" id="remember-api-key">この端末にAPIキーを保存</label>
+        <p class="settings-key-note">保存を選んだときだけ、キーはこの端末の localStorage に残る。保存しない場合は再起動後に残らず、セーブJSON・配布物・ログには含めない。</p>
+        <div class="settings-section-label">このソフト</div>
+        <div class="about-actions">
+          <button class="btn" type="button" id="btn-settings-about">このソフトについて</button>
+          <button class="btn" type="button" id="btn-settings-credits">クレジット／ライセンス</button>
+        </div>
         <p class="muted small">会話・月次裁定ごとにAPIを呼び出す。利用料金はプロバイダー側で発生。</p>
       </div>
       <div class="modal-foot">
@@ -2710,6 +2742,33 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         <button class="btn btn-primary" id="btn-save-ai-settings">設定を保存</button>
       </div>
     </div>
+  </dialog>
+  <dialog class="game-dialog" id="modal-about" aria-labelledby="about-title">
+    <div class="modal-window">
+      <div class="modal-head">
+        <strong id="about-title">このソフトについて</strong>
+        <button class="btn btn-ghost" data-close-dialog="modal-about" aria-label="このソフトについてを閉じる">閉じる</button>
+      </div>
+      <div class="modal-body about-content">
+        <div class="about-hero"><span class="about-brand" id="about-brand">ORBIS//1932</span><span class="about-version" id="about-version"></span></div>
+        <p class="about-description" id="about-description">一通の電報が、歴史を変える。1932年3月の世界を舞台に、国家の内政・外交・軍事を進める日本語の歴史シミュレーション。</p>
+        <dl class="credits-meta"><dt>版</dt><dd id="about-milestone">M7 製品化の下地</dd><dt>公開日</dt><dd id="about-released">2026-11-14</dd><dt>動作</dt><dd>オフライン起動可。AI対話のみ、利用者が指定したAPIへ接続する。</dd></dl>
+        <div class="about-actions">
+          <button class="btn" type="button" id="btn-about-credits">クレジット／ライセンス</button>
+          <button class="btn" type="button" id="btn-about-settings">設定を開く</button>
+        </div>
+        <p class="about-legal" id="about-legal">© 2026 ORBIS//1932。第三者素材・データ・ソフトウェアの出典とライセンスはクレジット画面に記載する。</p>
+      </div>
+      <div class="modal-foot"><span class="muted small">ORBIS//1932</span><button class="btn" data-close-dialog="modal-about">閉じる</button></div>
+    </div>
+  </dialog>
+  <dialog class="game-dialog wide-dialog" id="modal-credits" aria-labelledby="credits-title">
+    <div class="modal-head">
+      <strong id="credits-title">クレジット／ライセンス</strong>
+      <button class="btn btn-ghost" data-close-dialog="modal-credits" aria-label="クレジットを閉じる">閉じる</button>
+    </div>
+    <div class="modal-body credits-content" id="credits-body"></div>
+    <div class="modal-foot"><span class="muted small" id="credits-updated"></span><button class="btn" data-close-dialog="modal-credits">閉じる</button></div>
   </dialog>
   <dialog class="game-dialog wide-dialog" id="actor-directory" aria-labelledby="directory-title"><div class="modal-head"><strong id="directory-title">交渉先を選ぶ</strong><button class="btn btn-ghost" data-close-dialog="actor-directory">閉じる</button></div><div class="modal-body"><label class="sr-only" for="actor-search">国名・組織・人物を検索</label><input class="form-input" id="actor-search" type="search" placeholder="国名・組織・人物を検索"><div class="directory-filters" id="directory-filters"><button class="filter-btn active" data-actor-kind="all">すべて</button><button class="filter-btn" data-actor-kind="domestic">国内</button><button class="filter-btn" data-actor-kind="ministry">外務省</button><button class="filter-btn" data-actor-kind="embassy">大使館</button><button class="filter-btn" data-actor-kind="client">従属国・自治領</button><button class="filter-btn" data-actor-kind="foreign_group">国外の利益団体</button></div><div id="actor-directory-list"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
@@ -7505,6 +7564,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
+<script src="orbis_version.js"></script>
+<script src="orbis_credits.js"></script>
 <script src="orbis_events.js?v=1932.17"></script>
 <script src="orbis_region_labels.js?v=1932.17"></script>
 <script src="orbis_campaign_core.js?v=1932.17"></script>

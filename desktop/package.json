@@ -1,0 +1,13 @@
+{
+  "name": "orbis1932-desktop",
+  "private": true,
+  "description": "ORBIS//1932 desktop shell (unsigned local build)",
+  "main": "main.js",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "45.3.2"
+  }
+}

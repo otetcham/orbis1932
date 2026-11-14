@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { auditData } from './orbis_data_audit.mjs';
+import { buildDist } from './scripts/build_dist.mjs';
 import { runM7aLongRun } from './scripts/longrun_m7a_1972.mjs';
 import { runM7bLongRun } from './scripts/longrun_m7b_1972.mjs';
 
@@ -17,6 +21,8 @@ const gameSource = await readFile(new URL('./orbis_game.js', import.meta.url), '
 const regionLabelsSource = await readFile(new URL('./orbis_region_labels.js', import.meta.url), 'utf8');
 const eventsSource = await readFile(new URL('./orbis_events.js', import.meta.url), 'utf8');
 const textSource = await readFile(new URL('./orbis_text.js', import.meta.url), 'utf8');
+const versionSource = await readFile(new URL('./orbis_version.js', import.meta.url), 'utf8');
+const creditsSource = await readFile(new URL('./orbis_credits.js', import.meta.url), 'utf8');
 const inlineScripts = [...htmlSource.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
 const choices = [{ label: '条件を詰める', text: '予算の上限を明確にした上で、実施条件を協議しましょう。' }, { label: '見送る', text: '今月の実施は見送ります。代替案を示してください。' }];
 const opening = () => ({ headline: '軍縮と復興のあいだ', briefing: '大恐慌が続くなか、外務省と国内勢力が相反する条件を提示した。財政の範囲で決断が求められる。', telegrams: [{ actorId: 'domestic:ig_military', subject: '防衛費の折衝', text: '防衛を維持するための予算を協議したい。軍縮を進める場合も、指揮権の保障を求める。', urgency: 'urgent', choices }, { actorId: 'ministry:usa', subject: '通商の予備協議', text: '資源通商と極東の安定について協議する用意があります。条件をご提示ください。', urgency: 'important', choices }, { actorId: 'client:manchukuo', subject: '自治と開発', text: '開発資金の援助と、現地政府の裁量を確保したい。', urgency: 'important', choices }] });
@@ -77,8 +83,8 @@ const server = createServer(async (request, response) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const endpoint = `http://127.0.0.1:${server.address().port}`;
 
-function harness(provider = 'custom') {
-  const storage = new Map();
+function harness(provider = 'custom', sharedStorage = null) {
+  const storage = sharedStorage || new Map();
   const document = { getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, activeElement: null };
   const context = vm.createContext({ console, document, fetch, URL, Blob, AbortController, AbortSignal, setTimeout, clearTimeout, crypto: webcrypto, localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) }, addEventListener() {}, confirm: () => true });
   context.window = context;
@@ -86,6 +92,8 @@ function harness(provider = 'custom') {
   vm.runInContext(mapMetaSource, context, { timeout: 4000 });
   vm.runInContext(regionLabelsSource, context, { timeout: 4000 });
   for (const script of inlineScripts) if (script.trim()) vm.runInContext(script, context, { timeout: 4000 });
+  vm.runInContext(versionSource, context, { timeout: 4000 });
+  vm.runInContext(creditsSource, context, { timeout: 4000 });
   vm.runInContext(eventsSource, context, { timeout: 4000 });
   vm.runInContext(textSource, context, { timeout: 4000 });
   vm.runInContext(coreSource, context, { timeout: 4000 });
@@ -2650,6 +2658,120 @@ try {
     assert.ok(status.firedHalf != null);
     const war = Object.values(api.snapshot().wars).find(item => item.arcId === 'pacific_war');
     assert.ok(war && war.attacker === 'japan' && war.defender === 'usa', '日米開戦が記録される');
+  });
+
+  await check('バージョン番号をAPIと画面から取得できる', async () => {
+    const { api, context } = harness();
+    const info = api.versionInfo();
+    assert.equal(info.version, '0.7.0');
+    assert.equal(info.display, 'v0.7.0');
+    assert.equal(info.product, 'ORBIS//1932');
+    assert.equal(vm.runInContext('ORBIS_VERSION.version', context), '0.7.0');
+    assert.match(htmlSource, /id="orbis-build-version"/);
+    assert.match(htmlSource, /src="orbis_version\.js"/);
+    assert.match(htmlSource, /id="modal-about"/);
+  });
+
+  await check('保存を選んだAPIキーだけ端末に残り、セーブJSONと配布物に含まれない', async () => {
+    const storage = new Map();
+    const first = harness('custom', storage);
+    const endpoint = first.api.settingsInfo().endpoint;
+    first.api.configure({ provider: 'custom', endpoint, model: 'fixture-model', apiKey: 'TEST_ONLY_NOT_A_REAL_KEY', remember: true }, true);
+    const savedInfo = first.api.settingsInfo();
+    assert.equal(savedInfo.hasKey, true);
+    assert.equal(savedInfo.persistedHasKey, true, '保存を選ぶとlocalStorageに残る');
+
+    const second = harness('custom', storage);
+    const reopened = second.api.reloadSettings();
+    assert.equal(reopened.hasKey, true, '再開後もキーが残る');
+    assert.equal(reopened.persistedHasKey, true);
+    assert.equal(await begin(second.api), true);
+    const serialized = storage.get('orbis_campaign_v6') || storage.get('orbis_campaign_v5');
+    assert.ok(serialized, 'セーブJSONが存在する');
+    assert.ok(!serialized.includes('TEST_ONLY_NOT_A_REAL_KEY'), 'セーブJSONにキーを含めない');
+    assert.ok(!JSON.stringify(second.api.snapshot()).includes('TEST_ONLY_NOT_A_REAL_KEY'));
+
+    second.api.configure({ provider: 'custom', endpoint, model: 'fixture-model', apiKey: 'TEST_ONLY_NOT_A_REAL_KEY', remember: false }, true);
+    const unsaved = second.api.settingsInfo();
+    assert.equal(unsaved.hasKey, true, '画面を開いている間はメモリ上のキーを使える');
+    assert.equal(unsaved.persistedHasKey, false, '保存しない選択ではlocalStorageに残さない');
+    const third = harness('custom', storage);
+    const afterRestart = third.api.reloadSettings();
+    assert.equal(afterRestart.hasKey, false, '保存しないキーは再開後に残らない');
+    assert.equal(afterRestart.persistedHasKey, false);
+  });
+
+  await check('APIキー未入力と無効キーで日本語の明確なエラー状態になる', async () => {
+    const { api } = harness();
+    assert.throws(
+      () => api.configure({ provider: 'openai', endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4.1-mini', apiKey: '', remember: false }),
+      /APIキーを入力してください/
+    );
+    const endpoint = api.settingsInfo().endpoint;
+    respond = item => item.operation === 'CONNECTION_TEST' ? { status: 401, error: 'invalid api key TEST_ONLY_NOT_A_REAL_KEY' } : null;
+    const result = await api.testAIConnection({ provider: 'custom', endpoint, model: 'fixture-model', apiKey: 'TEST_ONLY_NOT_A_REAL_KEY', remember: false });
+    assert.equal(result.ok, false);
+    assert.match(result.message, /接続を確認できませんでした/, '日本語で失敗理由を示す');
+    assert.match(result.message, /APIキー・URL・モデル/, '確認箇所を示す');
+    assert.ok(!result.message.includes('TEST_ONLY_NOT_A_REAL_KEY'), 'エラー文言にキーを出さない');
+    assert.ok(!JSON.stringify(result).includes('TEST_ONLY_NOT_A_REAL_KEY'), '戻り値にもキーを出さない');
+  });
+
+  await check('クレジット画面のデータが主要データ源とライセンスを含む', async () => {
+    const { api } = harness();
+    const credits = api.creditsInfo();
+    const serialized = JSON.stringify(credits);
+    for (const expected of ['Natural Earth', 'historical-basemaps', 'GNU GPL v3', '首都座標', 'orbis_events.js', 'flags/', 'Wikimedia Commons', 'Turf.js', 'Playwright', '商用利用可', '要判断']) {
+      assert.ok(serialized.includes(expected), `クレジットに ${expected} がある`);
+    }
+    const statuses = credits.sections.flatMap(section => section.items.map(item => item.status));
+    assert.ok(statuses.includes('商用利用可') && statuses.includes('要判断'), '権利区分を表示する');
+    assert.match(htmlSource, /id="credits-body"/);
+    assert.match(htmlSource, /id="btn-lobby-credits"/);
+  });
+
+  await check('配布構築脚本がオフライン用フォルダとZIPを作り、キーを同梱しない', async () => {
+    const work = await mkdtemp(path.join(tmpdir(), 'orbis-m7-dist-'));
+    try {
+      const result = await buildDist({ outDir: path.join(work, 'orbis1932'), zipPath: path.join(work, 'orbis1932.zip') });
+      assert.equal(result.version, '0.7.0');
+      assert.equal(result.flags, 111);
+      assert.equal(result.portraits, 8);
+      assert.ok(result.dataFiles >= 1);
+      const topLevel = await readdir(result.outDir);
+      for (const name of ['index.html', 'orbis_simulator.html', 'orbis_game.js', 'orbis_version.js', 'orbis_credits.js', 'BUILD_INFO.json', 'CREDITS']) {
+        assert.ok(topLevel.includes(name), `${name} を同梱する`);
+      }
+      assert.ok(!topLevel.includes('orbis_simulator.test.mjs'), 'テストを同梱しない');
+      const html = await readFile(path.join(result.outDir, 'index.html'), 'utf8');
+      assert.ok(!html.includes('fonts.googleapis.com'), '外部フォントに依存しない');
+      assert.ok(!/<script\b[^>]*\bsrc=["']https?:/i.test(html), '外部スクリプトに依存しない');
+      assert.ok(html.includes('orbis_version.js') && html.includes('orbis_credits.js'));
+      const buildInfo = JSON.parse(await readFile(path.join(result.outDir, 'BUILD_INFO.json'), 'utf8'));
+      assert.equal(buildInfo.version, '0.7.0');
+      assert.equal(buildInfo.offline, true);
+      const zipBytes = await readFile(result.zipPath);
+      assert.equal(zipBytes.subarray(0, 4).toString('binary'), 'PK\x03\x04');
+      assert.ok(zipBytes.length > 1000000);
+      try { execFileSync('unzip', ['-t', result.zipPath], { stdio: 'ignore' }); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+
+      const scan = async dir => {
+        let text = '';
+        for (const entry of await readdir(dir, { withFileTypes: true })) {
+          const target = path.join(dir, entry.name);
+          if (entry.isDirectory()) text += await scan(target);
+          else if (/\.(html|js|json|md|txt)$/i.test(entry.name) || entry.name === 'CREDITS') text += await readFile(target, 'utf8');
+        }
+        return text;
+      };
+      const allText = await scan(result.outDir);
+      assert.ok(!allText.includes('TEST_ONLY_NOT_A_REAL_KEY'), '配布物にテスト用キーを残さない');
+      assert.ok(!/\bsk-[A-Za-z0-9_-]{20,}\b/.test(allText), '配布物に実キーらしき文字列を残さない');
+      assert.ok((await stat(result.zipPath)).size > 0);
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
   });
 
   await check('M7b長時間ラン脚本は1947・1955・1972のチェックポイントと戦後検証を記録する', async () => {
