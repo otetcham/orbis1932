@@ -136,7 +136,7 @@ try {
     version: document.getElementById('orbis-build-version')?.textContent || ''
   }));
   for (const id of ['japan', 'germany', 'usa', 'uk', 'russia', 'china']) check(`ロビーに ${id} がある`, lobby.nations.includes(id));
-  check('画面のバージョンが v1.0.0-rc1', lobby.version === 'v1.0.0-rc1', lobby.version);
+  check('画面のバージョンが v1.0.0-rc2', lobby.version === 'v1.0.0-rc2', lobby.version);
   await shot('qa-lobby');
 
   await page.evaluate(() => Orbis.start({ nationId: 'japan', difficulty: 'standard', mandate: 'recovery', maxTurns: 0, replace: true }));
