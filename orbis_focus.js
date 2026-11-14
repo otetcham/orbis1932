@@ -1,4 +1,147 @@
 'use strict';
+// 国策ノードグラフの純粋なレイアウト計算。
+// 前提線は列間のガターと行間のガターだけを通し、カード矩形を横切らない。
+globalThis.ORBIS_FOCUS_GRAPH = (() => {
+  const DEFAULTS = Object.freeze({ cardWidth: 176, cardHeight: 120, gapX: 34, gapY: 16, pad: 26 });
+  const PATH_ORDER = Object.freeze({ common: 0, historical: 1, alt1: 2, alt2: 3 });
+
+  function layout(focuses, options = {}) {
+    const cardWidth = options.cardWidth || DEFAULTS.cardWidth;
+    const cardHeight = options.cardHeight || DEFAULTS.cardHeight;
+    const gapX = options.gapX || DEFAULTS.gapX;
+    const gapY = options.gapY || DEFAULTS.gapY;
+    const pad = options.pad ?? DEFAULTS.pad;
+    const tiers = [...new Set(focuses.map(focus => focus.tier))].sort((a, b) => a - b);
+    const byTier = new Map(tiers.map(tier => [tier, focuses.filter(focus => focus.tier === tier)]));
+    for (const list of byTier.values()) {
+      list.sort((a, b) => (PATH_ORDER[a.path] ?? 9) - (PATH_ORDER[b.path] ?? 9) || a.id.localeCompare(b.id));
+    }
+    const maxRows = Math.max(1, ...[...byTier.values()].map(list => list.length));
+    const width = pad * 2 + tiers.length * cardWidth + Math.max(0, tiers.length - 1) * gapX;
+    const height = pad * 2 + maxRows * cardHeight + Math.max(0, maxRows - 1) * gapY;
+    const positions = new Map();
+    tiers.forEach((tier, column) => {
+      byTier.get(tier).forEach((focus, row) => {
+        positions.set(focus.id, {
+          x: pad + column * (cardWidth + gapX),
+          y: pad + row * (cardHeight + gapY),
+          column,
+          row
+        });
+      });
+    });
+    const nodes = focuses.map(focus => {
+      const position = positions.get(focus.id);
+      return { id: focus.id, tier: focus.tier, path: focus.path || 'common', ...position, width: cardWidth, height: cardHeight };
+    });
+    const context = { cardWidth, cardHeight, gapX, gapY, pad, width, height, maxRows };
+    const edges = [];
+    for (const focus of focuses) {
+      for (const from of focus.requires || []) {
+        const source = positions.get(from);
+        const target = positions.get(focus.id);
+        if (!source || !target) continue;
+        edges.push({ from, to: focus.id, path: focus.path || 'common', ...routeEdge(source, target, context) });
+      }
+    }
+    return {
+      width, height, cardWidth, cardHeight, gapX, gapY, pad, maxRows, tiers,
+      nodes,
+      edges,
+      positions: Object.fromEntries([...positions.entries()].map(([id, value]) => [id, { ...value }]))
+    };
+  }
+
+  function routeEdge(from, to, context) {
+    const { cardWidth: w, cardHeight: h, gapX, gapY, pad } = context;
+    const sourceX = from.x;
+    const targetX = to.x;
+    const sourceY = from.y;
+    const targetY = to.y;
+    const sourceMidY = sourceY + h / 2;
+    const targetMidY = targetY + h / 2;
+    const points = [];
+    if (to.column === from.column + 1) {
+      // 隣接する列は、その間のガターを縦に通す。
+      const lane = sourceX + w + gapX / 2;
+      points.push([sourceX + w, sourceMidY], [lane, sourceMidY], [lane, targetMidY], [targetX, targetMidY]);
+    } else if (to.column === from.column) {
+      // 同じ列は右側の外側ガターを使い、右辺同士を結ぶ。
+      const lane = sourceX + w + gapX / 2;
+      points.push([sourceX + w, sourceMidY], [lane, sourceMidY], [lane, targetMidY], [targetX + w, targetMidY]);
+    } else if (to.column > from.column + 1) {
+      // 列を飛ばす場合は、行間のガターを水平に使って中間列のカードを避ける。
+      const laneRight = sourceX + w + gapX / 2;
+      const laneLeft = targetX - gapX / 2;
+      const gapYAtTarget = targetY > pad
+        ? targetY - gapY / 2
+        : targetY < context.height - pad - h ? targetY + h + gapY / 2 : pad / 2;
+      points.push([sourceX + w, sourceMidY], [laneRight, sourceMidY], [laneRight, gapYAtTarget],
+        [laneLeft, gapYAtTarget], [laneLeft, targetMidY], [targetX, targetMidY]);
+    } else {
+      // 左方向の依存は左側の外側ガターを使う。
+      const laneLeft = sourceX - gapX / 2;
+      const laneRight = targetX + w + gapX / 2;
+      const gapYAtTarget = targetY > pad
+        ? targetY - gapY / 2
+        : targetY < context.height - pad - h ? targetY + h + gapY / 2 : pad / 2;
+      points.push([sourceX, sourceMidY], [laneLeft, sourceMidY], [laneLeft, gapYAtTarget],
+        [laneRight, gapYAtTarget], [laneRight, targetMidY], [targetX + w, targetMidY]);
+    }
+    const compact = [];
+    for (const point of points) {
+      const previous = compact[compact.length - 1];
+      if (!previous || Math.abs(previous[0] - point[0]) > 0.001 || Math.abs(previous[1] - point[1]) > 0.001) compact.push(point);
+    }
+    return {
+      points: compact,
+      d: compact.map((point, index) => `${index ? 'L' : 'M'} ${round(point[0])} ${round(point[1])}`).join(' ')
+    };
+  }
+
+  function round(value) {
+    return Math.round(value * 10) / 10;
+  }
+
+  function pointInRect(x, y, rect, inset = 0.01) {
+    return x > rect.x + inset && x < rect.x + rect.width - inset
+      && y > rect.y + inset && y < rect.y + rect.height - inset;
+  }
+
+  function segmentIntersectsRect(a, b, rect, inset = 0.01) {
+    const minX = rect.x + inset;
+    const maxX = rect.x + rect.width - inset;
+    const minY = rect.y + inset;
+    const maxY = rect.y + rect.height - inset;
+    if (minX >= maxX || minY >= maxY) return false;
+    if (a[0] === b[0]) {
+      if (a[0] <= minX || a[0] >= maxX) return false;
+      return Math.max(Math.min(a[1], b[1]), minY) < Math.min(Math.max(a[1], b[1]), maxY);
+    }
+    if (a[1] === b[1]) {
+      if (a[1] <= minY || a[1] >= maxY) return false;
+      return Math.max(Math.min(a[0], b[0]), minX) < Math.min(Math.max(a[0], b[0]), maxX);
+    }
+    return false;
+  }
+
+  function edgeCrossesNodes(edge, nodes, options = {}) {
+    const allow = new Set(options.allow || [edge.from, edge.to]);
+    const hits = [];
+    for (let index = 0; index < edge.points.length - 1; index++) {
+      const a = edge.points[index];
+      const b = edge.points[index + 1];
+      for (const node of nodes) {
+        if (allow.has(node.id)) continue;
+        if (segmentIntersectsRect(a, b, node)) hits.push(node.id);
+      }
+    }
+    return [...new Set(hits)];
+  }
+
+  return Object.freeze({ DEFAULTS, layout, routeEdge, pointInRect, segmentIntersectsRect, edgeCrossesNodes });
+})();
+
 // 主要8カ国の国策ツリー。1930年代から戦中、戦後、1972年頃の冷戦までを、
 // 史実経路と2本の代替経路でたどれるようにする。既存ノードIDは維持する。
 globalThis.FOCUS_TREES = {

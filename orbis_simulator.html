@@ -907,8 +907,24 @@ html, body {
 .focus-legend-item.path-alt2 i { background: #7c3aed; }
 .focus-legend-item.path-common i { background: #64748b; }
 .focus-graph-scroll { position: relative; overflow: auto; max-height: 60dvh; border: 1px solid #d3dfec; border-radius: 9px; background: #f8fafd; padding: 6px; }
-.focus-graph { position: relative; background-image: linear-gradient(#e7eef7 1px, transparent 1px), linear-gradient(90deg, #e7eef7 1px, transparent 1px); background-size: 24px 24px; background-color: #fbfdff; border-radius: 6px; }
+.focus-graph-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.focus-graph-hint { color: #526b86; font-size: 10px; }
+.focus-graph-zoom { display: inline-flex; align-items: center; gap: 4px; }
+.focus-graph-zoom .btn { min-height: 26px; height: 26px; padding: 0 8px; font-size: 10px; }
+.focus-zoom-label { min-width: 42px; text-align: center; font: 600 10px var(--font-mono); color: #3d5570; }
+.focus-graph-viewport { position: relative; overflow: hidden; height: min(48dvh, 480px); border: 1px solid #d3dfec; border-radius: 9px; background: #f8fafd; cursor: grab; touch-action: none; }
+.focus-graph-viewport:active { cursor: grabbing; }
+.focus-graph-viewport:focus-visible { outline: 2px solid #2f6db8; outline-offset: 2px; }
+.focus-graph { position: absolute; left: 0; top: 0; transform-origin: 0 0; background-image: linear-gradient(#e7eef7 1px, transparent 1px), linear-gradient(90deg, #e7eef7 1px, transparent 1px); background-size: 24px 24px; background-color: #fbfdff; border-radius: 6px; user-select: none; }
 .focus-graph-edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.focus-detail { margin: 0 0 8px; padding: 10px 12px; border: 1px solid #c9d8ea; border-left: 3px solid #2f6db8; border-radius: 8px; background: #f7fafd; min-height: 84px; }
+.focus-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.focus-detail-head strong { font-size: 12.5px; color: #16283e; }
+.focus-detail-desc { margin: 0 0 5px; color: #3d5570; font-size: 11px; line-height: 1.6; }
+.focus-detail-meta { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 2px 8px; margin: 0; font-size: 10.5px; line-height: 1.55; }
+.focus-detail-meta dt { color: #6c829c; font-weight: 600; }
+.focus-detail-meta dd { margin: 0; color: #233a54; overflow-wrap: anywhere; }
+.focus-node:focus-visible { outline: 2px solid #2f6db8; outline-offset: 1px; }
 .focus-edge { fill: none; stroke: #94a3b8; stroke-width: 1.7; opacity: 0.82; }
 .focus-edge.path-historical { stroke: #1f7a4d; }
 .focus-edge.path-alt1 { stroke: #b45309; }
@@ -1879,8 +1895,12 @@ svg path:focus-visible,
 .orbis-topbar .topbar-right { justify-self: end; margin: 0; }
 .orbis-topbar #btn-advance-month { min-height: 34px; height: 34px; padding: 0 13px; font-size: 11px; }
 .topbar-gauges { display: flex; align-items: center; gap: 14px; min-width: 0; overflow: hidden; }
-.gauge-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid #dce5ef; border-radius: 8px; background: #f7fafd; height: 30px; flex-shrink: 0; }
-.gauge-pill strong { font: 13px var(--font-mono); font-weight: 600; color: var(--text-primary); letter-spacing: 0.02em; }
+.gauge-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid #dce5ef; border-radius: 8px; background: #f7fafd; height: 30px; flex-shrink: 0; }
+.gauge-pill strong { font: 13px var(--font-mono); font-weight: 700; color: #16283e; letter-spacing: 0.02em; }
+.gauge-label { font-size: 9px; font-weight: 600; color: #6c829c; letter-spacing: 0.04em; }
+.orbis-topbar .nation-plaque strong { font-size: 14px !important; font-weight: 700; color: #16283e; }
+.header-date .clock-date { font: 700 15px var(--font-mono); color: #163a66; letter-spacing: 0.01em; }
+.header-date #hud-turn { font: 600 9px var(--font-mono); color: #6c829c; letter-spacing: 0.04em; }
 .gauge-icon { display: inline-flex; }
 .gauge-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .ig-bar-track { background: #e2e9f2; }
@@ -2143,6 +2163,19 @@ svg path:focus-visible,
 .modal-body { padding: 18px; gap: 12px; }
 .modal-body label { font-size: 11px; color: #3d5570; margin-bottom: 4px; display: block; }
 .modal-body label.checkbox-label { display: flex; align-items: center; gap: 8px; }
+/* ゲーム内ダイアログの共通トーン: 余白・字階・色をここで揃える。 */
+.game-dialog { border-color: #cdd9e6; box-shadow: 0 24px 80px rgba(23, 42, 68, 0.26); }
+.game-dialog .modal-head { padding: 14px 20px; background: #f4f8fc; border-bottom: 1px solid #d9e4f0; }
+.game-dialog .modal-head strong { font-size: 15px; font-weight: 700; letter-spacing: 0.01em; color: #14263c; }
+.game-dialog .modal-body { padding: 20px; gap: 14px; color: #233a54; font-size: 12px; line-height: 1.7; }
+.game-dialog .modal-body h3 { color: #14263c; font-size: 13px; font-weight: 700; }
+.game-dialog .modal-body p { color: #3d5570; }
+.game-dialog .modal-body .small, .game-dialog .modal-body .muted { color: #5d7894; }
+.game-dialog .modal-foot { padding: 12px 20px; gap: 10px; align-items: center; background: #f8fafd; border-top: 1px solid #d9e4f0; }
+.game-dialog .modal-foot .muted { color: #5d7894; }
+.game-dialog .btn-ghost { border-color: #cdd9e6; color: #33506e; }
+.game-dialog .btn-primary { background: #1d5c96; border-color: #174c7d; color: #ffffff; }
+.game-dialog .btn-primary:hover { background: #174c7d; }
 .form-input, .form-select, .form-textarea { background: #ffffff; border-color: #d3dfec; color: var(--text-primary); }
 .settings-feedback { padding: 11px; border: 1px solid #d3dfec; border-radius: 4px; color: #3d5570; font-size: 11px; line-height: 1.8; white-space: pre-line; overflow-wrap: anywhere; }
 .settings-feedback.error { border-color: #e3b6b8; color: #a83a3a; }
@@ -2442,10 +2475,10 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           </div>
         </button>
         <div class="topbar-gauges" aria-label="国家ステータス">
-          <div class="gauge-pill" title="軍事力 — 上限なしで伸びる戦力指数"><span class="gauge-icon" style="color:#c23b3b" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.8 13 3.6v4.2c0 3.1-2.1 5.4-5 6.4-2.9-1-5-3.3-5-6.4V3.6Z"/></svg></span><strong id="hud-mil">84</strong></div>
-          <div class="gauge-pill" title="経済力 — 上限なしで伸びる産業指数"><span class="gauge-icon" style="color:#a0762d" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.8 12.2 6 8l2.6 2.6L14 4.6M10 4.6h4v4"/></svg></span><strong id="hud-eco">70</strong></div>
-          <div class="gauge-pill" title="国内安定"><span class="gauge-icon" style="color:#1f7a4d" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 2 14 5H2ZM2.6 5v8M5.5 5v8M8 5v8M10.5 5v8M13.4 5v8M1.4 13h13.2"/></svg></span><strong id="hud-stb">64%</strong></div>
-          <div class="gauge-pill" title="国際緊張"><span class="gauge-icon" style="color:#1f7a4d" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.5 8h3l1.8-4.6L9.7 12.6 11.5 8h3"/></svg></span><strong id="hud-tension">42%</strong></div>
+          <div class="gauge-pill" title="軍事力 — 上限なしで伸びる戦力指数"><span class="gauge-icon" style="color:#c23b3b" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.8 13 3.6v4.2c0 3.1-2.1 5.4-5 6.4-2.9-1-5-3.3-5-6.4V3.6Z"/></svg></span><span class="gauge-label">軍事</span><strong id="hud-mil">84</strong></div>
+          <div class="gauge-pill" title="経済力 — 上限なしで伸びる産業指数"><span class="gauge-icon" style="color:#a0762d" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.8 12.2 6 8l2.6 2.6L14 4.6M10 4.6h4v4"/></svg></span><span class="gauge-label">経済</span><strong id="hud-eco">70</strong></div>
+          <div class="gauge-pill" title="国内安定"><span class="gauge-icon" style="color:#1f7a4d" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 2 14 5H2ZM2.6 5v8M5.5 5v8M8 5v8M10.5 5v8M13.4 5v8M1.4 13h13.2"/></svg></span><span class="gauge-label">安定</span><strong id="hud-stb">64%</strong></div>
+          <div class="gauge-pill" title="国際緊張"><span class="gauge-icon" style="color:#1f7a4d" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.5 8h3l1.8-4.6L9.7 12.6 11.5 8h3"/></svg></span><span class="gauge-label">緊張</span><strong id="hud-tension">42%</strong></div>
         </div>
       </div>
 
@@ -2765,6 +2798,9 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         </div>
         <label class="checkbox-label"><input type="checkbox" id="remember-api-key">この端末にAPIキーを保存</label>
         <p class="settings-key-note">保存を選んだときだけ、キーはこの端末の localStorage に残る。保存しない場合は再起動後に残らず、セーブJSON・配布物・ログには含めない。</p>
+        <div class="settings-section-label">サウンド</div>
+        <label class="checkbox-label"><input type="checkbox" id="toggle-audio-muted"> 効果音をミュートする</label>
+        <p class="settings-key-note">ターン終了・宣戦・和平・国策完了の短い効果音。設定はこの端末に保存し、APIキーとは別に管理する。</p>
         <div class="settings-section-label">このソフト</div>
         <div class="about-actions">
           <button class="btn" type="button" id="btn-settings-about">このソフトについて</button>
@@ -2981,7 +3017,8 @@ const COUNTRY_MAP_COLORS = {
   pakistan: '#15803d',       // パキスタン (Independence Green)
   west_germany: '#1d4ed8',   // 西ドイツ (Federal Blue)
   east_germany: '#b91c1c',   // 東ドイツ (Democratic Red)
-  korea: '#dc2626',          // 朝鮮 (Korean Red)
+  korea: '#2563eb',          // 大韓民国 (ROK Blue)
+  korea_communist: '#b91c1c', // 朝鮮民主主義人民共和国 (DPRK Red)
   australia: '#0f766e',      // オーストラリア連邦 (Southern Teal)
   canada: '#ef4444',         // カナダ自治領 (Dominion Red)
   mexico: '#15803d',         // メキシコ合衆国 (Mexican Green)
@@ -5981,6 +6018,7 @@ const HISTORICAL_CITIES = [
   { name: 'オークランド', lon: 174.76, lat: -36.85, tier: 2 }
 ];
 const mapLabelPool = new Map();
+let mapLabelScreenRects = [];
 const OCCUPATION_CLIENT_IDS = new Set(['manchukuo', 'mongolia', 'india', 'dutch_indies']);
 const occupationPatternCache = new Set();
 
@@ -6107,6 +6145,80 @@ function repositionGlobeLabels() {
   }
 }
 
+// 地図ラベルの出し分けと衝突回避。描画コードとテストで同じ判定を使う。
+globalThis.ORBIS_MAP_LABELS = (() => {
+  const SPATIAL_CELL = 96;
+  const rectsOverlap = (a, b, padding = 1) => Math.abs(a.x - b.x) < padding * (a.hw + b.hw)
+    && Math.abs(a.y - b.y) < padding * (a.hh + b.hh);
+  function fits(x, y, hw, hh, placed, padding = 1) {
+    const candidate = { x, y, hw: hw + 2, hh: hh + 2 };
+    for (const item of placed) if (rectsOverlap(candidate, item, padding)) return false;
+    return true;
+  }
+  function record(placed, x, y, hw, hh) {
+    placed.push({ x, y, hw: hw + 2, hh: hh + 2 });
+  }
+  function textWidth(text, font) {
+    let units = 0;
+    for (const char of String(text || '')) {
+      units += /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\u3040-\u30ff]/.test(char) ? 0.96 : 0.58;
+    }
+    return units * font;
+  }
+  function countryLabelVisible({ span, zoom, isMajor = false, isLobby = false, selected = false }) {
+    if (selected) return true;
+    if (isLobby) return true;
+    if (isMajor) return true;
+    const screenSpan = Math.max(0, Number(span) || 0) * Math.max(0.5, Number(zoom) || 1);
+    return screenSpan >= 60;
+  }
+  function cityLabelVisible({ tier, zoom }) {
+    const level = Math.max(0, Number(zoom) || 1);
+    if (level < 1.05) return false;
+    if (tier === 2 && level < 1.45) return false;
+    if (tier === 3 && level < 2.15) return false;
+    return true;
+  }
+  const BADGE_OFFSETS = Object.freeze([
+    [0, 0], [15, 0], [-15, 0], [0, 15], [0, -15], [15, 15], [-15, 15], [15, -15], [-15, -15],
+    [28, 0], [-28, 0], [0, 28], [0, -28], [40, 0], [-40, 0], [0, 40], [0, -40], [52, 0], [-52, 0]
+  ]);
+  function placeBadge({ x, y, half = 10, labelRects = [], offsets = BADGE_OFFSETS }) {
+    for (const [dx, dy] of offsets) {
+      const candidate = { x: x + dx, y: y + dy, hw: half, hh: half };
+      if (!labelRects.some(rect => rectsOverlap(candidate, rect, 1.02))) return { x: candidate.x, y: candidate.y, hidden: false, dx, dy };
+    }
+    return { x, y, hidden: true, dx: 0, dy: 0 };
+  }
+  return Object.freeze({ SPATIAL_CELL, rectsOverlap, fits, record, textWidth, countryLabelVisible, cityLabelVisible, placeBadge, BADGE_OFFSETS });
+})();
+
+function projectedStateBounds(region) {
+  if (!region?.rings?.length) {
+    const pt = region ? getProjectedStatePoint(region) : null;
+    if (!pt?.visible) return null;
+    return { minX: pt.x, maxX: pt.x, minY: pt.y, maxY: pt.y };
+  }
+  if (state.mapProjection === 'flat' && region._flatLabelBounds) return region._flatLabelBounds;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const ring of region.rings) {
+    for (const [lon, lat] of ring) {
+      const pt = state.mapProjection === 'flat'
+        ? { x: (lon + 180) * (2000 / 360), y: (90 - lat) * 9.32 + 60, visible: true }
+        : projectLonLatPoint(lon, lat);
+      if (!pt?.visible) continue;
+      if (pt.x < minX) minX = pt.x;
+      if (pt.x > maxX) maxX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.y > maxY) maxY = pt.y;
+    }
+  }
+  if (!Number.isFinite(minX)) return null;
+  const bounds = { minX, maxX, minY, maxY };
+  if (state.mapProjection === 'flat') region._flatLabelBounds = bounds;
+  return bounds;
+}
+
 function updateMapVisuals() {
   buildMapGeometryOnce();
   renderGlobeBackdrop();
@@ -6191,6 +6303,7 @@ function updateMapVisuals() {
     if (!showLabels) {
       labelsLayer.innerHTML = '';
       mapLabelPool.clear();
+      mapLabelScreenRects = [];
     } else {
       const isLobby = isLobbyOpen();
       // HOI4-style: country names keep a constant screen size and gradually fade out when zoomed in.
@@ -6199,7 +6312,7 @@ function updateMapVisuals() {
       const countryOp = zoomFactor <= fadeStart ? 0.95 : Math.max(0, 0.95 * (1 - (zoomFactor - fadeStart) / (fadeEnd - fadeStart)));
       const wanted = new Map();
       const placed = [];
-      const SPATIAL_CELL = 96;
+      const SPATIAL_CELL = ORBIS_MAP_LABELS.SPATIAL_CELL;
       const spatialGrid = new Map();
       const cellKey = (gx, gy) => `${gx}_${gy}`;
       const fits = (x, y, hw, hh) => {
@@ -6212,15 +6325,14 @@ function updateMapVisuals() {
             const bucket = spatialGrid.get(cellKey(gx, gy));
             if (!bucket) continue;
             for (let i = 0; i < bucket.length; i++) {
-              const p = bucket[i];
-              if (Math.abs(x - p.x) < 0.85 * (hw + p.hw) && Math.abs(y - p.y) < 0.85 * (hh + p.hh)) return false;
+              if (ORBIS_MAP_LABELS.rectsOverlap({ x, y, hw: hw + 2, hh: hh + 2 }, bucket[i], 1)) return false;
             }
           }
         }
         return true;
       };
       const recordPlaced = (x, y, hw, hh) => {
-        const item = { x, y, hw, hh };
+        const item = { x, y, hw: hw + 2, hh: hh + 2 };
         placed.push(item);
         const minGx = Math.floor((x - hw) / SPATIAL_CELL);
         const maxGx = Math.floor((x + hw) / SPATIAL_CELL);
@@ -6235,16 +6347,17 @@ function updateMapVisuals() {
           }
         }
       };
+      mapLabelScreenRects = [];
       const spanByCountry = new Map();
       state.states.forEach(s => {
         if (s.isSea || s.type === 'sea' || s.isSeaZone || !state.nations[s.country]) return;
-        const pt = getProjectedStatePoint(s);
-        if (!pt?.visible) return;
+        const bounds = projectedStateBounds(s);
+        if (!bounds) return;
         let box = spanByCountry.get(s.country);
-        if (!box) { box = { minX: pt.x, maxX: pt.x, minY: pt.y, maxY: pt.y }; spanByCountry.set(s.country, box); }
+        if (!box) { box = { minX: bounds.minX, maxX: bounds.maxX, minY: bounds.minY, maxY: bounds.maxY }; spanByCountry.set(s.country, box); }
         else {
-          box.minX = Math.min(box.minX, pt.x); box.maxX = Math.max(box.maxX, pt.x);
-          box.minY = Math.min(box.minY, pt.y); box.maxY = Math.max(box.maxY, pt.y);
+          box.minX = Math.min(box.minX, bounds.minX); box.maxX = Math.max(box.maxX, bounds.maxX);
+          box.minY = Math.min(box.minY, bounds.minY); box.maxY = Math.max(box.maxY, bounds.maxY);
         }
       });
 
@@ -6290,11 +6403,19 @@ function updateMapVisuals() {
       for (const g of countryOp < 0.03 ? [] : entries) {
         const label = state.nations[g.country]?.labelOverride || COUNTRY_LABEL_NAMES[g.country] || (state.nations[g.country].name || g.country).split(/[（(・]/)[0];
         const isSelectedNation = isLobby && (g.country === state.lobbyNationId);
+        const isMajor = Boolean(state.nations[g.country]?.isMajor);
+        if (!ORBIS_MAP_LABELS.countryLabelVisible({ span: g.span, zoom: zoomFactor, isMajor, isLobby, selected: isSelectedNation })) continue;
         const font = (isSelectedNation ? Math.min(20, Math.max(13, 0.24 * g.span)) : Math.min(16, Math.max(10.5, 0.2 * g.span))) * invZoom;
-        const hw = label.length * font * 0.58;
+        const hw = ORBIS_MAP_LABELS.textWidth(label, font);
         const hh = font * 0.66;
         if (!fits(g.cx, g.cy, hw, hh)) continue;
         recordPlaced(g.cx, g.cy, hw, hh);
+        mapLabelScreenRects.push({
+          x: isGlobe ? g.cx : g.cx * zoomFactor,
+          y: isGlobe ? g.cy : g.cy * zoomFactor,
+          hw: isGlobe ? hw : hw * zoomFactor,
+          hh: isGlobe ? hh : hh * zoomFactor
+        });
         const labelCls = isSelectedNation ? 'map-label-country lobby-highlighted-label' : 'map-label-country';
         const labelOp = isSelectedNation ? 1 : (isLobby && state.lobbyNationId ? 0.35 : countryOp);
         wanted.set(`c:${g.country}`, { text: label, x: g.cx, y: g.cy, font, op: labelOp, cls: labelCls, ll: g.ll });
@@ -6303,15 +6424,20 @@ function updateMapVisuals() {
       if (zoomFactor >= 1.05) {
         const cityOp = Math.min(1, Math.max(0.35, (zoomFactor - 0.95) * 0.65));
         for (const c of HISTORICAL_CITIES) {
-          if (c.tier === 2 && zoomFactor < 1.45) continue;
-          if (c.tier === 3 && zoomFactor < 2.15) continue;
+          if (!ORBIS_MAP_LABELS.cityLabelVisible({ tier: c.tier, zoom: zoomFactor })) continue;
           const pt = projectLonLatPoint(c.lon, c.lat);
           if (!pt || !pt.visible) continue;
           const font = (c.tier === 1 ? 13.5 : 11.8) * invZoom;
-          const hw = c.name.length * font * 0.55;
+          const hw = ORBIS_MAP_LABELS.textWidth(c.name, font);
           const hh = font * 0.65;
           if (!fits(pt.x, pt.y, hw, hh)) continue;
           recordPlaced(pt.x, pt.y, hw, hh);
+          mapLabelScreenRects.push({
+            x: isGlobe ? pt.x : pt.x * zoomFactor,
+            y: isGlobe ? pt.y : pt.y * zoomFactor,
+            hw: isGlobe ? hw : hw * zoomFactor,
+            hh: isGlobe ? hh : hh * zoomFactor
+          });
           wanted.set(`city:${c.name}`, { text: c.name, x: pt.x, y: pt.y, font, op: cityOp, cls: 'map-label-city', ll: [c.lon, c.lat] });
         }
       }
@@ -6333,6 +6459,7 @@ function updateMapVisuals() {
         }
         node._ll = d.ll || null;
         node.style.display = '';
+        node.setAttribute('data-label-key', key);
         node.setAttribute('class', `map-label ${d.cls}`);
         node.style.fontSize = `${d.font.toFixed(1)}px`;
         node.style.opacity = d.op.toFixed(2);
@@ -6668,8 +6795,16 @@ function renderFormationMarkers() {
     if (!point?.visible) continue;
     const offsetX = ((slot % 3) - 1) * 10;
     const offsetY = (Math.floor(slot / 3) * 9) - 4;
-    const x = point.x + offsetX * invZoom;
-    const y = point.y + offsetY * invZoom;
+    const baseX = point.x + offsetX * invZoom;
+    const baseY = point.y + offsetY * invZoom;
+    const baseScreenX = state.mapProjection === 'flat' ? baseX * zoomFactor : baseX;
+    const baseScreenY = state.mapProjection === 'flat' ? baseY * zoomFactor : baseY;
+    const badge = ORBIS_MAP_LABELS.placeBadge({ x: baseScreenX, y: baseScreenY, half: 9, labelRects: mapLabelScreenRects });
+    const adjustedScreenX = badge.x;
+    const adjustedScreenY = badge.y;
+    const x = state.mapProjection === 'flat' ? adjustedScreenX / zoomFactor : adjustedScreenX;
+    const y = state.mapProjection === 'flat' ? adjustedScreenY / zoomFactor : adjustedScreenY;
+    if (!badge.hidden) node.setAttribute('transform', `translate(${x.toFixed(1)}, ${y.toFixed(1)}) scale(${invZoom.toFixed(3)})`);
     entries.push({
       formation,
       region,
@@ -6677,8 +6812,9 @@ function renderFormationMarkers() {
       slot,
       x,
       y,
-      sx: state.mapProjection === 'flat' ? x * zoomFactor : x,
-      sy: state.mapProjection === 'flat' ? y * zoomFactor : y
+      sx: adjustedScreenX,
+      sy: adjustedScreenY,
+      labelHidden: badge.hidden
     });
   }
   for (const [id, node] of formationMarkerPool) {
@@ -6687,8 +6823,12 @@ function renderFormationMarkers() {
     formationMarkerPool.delete(id);
   }
 
+  for (const entry of entries) {
+    if (entry.labelHidden) entry.node.style.display = 'none';
+  }
+  const visibleEntries = entries.filter(entry => !entry.labelHidden);
   const clusters = clusterFormationPoints(
-    entries,
+    visibleEntries,
     FORMATION_CLUSTER_MAX_DISTANCE,
     formationClusteringEnabled(zoomFactor, state.mapProjection)
   );
@@ -6709,6 +6849,15 @@ function renderFormationMarkers() {
       node = createFormationClusterNode(layer);
       formationClusterPool.set(key, node);
     }
+    const badge = ORBIS_MAP_LABELS.placeBadge({ x: cluster.sx, y: cluster.sy, half: 11, labelRects: mapLabelScreenRects });
+    if (badge.hidden) {
+      node.style.display = 'none';
+      continue;
+    }
+    cluster.x = state.mapProjection === 'flat' ? badge.x / zoomFactor : badge.x;
+    cluster.y = state.mapProjection === 'flat' ? badge.y / zoomFactor : badge.y;
+    cluster.sx = badge.x;
+    cluster.sy = badge.y;
     updateFormationClusterNode(node, cluster, invZoom);
     aliveClusters.add(key);
   }
@@ -7609,6 +7758,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="orbis_turn_playback.js?v=1932.17"></script>
 <script src="orbis_text.js?v=1932.17"></script>
 <script src="orbis_focus.js?v=1932.17"></script>
+<script src="orbis_audio.js?v=1932.18"></script>
 <script src="orbis_game.js?v=1932.17"></script>
 
 </body>
