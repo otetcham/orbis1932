@@ -359,7 +359,7 @@ const Orbis = (() => {
       nations, relations, leaders: {}, actorState: {}, threads: {}, activeActorId: 'adviser',
       articles: [], briefing: null, turnActions: [], commitments: [], treaties: [], clients: copy(CLIENTS), territories: {},
       dynamicNations: {},
-      nationalAction: null, actionDraft: '', actionHistory: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, peaceConferences: {}, warScores: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [], economy: {}, nationalFocus: {}, research: {},
+      nationalAction: null, actionDraft: '', standingPolicy: '', actionHistory: [], adviserBriefings: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, peaceConferences: {}, warScores: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [], economy: {}, nationalFocus: {}, research: {},
       maritime: { navy: {}, air: {}, seaControl: {}, turn: -1 },
       establishedFacts: [], timelineFired: {}, turnPlaybackQueue: [], worldMemory: '', stress: { collapse: 0, bankruptcy: 0, war: 0, civil: 0 },
       globalWarHalves: 0, worldWarActive: false, lastResolutionIssues: [],
@@ -1111,6 +1111,7 @@ const Orbis = (() => {
       establishedFacts: (game.establishedFacts || []).slice(-24),
       recentNews: game.articles.filter(article => !article.private).slice(-8).map(article => ({ date: article.date, headline: article.headline, body: article.body })),
       publicStatements: publicStatements.slice(-12),
+      standingPolicy: game.standingPolicy || '',
       treaties: game.treaties.filter(treaty => treaty.remaining > 0 && (!audience || !treaty.secret || treaty.nationId === audience.nationId)),
       clients: game.clients,
       territories: game.territories,
@@ -1123,6 +1124,7 @@ const Orbis = (() => {
       context.worldMemory = game.worldMemory;
       context.commitments = game.commitments;
       context.nationalAction = game.nationalAction;
+      context.recentOrders = (game.actionHistory || []).slice(-4).map(item => ({ order: item.order, outcome: item.outcome, text: item.text, date: item.date, turn: item.turn }));
     } else {
       context.commitments = game.commitments.filter(item => item.actorId === audience.id || item.visibility === 'official');
     }
@@ -1320,6 +1322,12 @@ const Orbis = (() => {
     return best;
   }
 
+  function seaControlRelation(game, nationId, controller) {
+    if (!controller) return 'neutral';
+    if (formationSphereIds(game, nationId).has(controller)) return 'friendly';
+    return activeWarBetween(game, nationId, controller) ? 'hostile' : 'foreign';
+  }
+
   function refreshMaritime(game) {
     if (!game) return null;
     const state = maritimeState(game);
@@ -1349,20 +1357,20 @@ const Orbis = (() => {
   function seaSupplyInfo(game, region, nationId) {
     const state = maritimeState(game);
     const nearest = nearestSeaZones(region, 3);
-    if (!nearest.length) return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: null, seaControl: null };
+    if (!nearest.length) return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: null, seaControl: null, relation: 'neutral' };
     const pick = nearest[0];
     const controller = state.seaControl[pick.zone.id] || null;
-    const sphere = formationSphereIds(game, nationId);
+    const relation = seaControlRelation(game, nationId, controller);
     const supplyBonus = nationalModifiers(game, nationId).supplyBonus;
-    if (controller && sphere.has(controller)) {
+    if (relation === 'friendly') {
       const level = clamp(58 - Math.round(pick.distance / 6) + supplyBonus, 25, 70);
       const status = level >= 70 ? 'full' : level >= 40 ? 'stretched' : 'low';
-      return { level, status, label: SUPPLY_LABELS[status], distance: null, seaZoneId: pick.zone.id, seaControl: controller };
+      return { level, status, label: SUPPLY_LABELS[status], distance: null, seaZoneId: pick.zone.id, seaControl: controller, relation };
     }
-    if (controller && activeWarBetween(game, nationId, controller)) {
-      return { level: 8, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: pick.zone.id, seaControl: controller };
+    if (relation === 'hostile') {
+      return { level: 8, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: pick.zone.id, seaControl: controller, relation };
     }
-    return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: pick.zone.id, seaControl: controller };
+    return { level: 10, status: 'isolated', label: SUPPLY_LABELS.isolated, distance: null, seaZoneId: pick.zone.id, seaControl: controller, relation };
   }
 
   function airCombatModifier(game, attackerId, defenderId) {
@@ -1400,10 +1408,9 @@ const Orbis = (() => {
     const id = nationId || campaign.playerNationId;
     const state = maritimeState(campaign);
     if (state.turn !== campaign.completedTurns) refreshMaritime(campaign);
-    const sphere = formationSphereIds(campaign, id);
     const zones = window.ORBIS_STATES_DB.filter(isSeaRegion).map(zone => {
       const controller = state.seaControl[zone.id] || null;
-      const relation = !controller ? 'neutral' : sphere.has(controller) ? 'friendly' : activeWarBetween(campaign, id, controller) ? 'hostile' : 'foreign';
+      const relation = seaControlRelation(campaign, id, controller);
       return {
         id: zone.id,
         name: regionLabel(zone),
@@ -3189,8 +3196,11 @@ const Orbis = (() => {
     const impactRows = affected.length
       ? affected.slice(0, 4).map(item => {
         const zone = regionById(item.supply.seaZoneId);
-        const reason = item.supply.interdiction ? `敵航空優勢で補給 -${item.supply.interdiction}` : `海路 ${zone ? regionLabel(zone) : ''}（${item.supply.seaControl ? shortName(item.supply.seaControl) : '中立'}）`;
-        return `<li><span>${escapeHtml(item.region ? regionLabel(item.region) : item.formation.regionId)}の${escapeHtml(formationTypeLabel(item.formation.type))}</span><span class="sea-control ${item.supply.status === 'isolated' ? 'hostile' : item.supply.status === 'stretched' ? 'foreign' : 'friendly'}">補給 ${escapeHtml(item.supply.label)} · ${escapeHtml(reason)}</span></li>`;
+        const relation = item.supply.relation || 'neutral';
+        const controlLabel = relation === 'hostile' ? '敵制海' : relation === 'friendly' ? '自国圏' : relation === 'foreign' ? '第三国' : '中立';
+        const reason = item.supply.interdiction ? `敵航空優勢で補給 -${item.supply.interdiction}` : `海路 ${zone ? regionLabel(zone) : ''}（${controlLabel}${item.supply.seaControl ? `・${shortName(item.supply.seaControl)}` : ''}）`;
+        const tone = relation === 'hostile' ? 'hostile' : item.supply.status === 'isolated' || item.supply.status === 'low' ? 'foreign' : 'friendly';
+        return `<li><span>${escapeHtml(item.region ? regionLabel(item.region) : item.formation.regionId)}の${escapeHtml(formationTypeLabel(item.formation.type))}</span><span class="sea-control ${tone}">補給 ${escapeHtml(item.supply.label)} · ${escapeHtml(reason)}</span></li>`;
       }).join('')
       : '<li><span>海路・航空による補給の悪化はない。</span><span class="sea-control friendly">補給安定</span></li>';
     return `<section class="maritime-section"><h3>海空軍と制海</h3>
@@ -3334,6 +3344,21 @@ const Orbis = (() => {
   function buildTurnPlayback(game, evaluation, timelineItems) {
     const date = dateOf(game);
     const items = [{ headline: evaluation.headline, body: evaluation.article, date, lon: 139, lat: 35 }];
+    const recentOrder = [...(game.actionHistory || [])].reverse().find(item => item.turn === game.completedTurns);
+    if (recentOrder) {
+      const outcome = { success: '成功', partial: '部分成功', fail: '失敗' }[recentOrder.outcome] || '裁定';
+      const shortOrder = recentOrder.order.length > 52 ? `${recentOrder.order.slice(0, 52)}…` : recentOrder.order;
+      items.push({
+        kind: 'order',
+        headline: `国家の行動・${outcome}：${shortOrder}`,
+        body: `命令：${recentOrder.order}\n結果：${recentOrder.text}`,
+        date: recentOrder.date || date,
+        order: recentOrder.order,
+        outcome: recentOrder.outcome,
+        lon: 139,
+        lat: 35
+      });
+    }
     for (const ev of timelineItems) items.push({ headline: ev.headline, body: ev.body, date: ev.date || date, location: ev.location || '', lon: ev.lon ?? 139, lat: ev.lat ?? 35, stateId: ev.stateId });
     for (const dev of evaluation.developments || []) {
       if (contradictsEstablishedFacts(dev, game.establishedFacts)) continue;
@@ -4489,12 +4514,22 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     game.usedActions = 0;
     game.turnActions = [];
     game.briefing = null;
+    const adviser = buildSituationBriefing(game);
+    const adviserNote = `顧問ブリーフィング：${adviser.summary}`.slice(0, 780);
+    notes.push(adviserNote);
     const changes = Object.fromEntries(Object.keys(statLabels).map(key => [key, (Object.hasOwn(nation, key) ? nation[key] : game[key]) - before[key]]));
     const resolutionArticle = { id: uid('article'), kind: 'resolution', date: dateOf(game), turn: game.completedTurns, headline: evaluation.headline, body: evaluation.article, changes, reasoning: evaluation.reasoning, notes, reactions: evaluation.groups.map(item => `${GROUP_PERSONAS[item.groupId].short}：${item.reason}`) };
     pushTurnArticles(game, [resolutionArticle]);
     pushTurnArticles(game, (evaluation.developments || []).map(article => ({ id: uid('article'), kind: 'world', date: dateOf(game), turn: game.completedTurns, ...article })));
     pushTurnArticles(game, (evaluation.npcEvents || []).map(event => ({ id: uid('article'), kind: 'world', date: dateOf(game), turn: game.completedTurns, headline: event.headline, body: event.body })));
     for (const item of timelineItems) if (item.body) pushTurnArticles(game, [{ id: uid('article'), kind: 'world', date: dateOf(game), turn: game.completedTurns, headline: item.headline, body: item.body }]);
+    game.adviserBriefings = [...(game.adviserBriefings || []), {
+      date: adviser.date,
+      turn: game.completedTurns,
+      summary: adviser.summary,
+      policy: adviser.policy,
+      sections: adviser.sections.map(section => ({ id: section.id, title: section.title, lines: section.lines.slice(0, 6).map(line => line.slice(0, 500)) }))
+    }].slice(-12);
     buildTurnPlayback(game, evaluation, timelineItems);
     return game;
   }
@@ -4764,6 +4799,26 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (campaign.ending) { showEnding(); return; }
       await receiveBriefing();
     });
+  }
+
+  function setStandingPolicy(input = null) {
+    if (runtime.busy || !campaign || campaign.phase !== 'playing') return false;
+    const value = String(input ?? $('standing-policy-input')?.value ?? '').trim();
+    if (value.length > 800) { toast('常設方針は800文字以内で入力してください。'); return false; }
+    campaign.standingPolicy = value;
+    saveCampaign();
+    renderActions();
+    toast(value ? '常設方針を保存しました。来月以降の裁定にも参照します。' : '常設方針を解除しました。');
+    return true;
+  }
+
+  function clearStandingPolicy() {
+    if (runtime.busy || !campaign || campaign.phase !== 'playing') return false;
+    campaign.standingPolicy = '';
+    saveCampaign();
+    renderActions();
+    toast('常設方針を解除しました。');
+    return true;
   }
 
   function submitAction(input = null) {
@@ -5173,7 +5228,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const researchInfo = researchSummary();
     const focusLine = focusInfo?.current ? `${escapeHtml(focusInfo.current.name)} ${focusInfo.current.progress}/${focusInfo.current.cost}` : '未選択';
     const researchLine = researchInfo?.current ? `${escapeHtml(researchInfo.current.name)} ${researchInfo.current.progress}/${researchInfo.current.cost}` : '未選択';
-    html('domestic-overview-box', `<div class="nation-overview"><div class="mini-metrics"><div><span class="muted small">財政余力</span><strong>${campaign.treasury}<small class="small muted"> / 100</small></strong><span class="small">経常収支 ${signed(budget.net)}${budget.admin ? ` · 自治政府 +${budget.admin}` : ''}${budget.tribute ? ` · 貢納 -${budget.tribute}` : ''}</span></div><div><span class="muted small">国家威信</span><strong>${campaign.prestige}<small class="small muted"> / 100</small></strong><span class="small">履行 ${campaign.cumulative.fulfilled} · 違反 ${campaign.cumulative.broken}</span></div><div><span class="muted small">政治力</span><strong>${focusInfo?.politicalPower ?? 0}<small class="small muted"> / ${focusInfo?.maxPoliticalPower ?? FOCUS_PP_MAX}</small></strong><span class="small">国策 ${focusLine} · 研究 ${researchLine}</span></div></div><details class="compact-disclosure"><summary>国家目標 · ${escapeHtml(goal.name)} <span class="muted">${goal.conditions.filter(condition => condition.met).length}/${goal.conditions.length}</span></summary><div class="goal-box">${goal.conditions.map(condition => `<div>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</div>`).join('')}</div><p class="small">任期末までに全条件を満たす。</p></details>${ownClient ? `<p class="small" style="margin-top:9px">${escapeHtml(shortName(ownClient.sponsorId))}の影響下 · 自治 ${ownClient.autonomy} / 忠誠 ${ownClient.loyalty}</p>` : ''}<div class="form-row" style="margin-top:6px"><button class="text-button" data-situation-briefing>情勢分析 ↗</button><button class="text-button" data-open-focus>国策 ↗</button><button class="text-button" data-open-research>研究 ↗</button><button class="text-button" data-open-economy>動員・生産 ↗</button></div></div>`);
+    html('domestic-overview-box', `<div class="nation-overview"><div class="mini-metrics"><div><span class="muted small">財政余力</span><strong>${campaign.treasury}<small class="small muted"> / 100</small></strong><span class="small">経常収支 ${signed(budget.net)}${budget.admin ? ` · 自治政府 +${budget.admin}` : ''}${budget.tribute ? ` · 貢納 -${budget.tribute}` : ''}</span></div><div><span class="muted small">国家威信</span><strong>${campaign.prestige}<small class="small muted"> / 100</small></strong><span class="small">履行 ${campaign.cumulative.fulfilled} · 違反 ${campaign.cumulative.broken}</span></div><div><span class="muted small">政治力</span><strong>${focusInfo?.politicalPower ?? 0}<small class="small muted"> / ${focusInfo?.maxPoliticalPower ?? FOCUS_PP_MAX}</small></strong><span class="small">国策 ${focusLine} · 研究 ${researchLine}</span></div></div><details class="compact-disclosure"><summary>国家目標 · ${escapeHtml(goal.name)} <span class="muted">${goal.conditions.filter(condition => condition.met).length}/${goal.conditions.length}</span></summary><div class="goal-box">${goal.conditions.map(condition => `<div>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</div>`).join('')}</div><p class="small">任期末までに全条件を満たす。</p></details>${ownClient ? `<p class="small" style="margin-top:9px">${escapeHtml(shortName(ownClient.sponsorId))}の影響下 · 自治 ${ownClient.autonomy} / 忠誠 ${ownClient.loyalty}</p>` : ''}<div class="form-row" style="margin-top:6px"><button class="text-button" data-situation-briefing>顧問ブリーフィング ↗</button><button class="text-button" data-open-focus>国策 ↗</button><button class="text-button" data-open-research>研究 ↗</button><button class="text-button" data-open-economy>動員・生産 ↗</button></div></div>`);
     const dependencyCards = [];
     const ownDependency = dependencyInfo(campaign.playerNationId);
     if (ownDependency && !ownDependency.independent && !ownDependency.annexed && !ownDependency.dissolved) {
@@ -5368,10 +5423,17 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if (!campaign) return;
     const labels = { success: '成功', partial: '部分成功', fail: '失敗' };
     const submitted = campaign.nationalAction;
+    const recent = campaign.actionHistory.at(-1);
+    const policy = campaign.standingPolicy || '';
     text('national-action-status', `${dateOf(campaign)} · ${submitted ? '提出済み' : '未提出'} · 半月1件`);
     text('btn-submit-action', submitted ? '提出を更新' : '行動を提出');
     if ($('btn-withdraw-action')) $('btn-withdraw-action').hidden = !submitted;
+    if ($('standing-policy-input') && document.activeElement !== $('standing-policy-input')) $('standing-policy-input').value = policy;
     if ($('national-action-input') && document.activeElement !== $('national-action-input')) $('national-action-input').value = campaign.actionDraft;
+    text('standing-policy-status', policy ? '常設方針を設定中。ターンをまたいで裁定に参照します。' : '常設方針は未設定です。');
+    html('national-action-queue', `<section class="order-queue-card"><span class="eyebrow">常設方針</span><p>${policy ? escapeHtml(policy) : '<span class="muted">未設定。長期の外交・軍備の方向を書いておくと、裁定の参照になります。</span>'}</p></section>
+      <section class="order-queue-card"><span class="eyebrow">今半月の命令</span><p>${submitted ? escapeHtml(submitted.text) : '<span class="muted">未提出。月末の裁定までに自由文で命令を出せます。</span>'}</p></section>
+      <section class="order-queue-card"><span class="eyebrow">直近の実行結果</span>${recent ? `<p class="order-queue-result-head">${escapeHtml(recent.date)} · ${escapeHtml(labels[recent.outcome] || '裁定')} · ${escapeHtml(recent.order)}</p><p>${escapeHtml(recent.text)}</p>` : '<p class="muted">まだ実行結果はありません。月末の裁定後にここへ残ります。</p>'}</section>`);
     html('national-action-submitted', submitted ? `<strong>今月の提出行動</strong><p>${escapeHtml(submitted.text)}</p><span class="muted small">月末の裁定までは更新・撤回できます。</span>` : '<p class="muted small">建設、部隊配備、諜報、救済策など。予算・場所・目的を書くと判断の根拠になります。</p>');
     html('national-action-history', [...campaign.actionHistory].reverse().map(item => `<details class="compact-disclosure"><summary>${escapeHtml(item.date)} · ${labels[item.outcome]}</summary><p>${escapeHtml(item.order)}</p><p>${escapeHtml(item.text)}</p></details>`).join('') || '<p class="muted small">行動の結果は、月末にここへ記録されます。</p>');
   }
@@ -5386,6 +5448,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if ($('btn-confirm-end-turn')) $('btn-confirm-end-turn').disabled = runtime.busy || !canPlay;
     if ($('btn-start-campaign')) $('btn-start-campaign').disabled = runtime.busy;
     for (const id of ['national-action-input', 'btn-submit-action', 'btn-withdraw-action']) if ($(id)) $(id).disabled = runtime.busy || !canPlay;
+    for (const id of ['standing-policy-input', 'btn-save-policy', 'btn-clear-policy']) if ($(id)) $(id).disabled = runtime.busy || !canPlay;
     for (const button of document.querySelectorAll('.dock-button')) button.disabled = !campaign;
     for (const id of ['btn-test-ai', 'btn-save-ai-settings', 'select-ai-provider', 'input-api-endpoint', 'input-api-key', 'select-model-preset', 'input-custom-model', 'remember-api-key']) if ($(id)) $(id).disabled = runtime.busy;
     text('btn-send-label', runtime.busy && runtime.pending ? '返電待ち' : '電報を送る');
@@ -5685,36 +5748,98 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     };
   }
 
-  function situationBriefing() {
-    if (!campaign) return null;
-    const playerId = campaign.playerNationId;
-    const ranked = Object.entries(campaign.nations)
+  function buildSituationBriefing(game) {
+    if (!game) return null;
+    const playerId = game.playerNationId;
+    const ranked = Object.entries(game.nations)
       .map(([id, nation]) => ({ id, name: shortName(id), power: nation.mil + nation.eco + nation.stb }))
       .sort((a, b) => b.power - a.power);
     const rank = ranked.findIndex(entry => entry.id === playerId) + 1;
     const power = ranked.find(entry => entry.id === playerId)?.power ?? 0;
-    const threats = Object.entries(campaign.relations[playerId] || {})
+    const threats = Object.entries(game.relations[playerId] || {})
       .filter(([id, relation]) => id !== playerId && relation <= -30)
       .map(([id, relation]) => ({ id, name: shortName(id), relation }))
       .sort((a, b) => a.relation - b.relation)
       .slice(0, 3);
-    const dependency = dependencyInfo(playerId);
-    const subjects = Object.entries(campaign.clients || {})
+    const dependency = dependencyInfo(playerId, game);
+    const subjects = Object.entries(game.clients || {})
       .filter(([, client]) => client.sponsorId === playerId && !client.independent && !client.annexed)
       .map(([id, client]) => ({ id, name: shortName(id), kind: DEPENDENCY_TYPES[client.kind] || '従属国', autonomy: client.autonomy, loyalty: client.loyalty }));
-    const budget = monthlyBudget(campaign);
-    const wars = Object.values(campaign.wars || {}).filter(war => war.status === 'active' && [war.attacker, war.defender].includes(playerId)).length;
+    const budget = monthlyBudget(game);
+    const activeWars = Object.values(game.wars || {}).filter(war => war.status === 'active' && [war.attacker, war.defender].includes(playerId));
+    const wars = activeWars.length;
     const notes = [];
-    if (campaign.treasury <= 15) notes.push('財政余力が低い。増強より通商・自治政府の税収・不要な維持費の削減を優先する。');
+    if (game.treasury <= 15) notes.push('財政余力が低い。増強より通商・自治政府の税収・不要な維持費の削減を優先する。');
     if (budget.net < 0) notes.push('経常収支が赤字。条約収入か自治政府の税収で補うか、軍事費を抑える。');
-    if (campaign.tension >= 70) notes.push('国際緊張が高い。不可侵・通商条約で側面を固め、戦線を広げない。');
+    if (game.tension >= 70) notes.push('国際緊張が高い。不可侵・通商条約で側面を固め、戦線を広げない。');
     if (threats.length) notes.push(`警戒対象: ${threats.map(entry => entry.name).join('、')}。国境の防備と外交チャネルを確保する。`);
     if (subjects.length) notes.push(`従属国 ${subjects.length} 件。忠誠50未満の国は自治度を下げるか、要求に応じて安定化する。`);
     if (dependency && !dependency.independent) notes.push(`宗主国 ${dependency.overlordName} の${dependency.kindLabel}。自治度${dependency.autonomy}%、月次貢納 ${dependency.tribute}。独立には自治度55または威信55が必要。`);
     if (wars) notes.push(`進行中の戦争 ${wars} 件。和平条件と占領地の維持コストを確認する。`);
     if (!notes.length) notes.push('大きな危機はない。国力の伸長と条約網の拡大を進める。');
+
+    const nation = game.nations[playerId];
+    const playerFormations = (game.formations || []).filter(formation => formation.nationId === playerId);
+    const supply = playerFormations
+      .map(formation => ({ formation, info: formationSupplyInfo(game, formation) }))
+      .filter(item => item.info.seaZoneId || item.info.interdiction || item.info.status === 'low' || item.info.status === 'isolated')
+      .sort((a, b) => a.info.level - b.info.level)
+      .slice(0, 3)
+      .map(item => {
+        const region = regionById(item.formation.regionId);
+        const label = region ? regionLabel(region) : item.formation.regionId;
+        const zone = item.info.seaZoneId ? regionById(item.info.seaZoneId) : null;
+        const relation = item.info.relation === 'hostile' ? '敵制海' : item.info.relation === 'foreign' ? '第三国制海' : item.info.relation === 'friendly' ? '自国圏' : '中立';
+        const detail = item.info.interdiction ? `敵航空優勢 -${item.info.interdiction}` : zone ? `海路 ${regionLabel(zone)}（${relation}${item.info.seaControl ? `・${shortName(item.info.seaControl)}` : ''}）` : '陸上補給';
+        return `${label}の${formationTypeLabel(item.formation.type)}：補給 ${item.info.label}（${detail}）`;
+      });
+    const maritime = maritimeState(game);
+    const seaZones = window.ORBIS_STATES_DB.filter(isSeaRegion).map(zone => seaControlRelation(game, playerId, maritime.seaControl[zone.id] || null));
+    const controlledSeas = seaZones.filter(relation => relation === 'friendly').length;
+    const hostileSeas = seaZones.filter(relation => relation === 'hostile').length;
+    const policy = game.standingPolicy || '';
+    const recent = [...(game.actionHistory || [])].reverse().find(item => item.turn === game.completedTurns) || null;
+    const outcomeLabel = recent ? ({ success: '成功', partial: '部分成功', fail: '失敗' }[recent.outcome] || '裁定') : '';
+    const directives = [
+      policy ? `常設方針：${policy}` : '常設方針：未設定。行動パネルで設定できる。',
+      game.nationalAction ? `今半月の命令：${game.nationalAction.text}` : '今半月の命令：未提出。',
+      recent ? `直近の結果：${outcomeLabel}。${recent.text}` : '直近の結果：まだ裁定はない。'
+    ];
+    const militaryLines = [
+      `軍事力 ${nation.mil}、部隊 ${playerFormations.length} 件（野戦 ${playerFormations.filter(item => item.type === 'field').length} / 守備 ${playerFormations.filter(item => item.type !== 'field').length}）。`,
+      `海軍力 ${nationNavyPower(game, playerId)}、空軍力 ${nationAirPower(game, playerId)}。制海 ${controlledSeas} 海域、敵制海 ${hostileSeas} 海域。`,
+      activeWars.length ? `進行中の戦争：${activeWars.map(war => shortName(war.attacker === playerId ? war.defender : war.attacker)).join('、')}。` : '進行中の戦争はない。',
+      supply.length ? `補給の要点：${supply.join('／')}` : '補給に大きな懸念はない。'
+    ];
+    const diplomacyLines = [
+      threats.length ? `脅威：${threats.map(entry => `${entry.name}（関係 ${entry.relation}）`).join('、')}。` : '直接の敵対国はない。',
+      `有効な条約 ${game.treaties.filter(treaty => treaty.remaining > 0).length} 件、従属国 ${subjects.length} 件。`,
+      dependency && !dependency.independent ? `宗主国 ${dependency.overlordName} の${dependency.kindLabel}（自治 ${dependency.autonomy}% / 忠誠 ${dependency.loyalty}%）。` : '独立国として行動している。',
+      `国力順位 ${rank} / ${ranked.length} 位（国力 ${power}）。`
+    ];
+    const domesticLines = [
+      `財政余力 ${game.treasury}、経済 ${nation.eco}、安定度 ${nation.stb}。`,
+      `月次収支：収入 ${budget.income}、維持費 ${budget.upkeep}、純収支 ${budget.net}${budget.tribute ? `（貢納 -${budget.tribute}）` : ''}。`,
+      notes.slice(0, 3).join(' ')
+    ];
+    const sections = [
+      { id: 'directives', title: '方針と命令', lines: directives },
+      { id: 'military', title: '軍事', lines: militaryLines },
+      { id: 'diplomacy', title: '外交', lines: diplomacyLines },
+      { id: 'domestic', title: '内政・経済', lines: domesticLines }
+    ];
+    const summary = [
+      policy ? `常設方針は「${policy}」。` : '常設方針は未設定。',
+      game.nationalAction ? `今半月は「${game.nationalAction.text}」を命令中。` : '今半月の命令は未提出。',
+      militaryLines[0],
+      militaryLines[2],
+      supply.length ? militaryLines[3] : '補給に大きな懸念はない。',
+      diplomacyLines[0],
+      domesticLines[0],
+      domesticLines[1]
+    ].join(' ').slice(0, 740);
     return {
-      date: dateOf(campaign),
+      date: dateOf(game),
       rank,
       total: ranked.length,
       power,
@@ -5724,8 +5849,18 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       dependency,
       budget,
       wars,
-      notes
+      notes,
+      policy,
+      currentOrder: game.nationalAction ? { id: game.nationalAction.id, text: game.nationalAction.text, turn: game.nationalAction.turn } : null,
+      recentOrder: recent ? { id: recent.actionId, order: recent.order, outcome: recent.outcome, text: recent.text, date: recent.date, turn: recent.turn } : null,
+      supply,
+      sections,
+      summary
     };
+  }
+
+  function situationBriefing() {
+    return campaign ? buildSituationBriefing(campaign) : null;
   }
 
   function countryCardHtml(data) {
@@ -6312,6 +6447,40 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         return { nationId: change.nationId, delta: saveNumber(change.delta, '行動の外交差分', -8, 8), reason: requiredText(change.reason, '他国の反応', 350) };
       }) };
     });
+    game.standingPolicy = typeof raw.standingPolicy === 'string' ? raw.standingPolicy.trim().slice(0, 800) : '';
+    const saveText = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+    game.adviserBriefings = array(raw.adviserBriefings || [], '顧問要約', 12).map(item => {
+      requireObject(item, '顧問要約');
+      return {
+        date: requiredText(item.date, '顧問要約の日付', 40),
+        turn: saveNumber(item.turn, '顧問要約の月', 1, turnCap),
+        summary: requiredText(item.summary, '顧問要約', 1600),
+        policy: saveText(item.policy, 800),
+        sections: array(item.sections || [], '顧問要約の区分', 6).map(section => {
+          requireObject(section, '顧問要約の区分');
+          return {
+            id: requiredText(section.id, '顧問要約の区分ID', 40),
+            title: requiredText(section.title, '顧問要約の見出し', 80),
+            lines: array(section.lines || [], '顧問要約の行', 8).map(line => requiredText(line, '顧問要約の行', 1200))
+          };
+        })
+      };
+    });
+    game.turnPlaybackQueue = array(raw.turnPlaybackQueue || [], '再生キュー', 40).map(item => {
+      requireObject(item, '再生キュー');
+      return {
+        headline: saveText(item.headline, 200) || '出来事',
+        body: saveText(item.body, 4200),
+        date: saveText(item.date, 40),
+        location: saveText(item.location, 120),
+        lon: Number.isFinite(Number(item.lon)) ? clamp(Number(item.lon), -180, 180) : undefined,
+        lat: Number.isFinite(Number(item.lat)) ? clamp(Number(item.lat), -90, 90) : undefined,
+        stateId: saveText(item.stateId, 100) || undefined,
+        kind: item.kind === 'order' ? 'order' : undefined,
+        order: saveText(item.order, 2400) || undefined,
+        outcome: ['success', 'fail', 'partial'].includes(item.outcome) ? item.outcome : undefined
+      };
+    });
     game.worldMemory = typeof raw.worldMemory === 'string' && raw.worldMemory.length <= 2400 ? raw.worldMemory : '';
     requireObject(raw.stress, '危機状態');
     for (const key of ['collapse', 'bankruptcy', 'war', 'civil']) game.stress[key] = saveNumber(raw.stress[key] ?? 0, '危機の継続月', 0, rulingCaps().stressHalvesRequired);
@@ -6445,6 +6614,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     on('btn-help', 'click', () => openDialog('game-help'));
     on('message-form', 'submit', event => { event.preventDefault(); send(); });
     on('national-action-form', 'submit', event => { event.preventDefault(); submitAction(); });
+    on('standing-policy-form', 'submit', event => { event.preventDefault(); setStandingPolicy(); });
+    on('btn-clear-policy', 'click', clearStandingPolicy);
     on('btn-withdraw-action', 'click', withdrawAction);
     on('national-action-input', 'input', () => { if (campaign) campaign.actionDraft = $('national-action-input').value.slice(0, 2400); });
     on('btn-chat-back', 'click', showChatList);
@@ -6657,7 +6828,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       turnsThroughCalendarMonth: (year, month, half = 'second') => core.halfTurnsThrough(year, month, half),
     };
   };
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, openPanel, setKnowledgeLevel, knowledgeProfiles: KNOWLEDGE_PROFILES, dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, setStandingPolicy, clearStandingPolicy, finishTurn, retryBriefing, openSettings, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, openPanel, setKnowledgeLevel, knowledgeProfiles: KNOWLEDGE_PROFILES, dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
 colorNation, nationMeta: nationId => nationMeta(nationId),
 dependentsFor: nationId => Object.values(campaign?.clients || {}).filter(client => client.sponsorId === (nationId || campaign?.playerNationId) && !client.dissolved),
 createDependent: (sponsorId, vassalId, type, name) => createDependent(sponsorId, vassalId, type, name, campaign),

@@ -662,6 +662,98 @@ try {
     assert.equal(api.snapshot().nationalAction, null);
   });
 
+  await check('自由文命令の裁定叙述が記事とターン再生キューに残る', async () => {
+    const { api, storage } = harness();
+    await begin(api);
+    const order = '予算2で東北の農村救済を始め、現地の協力者と実施時期を定める。';
+    const result = '財源の範囲で東北の救済準備を実施した。本格的な給付は翌月へ回す。';
+    assert.equal(api.submitAction(order), true);
+    respond = item => {
+      if (item.operation !== 'RESOLUTION') return null;
+      const data = evaluation();
+      const id = item.context.nationalAction.id;
+      data.actionResults = [{ actionId: id, outcome: 'partial', text: result, effects: { mil: 0, eco: 1, stb: 1, treasury: -2, prestige: 0, tension: 0 }, relations: [], evidence: [id] }];
+      return { data };
+    };
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    assert.ok(after.articles.some(article => article.notes?.some(note => note.includes('国家の行動・部分成功') && note.includes(result))), '記事ノートに裁定叙述');
+    const card = after.turnPlaybackQueue.find(item => item.kind === 'order');
+    assert.ok(card, '再生キューの命令カード');
+    assert.match(card.headline, /国家の行動・部分成功/);
+    assert.equal(card.order, order);
+    assert.ok(card.body.includes(`命令：${order}`));
+    assert.ok(card.body.includes(`結果：${result}`));
+    assert.equal(card.outcome, 'partial');
+    const saved = JSON.parse(storage.get('orbis_campaign_v6'));
+    const { api: restored } = harness();
+    assert.equal(await restored.restore(saved), true);
+    const restoredCard = restored.snapshot().turnPlaybackQueue.find(item => item.kind === 'order');
+    assert.ok(restoredCard, '再生キューは保存・再開後も残る');
+    assert.equal(restoredCard.order, order);
+    assert.ok(restoredCard.body.includes(result));
+  });
+
+  await check('常設方針は保存・再開・AI文脈に残り、設定と提出でAPIを増やさない', async () => {
+    const { api, storage } = harness();
+    await begin(api);
+    const policy = '対中は穏健に、軍備は漸進する。通商網を優先する。';
+    const calls = requests.length;
+    assert.equal(api.setStandingPolicy(policy), true);
+    assert.equal(api.setStandingPolicy(`${policy} 海軍は守勢。`), true);
+    assert.equal(api.submitAction('予算2で東北の農村救済を始める。'), true);
+    assert.equal(requests.length, calls, '設定・提出時はAPIを使わない');
+    const snapshot = api.snapshot();
+    assert.equal(snapshot.standingPolicy, `${policy} 海軍は守勢。`);
+    const serialized = storage.get('orbis_campaign_v6');
+    assert.ok(serialized?.includes('海軍は守勢'));
+    const { api: restored } = harness();
+    assert.equal(await restored.restore(JSON.parse(serialized)), true);
+    assert.equal(restored.snapshot().standingPolicy, `${policy} 海軍は守勢。`);
+    assert.equal(await restored.finishTurn(), true);
+    const evaluationRequest = requests.filter(item => item.operation === 'RESOLUTION').at(-1);
+    assert.ok(evaluationRequest.context.standingPolicy.includes('海軍は守勢'), 'EVALUATION文脈に常設方針');
+    const briefingRequest = requests.filter(item => item.operation === 'BRIEFING').at(-1);
+    assert.ok(briefingRequest.context.standingPolicy.includes('海軍は守勢'), 'BRIEFING文脈に常設方針');
+    assert.equal(restored.clearStandingPolicy(), true);
+    assert.equal(restored.snapshot().standingPolicy, '');
+    const old = json(restored.snapshot());
+    delete old.standingPolicy;
+    delete old.adviserBriefings;
+    delete old.turnPlaybackQueue;
+    const { api: oldApi } = harness();
+    assert.equal(await oldApi.restore(old), true);
+    assert.equal(oldApi.snapshot().standingPolicy, '');
+    assert.deepEqual(json(oldApi.snapshot().adviserBriefings), []);
+    assert.deepEqual(json(oldApi.snapshot().turnPlaybackQueue), []);
+  });
+
+  await check('顧問ブリーフィングが分野別に取れ、裁定後の要約が記事とセーブに残る', async () => {
+    const { api, storage } = harness();
+    await begin(api);
+    const policy = '対中は穏健に、軍備は漸進する。';
+    assert.equal(api.setStandingPolicy(policy), true);
+    assert.equal(api.submitAction('予算2で東北の農村救済を始める。'), true);
+    const briefingBefore = api.situationBriefing();
+    const titles = briefingBefore.sections.map(section => section.title);
+    assert.ok(titles.includes('軍事') && titles.includes('外交') && titles.includes('内政・経済'), '分野別の顧問メモ');
+    assert.ok(briefingBefore.sections.find(section => section.id === 'directives').lines.some(line => line.includes(policy)), '常設方針が読める');
+    assert.ok(briefingBefore.sections.find(section => section.id === 'directives').lines.some(line => line.includes('農村救済')), '進行中の命令が読める');
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    const resolution = after.articles.find(article => article.kind === 'resolution');
+    assert.ok(resolution.notes.some(note => note.includes('顧問ブリーフィング')), '記事ノートに顧問要約');
+    assert.equal(after.adviserBriefings.length, 1);
+    assert.ok(after.adviserBriefings[0].summary.includes(policy));
+    assert.ok(after.adviserBriefings[0].sections.some(section => section.id === 'military' && section.lines.length));
+    const saved = JSON.parse(storage.get('orbis_campaign_v6'));
+    const { api: restored } = harness();
+    assert.equal(await restored.restore(saved), true);
+    const reopened = restored.snapshot();
+    assert.equal(reopened.adviserBriefings.length, 1);
+    assert.ok(reopened.articles.find(article => article.kind === 'resolution').notes.some(note => note.includes('顧問ブリーフィング')));
+  });
+
   await check('NPC外交は対称に最大±8、非敵対的合意を記録し領土を渡さない', async () => {
     const { api } = harness();
     await begin(api);
@@ -1047,6 +1139,47 @@ try {
     assert.ok(hostile.level < friendly.level, `敵制海 ${hostile.level} < 自国制海 ${friendly.level}`);
     assert.equal(hostile.status, 'isolated');
     assert.equal(hostile.seaControl, 'usa');
+  });
+
+  await check('平和時は第三国の制海を敵扱いせず、戦時だけ敵制海ペナルティを与える', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const warm = api.snapshot();
+    const field = warm.formations.find(item => item.nationId === 'japan' && item.type === 'field');
+    assert.ok(field, '野戦部隊');
+    field.regionId = 'usa_pacific';
+    warm.territories.usa_pacific = 'japan';
+    warm.occupations.usa_pacific = 'usa';
+    const region = context.window.ORBIS_STATES_DB.find(item => item.id === 'usa_pacific');
+    assert.ok(region);
+    const zoneDistance = (a, b) => {
+      let dLon = Math.abs((Number(a.lon) || 0) - (Number(b.lon) || 0)) % 360;
+      if (dLon > 180) dLon = 360 - dLon;
+      return Math.hypot(dLon, (Number(a.lat) || 0) - (Number(b.lat) || 0));
+    };
+    const zone = context.window.ORBIS_STATES_DB
+      .filter(item => item.isSea || item.isSeaZone)
+      .sort((a, b) => zoneDistance(region, a) - zoneDistance(region, b))[0];
+    assert.ok(zone, '最寄りの海域');
+    warm.maritime = { navy: { japan: 100, usa: 500 }, air: { japan: 50, usa: 20 }, seaControl: { [zone.id]: 'usa' }, turn: 0 };
+    await api.restore(warm);
+    const peaceful = api.formationSupply(field.id);
+    const summary = api.maritimeSummary();
+    const zoneSummary = summary.zones.find(item => item.id === zone.id);
+    assert.equal(zoneSummary.relation, 'foreign', '平和時の第三国制海');
+    assert.equal(summary.hostile, 0, '敵制海に数えない');
+    assert.equal(peaceful.seaControl, 'usa');
+    assert.equal(peaceful.relation, 'foreign');
+    assert.equal(peaceful.status, 'isolated');
+    assert.ok(peaceful.level >= 10, `自国圏の海路が無いだけの補給 ${peaceful.level}`);
+    const atWar = api.snapshot();
+    atWar.wars['war-sea-peace-test'] = { attacker: 'japan', defender: 'usa', startedTurn: 0, status: 'active', reason: '制海テスト' };
+    await api.restore(atWar);
+    const hostile = api.formationSupply(field.id);
+    assert.equal(hostile.relation, 'hostile');
+    assert.equal(hostile.status, 'isolated');
+    assert.ok(hostile.level < peaceful.level, `戦時の敵制海 ${hostile.level} < 平和時 ${peaceful.level}`);
+    assert.ok(api.maritimeSummary().hostile > 0, '戦時のみ敵制海に数える');
   });
 
   await check('空軍の薄い効果が前線の補給に出る', async () => {
