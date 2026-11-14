@@ -1478,7 +1478,7 @@ try {
     assert.equal(api.snapshot().formations.find(item => item.id === pair.formation.id).order.kind, 'defend');
   });
 
-  await check('攻勢命令のある戦線だけ占領が進み、無命令では広がらない', async () => {
+  await check('攻勢命令のあるプレイヤー部隊だけが前進し、無命令では広がらない', async () => {
     const ordered = harness();
     await begin(ordered.api);
     assert.equal(ordered.api.declareWar('china', '満州国境の戦線'), true);
@@ -1491,25 +1491,30 @@ try {
     const target = snapshot.territories['china_cn_he'] || db('china_cn_he').country;
     assert.equal(target, 'china');
     assert.equal(ordered.api.setFormationOrder(field.id, { kind: 'offensive', targetRegionId: 'china_cn_he' }), true, ordered.api.formationOrderError());
-    const before = Object.keys(snapshot.occupations).length;
     assert.equal(await ordered.api.finishTurn(), true);
     const after = ordered.api.snapshot();
-    const gain = Object.keys(after.occupations).length - before;
-    assert.equal(gain, 1, `攻勢で占領が1州だけ増える (${gain})`);
     const moved = after.formations.find(item => item.id === field.id);
     assert.notEqual(moved.regionId, field.regionId, '野戦部隊が前進する');
     assert.ok(moved.strength > 0 && moved.strength <= 100, '戦力は0にならない');
     assert.equal(moved.regionId, 'china_cn_he', '前進先は隣接する1州');
-    assert.ok(Object.hasOwn(after.occupations, moved.regionId), '前進先は占領地');
+    const resolution = after.articles.find(article => article.kind === 'resolution');
+    assert.ok(resolution.notes.some(note => note.includes('日本') && note.includes('河北省を') && note.includes('占領')), 'プレイヤー部隊の占領がターン結果に残る');
+    assert.ok(ordered.api.verifyOccupationsAdjacent(after, 'japan'), 'プレイヤーの占領は隣接している');
 
     const idle = harness();
     await begin(idle.api);
     assert.equal(idle.api.declareWar('china', '満州国境の戦線'), true);
-    const idleBefore = Object.keys(idle.api.snapshot().occupations).length;
+    const idleBefore = idle.api.snapshot();
+    const idleField = idle.api.listFormations().find(item => item.nationId === 'japan' && item.type === 'field');
+    assert.ok(idleField);
+    assert.equal(idleBefore.formations.find(item => item.id === idleField.id).order, null);
     assert.equal(await idle.api.finishTurn(), true);
-    const idleGain = Object.keys(idle.api.snapshot().occupations).length - idleBefore;
-    assert.equal(idleGain, 0, '命令のない戦線は広がらない');
-    assert.ok(gain > idleGain, '攻勢命令との差');
+    const idleAfter = idle.api.snapshot();
+    const idleMoved = idleAfter.formations.find(item => item.id === idleField.id);
+    assert.equal(idleMoved.regionId, idleField.regionId, '命令のないプレイヤー部隊は前進しない');
+    assert.equal(idleMoved.order, null, '命令のないプレイヤー部隊に自動命令は付かない');
+    const idleGain = Object.entries(idleAfter.territories).filter(([id, owner]) => owner === 'japan' && !Object.hasOwn(idleBefore.territories, id)).length;
+    assert.equal(idleGain, 0, 'プレイヤー側の新規占領は0');
   });
 
   await check('満洲から江蘇省への攻勢は1ターンで飛ばず、隣接1州までに留まる', async () => {
@@ -1547,11 +1552,11 @@ try {
       assert.ok(neighborIds.has(moved.regionId), '移動先は命令前の州に陸続きで隣接する1州');
       assert.ok(isLand(db(moved.regionId)), '移動先は陸州');
     }
-    const newlyOccupied = Object.keys(after.occupations).filter(id => !beforeOccupations.has(id));
-    assert.ok(newlyOccupied.length <= 1, `1部隊が1ターンに占領する州は0または1 (${newlyOccupied.length})`);
-    if (moved.regionId !== startRegionId) {
-      assert.equal(newlyOccupied.length, 1);
-      assert.equal(newlyOccupied[0], moved.regionId);
+    const playerOccupied = Object.keys(after.occupations).filter(id => after.territories[id] === 'japan' && !beforeOccupations.has(id));
+    assert.ok(playerOccupied.length <= 1, `プレイヤー1部隊が1ターンに占領する州は0または1 (${playerOccupied.length})`);
+    if (moved.regionId !== startRegionId && playerOccupied.length) {
+      assert.equal(playerOccupied.length, 1);
+      assert.equal(playerOccupied[0], moved.regionId);
     }
   });
 
@@ -1611,6 +1616,179 @@ try {
     const broken = json(saved);
     broken.formations = {};
     await assert.rejects(oldApi.restore(broken), /部隊|配列/);
+  });
+
+  await check('国際戦争中にNPCは自部隊へ命令を出し、プレイヤー部隊は自動命令されない', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(api.declareWar('china', '満州国境の戦線'), true);
+    const before = api.snapshot();
+    const playerBefore = before.formations.filter(item => item.nationId === 'japan');
+    const chinaBefore = before.formations.filter(item => item.nationId === 'china');
+    assert.ok(playerBefore.length >= 2);
+    assert.ok(chinaBefore.length >= 2);
+    assert.ok(playerBefore.every(item => item.order === null), 'プレイヤー部隊は未命令');
+    const chinaStart = new Map(chinaBefore.map(item => [item.id, item.regionId]));
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    const playerAfter = after.formations.filter(item => item.nationId === 'japan');
+    for (const formation of playerAfter) {
+      const previous = playerBefore.find(item => item.id === formation.id);
+      assert.ok(previous);
+      assert.equal(formation.order, null, 'プレイヤー部隊に自動命令が付かない');
+      assert.equal(formation.regionId, previous.regionId, 'プレイヤー部隊は自動で前進しない');
+    }
+    const chinaAfter = after.formations.filter(item => item.nationId === 'china');
+    assert.ok(chinaAfter.every(item => ['defend', 'offensive'].includes(item.order?.kind)), 'NPC全部に防御か攻勢が付く');
+    assert.ok(chinaAfter.some(item => item.order?.kind === 'offensive'), 'NPCの攻勢命令');
+    const adjacency = api.landAdjacency();
+    for (const formation of chinaAfter) {
+      const start = chinaStart.get(formation.id);
+      if (!start || formation.regionId === start) continue;
+      assert.ok((adjacency.get(start) || new Set()).has(formation.regionId), `NPCの前進は隣接1州まで (${start} -> ${formation.regionId})`);
+    }
+  });
+
+  await check('自動発生したNPC戦争は開始直後の占領を伴わない', async () => {
+    const { api } = harness();
+    assert.equal(await api.start({ nationId: 'japan', difficulty: 'standard', mandate: 'recovery', maxTurns: 0, replace: true }), true);
+    const save = json(api.snapshot());
+    save.completedTurns = 80;
+    save.tension = 95;
+    save.wars = {};
+    save.occupations = {};
+    save.conflicts = {};
+    for (const formation of save.formations || []) formation.order = null;
+    assert.equal(await api.restore(save), true);
+    const before = api.snapshot();
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    const npcWars = Object.values(after.wars || {}).filter(war => war.status === 'active' && war.npc);
+    assert.ok(npcWars.length >= 1, '自動発生したNPC戦争');
+    assert.equal(Object.keys(after.occupations || {}).length, 0, '開始直後の占領は0');
+    assert.deepEqual(json(after.territories), json(before.territories), '開始直後は領土も動かない');
+  });
+
+  await check('動員を上げると兵力増が伸び、兵力と装備で新規部隊を編成できる', async () => {
+    const low = harness();
+    await begin(low.api);
+    const lowStart = low.api.snapshot().economy.japan.manpower;
+    assert.equal(await low.api.finishTurn(), true);
+    const lowGain = low.api.snapshot().economy.japan.manpower - lowStart;
+
+    const high = harness();
+    await begin(high.api);
+    assert.equal(high.api.setMobilization(3), true);
+    const highStart = high.api.snapshot().economy.japan.manpower;
+    assert.equal(await high.api.finishTurn(), true);
+    const highGain = high.api.snapshot().economy.japan.manpower - highStart;
+    assert.ok(highGain > lowGain, `総動員の兵力増が平時より大きい (${highGain} > ${lowGain})`);
+
+    const beforeRecruit = high.api.snapshot();
+    const result = high.api.recruitFormation();
+    assert.equal(result.ok, true, result.error);
+    const afterRecruit = high.api.snapshot();
+    assert.equal(afterRecruit.formations.length, beforeRecruit.formations.length + 1);
+    const created = afterRecruit.formations.find(item => item.id === result.formation.id);
+    assert.ok(created);
+    assert.equal(created.nationId, 'japan');
+    assert.equal(created.type, 'field');
+    assert.ok(created.strength >= 1);
+    assert.ok(afterRecruit.economy.japan.manpower < beforeRecruit.economy.japan.manpower, '新編制で兵力を消費');
+    assert.ok(afterRecruit.economy.japan.equipment < beforeRecruit.economy.japan.equipment, '新編制で装備を消費');
+    assert.ok((afterRecruit.economy.japan.pendingNotes || []).some(note => note.includes('新編制')), '新編制の予告');
+    assert.equal(await high.api.finishTurn(), true);
+    const resolution = high.api.snapshot().articles.filter(article => article.kind === 'resolution').at(-1);
+    assert.ok(resolution.notes.some(note => note.includes('新編制')), 'ターン結果に新編制が残る');
+  });
+
+  await check('軍需寄りの生産配分は民用寄りより装備増と補充が大きい', async () => {
+    const high = harness();
+    await begin(high.api);
+    assert.equal(high.api.setProductionSplit(90), true);
+    assert.equal(await high.api.finishTurn(), true);
+    const highProduction = high.api.snapshot().economy.japan.lastProduction;
+
+    const low = harness();
+    await begin(low.api);
+    assert.equal(low.api.setProductionSplit(10), true);
+    assert.equal(await low.api.finishTurn(), true);
+    const lowProduction = low.api.snapshot().economy.japan.lastProduction;
+
+    assert.ok(highProduction.equipment > lowProduction.equipment, `軍需寄りの装備増 (${highProduction.equipment} > ${lowProduction.equipment})`);
+    assert.ok(highProduction.replenished >= lowProduction.replenished, `軍需寄りの補充 (${highProduction.replenished} >= ${lowProduction.replenished})`);
+  });
+
+  await check('補給不足の部隊は十分な補給の部隊より攻勢が鈍る', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    assert.equal(api.declareWar('china', '満州国境の戦線'), true);
+    const isLand = region => region && !region.isSea && !region.isSeaZone && region.type !== 'sea';
+    const db = id => context.window.ORBIS_STATES_DB.find(region => region.id === id);
+    const snapshot = json(api.snapshot());
+    const currentHolder = region => snapshot.territories[region.id] || region.country;
+    let pair = null;
+    for (const region of context.window.ORBIS_STATES_DB) {
+      if (!isLand(region) || currentHolder(region) !== 'china') continue;
+      const neighbor = [...(api.landAdjacency().get(region.id) || [])].map(db).find(item => isLand(item) && currentHolder(item) === 'china');
+      if (neighbor) { pair = { origin: region, target: neighbor }; break; }
+    }
+    assert.ok(pair, '中国領の隣接州');
+    const supplied = snapshot.formations.find(item => item.nationId === 'japan' && item.type === 'field'
+      && [...(api.landAdjacency().get(item.regionId) || [])].some(id => isLand(db(id)) && currentHolder(db(id)) === 'china'));
+    assert.ok(supplied, '中国領に隣接する日本軍野戦部隊');
+    const suppliedTarget = [...(api.landAdjacency().get(supplied.regionId) || [])].map(db).find(item => isLand(item) && currentHolder(item) === 'china');
+    assert.ok(suppliedTarget);
+    supplied.order = { kind: 'offensive', targetRegionId: suppliedTarget.id, targetNationId: 'china' };
+    const isolated = { id: 'formation-test-isolated', nationId: 'japan', type: 'field', regionId: pair.origin.id, strength: 100, order: { kind: 'offensive', targetRegionId: pair.target.id, targetNationId: 'china' } };
+    snapshot.formations.push(isolated);
+    assert.equal(await api.restore(snapshot), true);
+    const isolatedSupply = api.formationSupply(isolated.id);
+    const suppliedSupply = api.formationSupply(supplied.id);
+    assert.equal(isolatedSupply.status, 'isolated', '敵中孤立部隊は補給不足');
+    assert.ok(suppliedSupply.level >= 70, `本国から陸続きの部隊は補給十分 (${suppliedSupply.level})`);
+    const suppliedStart = supplied.regionId;
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    const isolatedAfter = after.formations.find(item => item.id === isolated.id);
+    const suppliedAfter = after.formations.find(item => item.id === supplied.id);
+    assert.equal(isolatedAfter.regionId, pair.origin.id, '補給不足の部隊は前進しない');
+    assert.equal(isolatedAfter.order.kind, 'offensive', '命令は残る');
+    assert.ok(isolatedAfter.strength < isolated.strength, `補給不足で戦力が落ちる (${isolated.strength} -> ${isolatedAfter.strength})`);
+    assert.notEqual(suppliedAfter.regionId, suppliedStart, '補給十分の部隊は前進する');
+    assert.equal(suppliedAfter.regionId, suppliedTarget.id);
+    const resolution = after.articles.find(article => article.kind === 'resolution');
+    assert.ok(resolution.notes.some(note => note.includes('補給不足')), 'ターン結果に補給不足が残る');
+  });
+
+  await check('兵力・動員・生産配分・装備・補給は保存と再開で残る', async () => {
+    const { api } = harness();
+    await begin(api);
+    assert.equal(api.setMobilization(2), true);
+    assert.equal(api.setProductionSplit(80), true);
+    assert.equal(await api.finishTurn(), true);
+    const saved = json(api.snapshot());
+    assert.ok(saved.formations.some(item => Number.isInteger(item.supply)), '部隊の補給状態を保存');
+    const restored = harness().api;
+    assert.equal(await restored.restore(saved), true);
+    const after = restored.snapshot();
+    for (const key of ['manpower', 'mobilization', 'equipment', 'militaryShare']) {
+      assert.equal(after.economy.japan[key], saved.economy.japan[key], `保存された${key}`);
+    }
+    assert.deepEqual(json(after.economy.japan.lastProduction), json(saved.economy.japan.lastProduction));
+    const savedFormation = saved.formations.find(item => Number.isInteger(item.supply));
+    const restoredFormation = after.formations.find(item => item.id === savedFormation.id);
+    assert.equal(restoredFormation.supply, savedFormation.supply);
+    assert.equal(restoredFormation.supplyStatus, savedFormation.supplyStatus);
+
+    const old = json(saved);
+    delete old.economy;
+    const oldApi = harness().api;
+    assert.equal(await oldApi.restore(old), true);
+    const oldEconomy = oldApi.snapshot().economy.japan;
+    assert.ok(oldEconomy);
+    assert.equal(oldEconomy.mobilization, 0);
+    assert.ok(oldEconomy.manpower > 0 && oldEconomy.equipment >= 0);
   });
 
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);
