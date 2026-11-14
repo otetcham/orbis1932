@@ -828,6 +828,38 @@ html, body {
   animation: war-pulse 1.2s ease-in-out infinite;
 }
 .war-glyph { font-size: 16px; fill: #dc2626; font-weight: 700; pointer-events: none; }
+/* 部隊マーカー（地図上） */
+.formation-marker { cursor: pointer; }
+.formation-marker .formation-frame { stroke: rgba(255, 255, 255, 0.92); stroke-width: 1.3; }
+.formation-marker .formation-glyph { fill: none; stroke: #ffffff; stroke-width: 1.15; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.formation-marker .formation-arrow { fill: #f59e0b; stroke: #7c2d12; stroke-width: 0.6; pointer-events: none; }
+.formation-marker.ordered-defend .formation-frame { stroke: #38bdf8; stroke-width: 2.2; }
+.formation-marker.ordered-offensive .formation-frame { stroke: #f59e0b; stroke-width: 2.4; }
+.formation-marker:hover .formation-frame { stroke: #ffffff; stroke-width: 2.6; }
+.formation-marker:focus { outline: none; }
+/* ズームアウト時の部隊集約マーカー */
+.formation-cluster { cursor: zoom-in; }
+.formation-cluster .formation-cluster-frame { stroke: rgba(255, 255, 255, 0.94); stroke-width: 1.5; }
+.formation-cluster .formation-cluster-count { fill: #ffffff; font-family: var(--font-mono); font-size: 10px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.formation-cluster.ordered-offensive .formation-cluster-frame { stroke: #f59e0b; stroke-width: 2.3; }
+.formation-cluster.ordered-defend .formation-cluster-frame { stroke: #38bdf8; stroke-width: 2; }
+.formation-cluster:hover .formation-cluster-frame { stroke: #ffffff; stroke-width: 2.6; }
+.formation-cluster:focus { outline: none; }
+/* 州パネル・戦争パネルの部隊表示 */
+.insp-formations { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid rgba(148, 163, 184, 0.28); }
+.insp-formations-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.formation-card { display: flex; flex-direction: column; gap: 5px; padding: 7px 8px; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 6px; background: rgba(15, 23, 42, 0.35); }
+.formation-card.is-player { border-color: rgba(56, 189, 248, 0.55); }
+.formation-card-head, .formation-row-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11.5px; }
+.formation-card-head strong, .formation-row-head strong { font-size: 12px; }
+.formation-strength { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--cyan-bright); }
+.formation-order-line { font-size: 10.5px; color: var(--text-secondary); }
+.formation-order-offensive { color: #f59e0b; font-weight: 700; }
+.formation-order-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.formation-order-row .form-select { flex: 1 1 150px; min-width: 110px; height: 28px; font-size: 10.5px; padding: 2px 6px; }
+.formation-order-row .btn { min-height: 28px; padding: 4px 9px; font-size: 10.5px; }
+.formation-feedback { margin: 0; color: #fca5a5; font-size: 10.5px; }
+.formation-row .formation-order-row { margin-top: 6px; }
 @keyframes war-pulse {
   0%, 100% { stroke-opacity: 0.55; }
   50% { stroke-opacity: 1; }
@@ -2390,6 +2422,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
               <g id="colonial-border-layer" style="pointer-events: none;"></g>
               <g id="frontlines-layer"></g>
               <g id="labels-layer"></g>
+              <g id="formations-layer"></g>
               <g id="combat-bubbles-layer"></g>
             </g>
           </svg>
@@ -2422,6 +2455,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
             <div class="insp-admin-row" id="insp-admin-row" hidden>
               <button class="btn btn-ghost" id="btn-insp-dependent-create">従属政権を創設</button>
             </div>
+            <div class="insp-formations" id="insp-formations" hidden></div>
           </div>
         </div>
         <div class="map-caption" aria-hidden="true"><span>WORLD ATLAS / 1932</span><small>地域を選んで情報と外交へ</small></div>
@@ -5828,6 +5862,7 @@ function updateMapVisualsLite() {
     if (el.style.display !== 'inline') el.style.display = 'inline';
   }
   repositionGlobeLabels();
+  repositionFormationMarkers();
   renderGlobeBackdrop();
   updateNationOuterBoundary();
   updateColonialBorders();
@@ -6081,6 +6116,7 @@ function updateMapVisuals() {
     }
   }
 
+  renderFormationMarkers();
   renderWarGlyphs();
 
   updateMapLegend();
@@ -6141,6 +6177,316 @@ function updateColonialBorders() {
     if (d) paths.push(`<path class="colonial-border" d="${d}" />`);
   }
   layer.innerHTML = paths.join('');
+}
+
+const formationMarkerPool = new Map();
+const formationClusterPool = new Map();
+const FORMATION_CLUSTER_MAX_DISTANCE = 28;
+const FORMATION_CLUSTER_ZOOM = { globe: 1.5, flat: 1.3 };
+
+function formationClusteringEnabled(zoomFactor, projection) {
+  const threshold = projection === 'globe' ? FORMATION_CLUSTER_ZOOM.globe : FORMATION_CLUSTER_ZOOM.flat;
+  return Number.isFinite(zoomFactor) && zoomFactor < threshold;
+}
+
+// 画面座標が近いマーカーをまとめる。x/y は地図ローカル座標、sx/sy は画面距離判定用。
+function clusterFormationPoints(entries, maxDistance = FORMATION_CLUSTER_MAX_DISTANCE, enabled = true) {
+  const normalized = entries.map(entry => ({
+    ...entry,
+    sx: Number.isFinite(entry.sx) ? entry.sx : entry.x,
+    sy: Number.isFinite(entry.sy) ? entry.sy : entry.y
+  }));
+  if (!enabled) {
+    return normalized.map(entry => ({
+      x: entry.x,
+      y: entry.y,
+      sx: entry.sx,
+      sy: entry.sy,
+      members: [entry]
+    }));
+  }
+  const clusters = [];
+  for (const entry of normalized) {
+    let best = null;
+    let bestDistance = Infinity;
+    for (const cluster of clusters) {
+      const distance = Math.hypot(cluster.sx - entry.sx, cluster.sy - entry.sy);
+      if (distance <= maxDistance && distance < bestDistance) {
+        best = cluster;
+        bestDistance = distance;
+      }
+    }
+    if (!best) {
+      clusters.push({ x: entry.x, y: entry.y, sx: entry.sx, sy: entry.sy, members: [entry] });
+      continue;
+    }
+    best.members.push(entry);
+    const avg = key => best.members.reduce((sum, item) => sum + item[key], 0) / best.members.length;
+    best.x = avg('x');
+    best.y = avg('y');
+    best.sx = avg('sx');
+    best.sy = avg('sy');
+  }
+  return clusters;
+}
+
+function formationRegionById(id) {
+  return state.states?.find(region => region.id === id) || window.ORBIS_STATES_DB?.find(region => region.id === id) || null;
+}
+
+function formationNationColor(nationId) {
+  const source = (typeof Orbis !== 'undefined' && Orbis.colorNation) ? Orbis.colorNation(nationId) : nationId;
+  return COUNTRY_MAP_COLORS[source] || COUNTRY_MAP_COLORS[nationId] || '#64748b';
+}
+
+function formationClusterLabel(members) {
+  const lines = members.slice(0, 10).map(({ formation, region }) => {
+    const nationName = state.nations?.[formation.nationId]?.name || formation.nationId;
+    const regionName = window.ORBIS_REGION_LABELS?.displayName(region) || region.nameJa || region.name || region.id;
+    const typeLabel = formation.type === 'field' ? '野戦部隊' : '守備隊';
+    return `${nationName} ${typeLabel} / ${regionName} / 戦力 ${formation.strength}`;
+  });
+  if (members.length > lines.length) lines.push(`ほか ${members.length - lines.length} 部隊`);
+  return `${members.length}部隊を集約。クリックで拡大。\n${lines.join('\n')}`;
+}
+
+function zoomIntoFormationCluster(members) {
+  const first = members?.[0];
+  if (!first?.formation?.regionId) return;
+  const region = first.region || formationRegionById(first.formation.regionId);
+  if (state.mapProjection === 'globe') {
+    if (region) {
+      state.globe.lon = region.lon || state.globe.lon;
+      state.globe.lat = region.lat || state.globe.lat;
+    }
+    state.globe.zoom = clamp(Math.max(state.globe.zoom * 1.7, FORMATION_CLUSTER_ZOOM.globe + 0.2), MAP_ZOOM_GLOBE_MIN, MAP_ZOOM_GLOBE_MAX);
+  } else {
+    const oldScale = state.mapTransform.scale;
+    const newScale = clamp(Math.max(oldScale * 1.7, FORMATION_CLUSTER_ZOOM.flat + 0.15), MAP_ZOOM_FLAT_MIN, MAP_ZOOM_FLAT_MAX);
+    if (region) {
+      const point = projectLonLatPoint(region.lon || 0, region.lat || 0);
+      if (point?.visible) {
+        state.mapTransform.x = point.x - (point.x - state.mapTransform.x) * (newScale / oldScale);
+        state.mapTransform.y = point.y - (point.y - state.mapTransform.y) * (newScale / oldScale);
+      }
+    }
+    state.mapTransform.scale = newScale;
+    applyFlatTransform();
+  }
+  if (region) handleStateSelect(region.id);
+  updateMapVisuals();
+}
+
+function updateFormationMarkerNode(node, formation, slot, invZoom) {
+  const region = formationRegionById(formation.regionId);
+  if (!region) {
+    node.style.display = 'none';
+    return;
+  }
+  const point = projectLonLatPoint(region.lon || 0, region.lat || 0);
+  if (!point?.visible) {
+    node.style.display = 'none';
+    return;
+  }
+  node.style.display = '';
+  const offsetX = ((slot % 3) - 1) * 10;
+  const offsetY = (Math.floor(slot / 3) * 9) - 4;
+  const x = point.x + offsetX * invZoom;
+  const y = point.y + offsetY * invZoom;
+  node.setAttribute('transform', `translate(${x.toFixed(1)}, ${y.toFixed(1)}) scale(${invZoom.toFixed(3)})`);
+  node.classList.toggle('formation-field', formation.type === 'field');
+  node.classList.toggle('formation-garrison', formation.type !== 'field');
+  node.classList.toggle('ordered-defend', formation.order?.kind === 'defend');
+  node.classList.toggle('ordered-offensive', formation.order?.kind === 'offensive');
+  node._formation = formation;
+  node._slot = slot;
+  node._regionId = formation.regionId;
+  node._frame.setAttribute('fill', formationNationColor(formation.nationId));
+  node._glyph.setAttribute('d', formation.type === 'field'
+    ? 'M -4 -4 H 4 V 4 H -4 Z M -3.2 -3.2 L 3.2 3.2 M -3.2 3.2 L 3.2 -3.2'
+    : 'M 0 -5 L 4.2 -2.6 V 1.6 L 0 5 L -4.2 1.6 V -2.6 Z');
+  const target = formation.order?.targetRegionId ? formationRegionById(formation.order.targetRegionId) : null;
+  if (formation.order?.kind === 'offensive' && target) {
+    const targetPoint = projectLonLatPoint(target.lon || 0, target.lat || 0);
+    let angle;
+    if (targetPoint?.visible) {
+      angle = Math.atan2(targetPoint.y - point.y, targetPoint.x - point.x) * 180 / Math.PI + 90;
+    } else {
+      const dLon = ((target.lon - region.lon + 540) % 360) - 180;
+      const dx = dLon * Math.cos((region.lat || 0) * Math.PI / 180);
+      const dy = -(target.lat - region.lat);
+      angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+    }
+    node._arrow.style.display = '';
+    node._arrow.setAttribute('transform', `rotate(${angle.toFixed(1)})`);
+  } else {
+    node._arrow.style.display = 'none';
+  }
+  const nationName = state.nations?.[formation.nationId]?.name || formation.nationId;
+  const regionName = window.ORBIS_REGION_LABELS?.displayName(region) || region.nameJa || region.name || region.id;
+  const typeLabel = formation.type === 'field' ? '野戦部隊' : '守備隊';
+  const orderLabel = formation.order?.kind === 'offensive'
+    ? `攻勢：${target ? (window.ORBIS_REGION_LABELS?.displayName(target) || target.nameJa || target.id) : '目標不明'}`
+    : formation.order?.kind === 'defend' ? '防御' : '待機';
+  const label = `${nationName} ${typeLabel} / ${regionName} / 戦力 ${formation.strength} / ${orderLabel}`;
+  node._title.textContent = label;
+  node.setAttribute('aria-label', label);
+}
+
+function createFormationClusterNode(layer) {
+  const node = document.createElementNS(SVG_NS, 'g');
+  node.setAttribute('class', 'formation-cluster');
+  node.setAttribute('role', 'button');
+  node.setAttribute('tabindex', '0');
+  const frame = document.createElementNS(SVG_NS, 'circle');
+  frame.setAttribute('class', 'formation-cluster-frame');
+  frame.setAttribute('r', '10');
+  const count = document.createElementNS(SVG_NS, 'text');
+  count.setAttribute('class', 'formation-cluster-count');
+  count.setAttribute('y', '0.5');
+  const title = document.createElementNS(SVG_NS, 'title');
+  node.append(frame, count, title);
+  node._frame = frame;
+  node._count = count;
+  node._title = title;
+  node.addEventListener('click', event => {
+    event.stopPropagation();
+    zoomIntoFormationCluster(node._members);
+  });
+  node.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    zoomIntoFormationCluster(node._members);
+  });
+  layer.appendChild(node);
+  return node;
+}
+
+function updateFormationClusterNode(node, cluster, invZoom) {
+  const members = cluster.members;
+  const nationCounts = new Map();
+  for (const member of members) nationCounts.set(member.formation.nationId, (nationCounts.get(member.formation.nationId) || 0) + 1);
+  const dominantNation = [...nationCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  node.style.display = '';
+  node.setAttribute('transform', `translate(${cluster.x.toFixed(1)}, ${cluster.y.toFixed(1)}) scale(${invZoom.toFixed(3)})`);
+  node._members = members;
+  node._frame.setAttribute('fill', formationNationColor(dominantNation));
+  node._count.textContent = String(members.length);
+  node.classList.toggle('ordered-offensive', members.some(member => member.formation.order?.kind === 'offensive'));
+  node.classList.toggle('ordered-defend', members.every(member => member.formation.order?.kind === 'defend'));
+  const label = formationClusterLabel(members);
+  node._title.textContent = label;
+  node.setAttribute('aria-label', `${members.length}部隊を集約。クリックで拡大。${label.split('\n').slice(1, 4).join(' / ')}`);
+}
+
+function renderFormationMarkers() {
+  const layer = document.getElementById('formations-layer');
+  if (!layer) return;
+  const source = (typeof Orbis !== 'undefined' && Orbis.listFormations) ? Orbis.listFormations() : (state.formations || []);
+  const formations = Array.isArray(source) ? source : [];
+  const alive = new Set();
+  const slots = new Map();
+  const entries = [];
+  const zoomFactor = state.mapProjection === 'globe' ? state.globe.zoom : state.mapTransform.scale;
+  const invZoom = state.mapProjection === 'globe' ? 1 : 1 / Math.max(0.55, zoomFactor);
+  for (const formation of formations) {
+    if (!formation?.id || !formation.regionId) continue;
+    alive.add(formation.id);
+    const slot = slots.get(formation.regionId) || 0;
+    slots.set(formation.regionId, slot + 1);
+    let node = formationMarkerPool.get(formation.id);
+    if (!node) {
+      node = document.createElementNS(SVG_NS, 'g');
+      node.setAttribute('class', 'formation-marker');
+      node.setAttribute('role', 'button');
+      node.setAttribute('tabindex', '0');
+      const frame = document.createElementNS(SVG_NS, 'circle');
+      frame.setAttribute('class', 'formation-frame');
+      frame.setAttribute('r', '8');
+      const glyph = document.createElementNS(SVG_NS, 'path');
+      glyph.setAttribute('class', 'formation-glyph');
+      const arrow = document.createElementNS(SVG_NS, 'path');
+      arrow.setAttribute('class', 'formation-arrow');
+      arrow.setAttribute('d', 'M 0 -14 L 4 -8 L -4 -8 Z');
+      const title = document.createElementNS(SVG_NS, 'title');
+      node.append(frame, glyph, arrow, title);
+      node._frame = frame;
+      node._glyph = glyph;
+      node._arrow = arrow;
+      node._title = title;
+      node.addEventListener('click', event => {
+        event.stopPropagation();
+        if (node._regionId) handleStateSelect(node._regionId);
+      });
+      node.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        if (node._regionId) handleStateSelect(node._regionId);
+      });
+      layer.appendChild(node);
+      formationMarkerPool.set(formation.id, node);
+    }
+    updateFormationMarkerNode(node, formation, slot, invZoom);
+    const region = formationRegionById(formation.regionId);
+    if (!region) continue;
+    const point = projectLonLatPoint(region.lon || 0, region.lat || 0);
+    if (!point?.visible) continue;
+    const offsetX = ((slot % 3) - 1) * 10;
+    const offsetY = (Math.floor(slot / 3) * 9) - 4;
+    const x = point.x + offsetX * invZoom;
+    const y = point.y + offsetY * invZoom;
+    entries.push({
+      formation,
+      region,
+      node,
+      slot,
+      x,
+      y,
+      sx: state.mapProjection === 'flat' ? x * zoomFactor : x,
+      sy: state.mapProjection === 'flat' ? y * zoomFactor : y
+    });
+  }
+  for (const [id, node] of formationMarkerPool) {
+    if (alive.has(id)) continue;
+    node.remove();
+    formationMarkerPool.delete(id);
+  }
+
+  const clusters = clusterFormationPoints(
+    entries,
+    FORMATION_CLUSTER_MAX_DISTANCE,
+    formationClusteringEnabled(zoomFactor, state.mapProjection)
+  );
+  const grouped = clusters.filter(cluster => cluster.members.length > 1);
+  const clusteredFormationIds = new Set();
+  for (const cluster of grouped) {
+    for (const member of cluster.members) clusteredFormationIds.add(member.formation.id);
+  }
+  for (const entry of entries) {
+    if (clusteredFormationIds.has(entry.formation.id)) entry.node.style.display = 'none';
+  }
+
+  const aliveClusters = new Set();
+  for (const cluster of grouped) {
+    const key = cluster.members.map(member => member.formation.id).sort().join('|');
+    let node = formationClusterPool.get(key);
+    if (!node) {
+      node = createFormationClusterNode(layer);
+      formationClusterPool.set(key, node);
+    }
+    updateFormationClusterNode(node, cluster, invZoom);
+    aliveClusters.add(key);
+  }
+  for (const [key, node] of formationClusterPool) {
+    if (aliveClusters.has(key)) continue;
+    node.remove();
+    formationClusterPool.delete(key);
+  }
+}
+
+function repositionFormationMarkers() {
+  // 集約の構成はズームで変わるため、ドラッグ中も同じレイアウト処理で位置を追従させる。
+  renderFormationMarkers();
 }
 
 function renderWarGlyphs() {
@@ -6374,6 +6720,27 @@ function renderStateInspector(s) {
   if (adminRow) adminRow.hidden = !canManage;
   if (dependentCreateBtn) dependentCreateBtn.hidden = !canManage;
   if (dependentCreateBtn) dependentCreateBtn.onclick = () => openDependentCreateDialog(s.id);
+
+  const formationsHost = document.getElementById('insp-formations');
+  if (formationsHost) {
+    formationsHost.hidden = Boolean(info.isSea);
+    if (info.isSea) {
+      formationsHost.innerHTML = '';
+    } else {
+      const rows = info.formations || [];
+      const cards = rows.map(formation => {
+        const targetOptions = formation.targets?.length
+          ? formation.targets.map(target => `<option value="${escapeHtml(target.regionId)}" ${formation.order?.targetRegionId === target.regionId ? 'selected' : ''}>${escapeHtml(target.regionName)}（${escapeHtml(target.nationName)}）</option>`).join('')
+          : '<option value="">隣接する敵領・占領地なし</option>';
+        return `<article class="formation-card ${formation.isPlayer ? 'is-player' : ''}">
+          <div class="formation-card-head">${getCountryFlagSvg(formation.nationId)}<strong>${escapeHtml(formation.typeLabel)}</strong><span class="muted">${escapeHtml(formation.nationName)}</span><span class="formation-strength">戦力 ${formation.strength}</span></div>
+          <div class="formation-order-line ${formation.order?.kind === 'offensive' ? 'formation-order-offensive' : ''}">${escapeHtml(formation.orderLabel)}</div>
+          ${formation.isPlayer ? `<div class="formation-order-row"><label class="sr-only" for="insp-formation-target-${escapeHtml(formation.id)}">攻勢目標</label><select class="form-select formation-target-select" id="insp-formation-target-${escapeHtml(formation.id)}" ${formation.targets?.length ? '' : 'disabled'}>${targetOptions}</select><button class="btn btn-ghost" data-formation-defend="${escapeHtml(formation.id)}">防御</button><button class="btn btn-primary" data-formation-offensive="${escapeHtml(formation.id)}" ${formation.targets?.length ? '' : 'disabled'}>攻勢</button></div>` : ''}
+        </article>`;
+      }).join('');
+      formationsHost.innerHTML = `<div class="insp-formations-head"><strong>この州の部隊</strong><span class="muted small">${rows.length}部隊</span></div>${cards || '<p class="muted small">配置部隊はありません。</p>'}<p class="formation-feedback" id="formation-feedback" hidden></p>`;
+    }
+  }
 
   card.classList.add('open');
 }
