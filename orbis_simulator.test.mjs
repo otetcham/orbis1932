@@ -12,6 +12,7 @@ import { runM7aLongRun } from './scripts/longrun_m7a_1972.mjs';
 import { runM7bLongRun } from './scripts/longrun_m7b_1972.mjs';
 import { runM8aLongRun } from './scripts/longrun_m8a_1972.mjs';
 import { runM8bLongRun } from './scripts/longrun_m8b_1972.mjs';
+import { runM8cPlaythrough } from './scripts/playthrough_m8c_1972.mjs';
 
 const htmlSource = await readFile(new URL('./orbis_simulator.html', import.meta.url), 'utf8');
 const statesSource = await readFile(new URL('./orbis_states.js', import.meta.url), 'utf8');
@@ -2674,10 +2675,13 @@ try {
   await check('バージョン番号をAPIと画面から取得できる', async () => {
     const { api, context } = harness();
     const info = api.versionInfo();
-    assert.equal(info.version, '0.7.0');
-    assert.equal(info.display, 'v0.7.0');
+    assert.equal(info.version, '1.0.0-rc1');
+    assert.equal(info.display, 'v1.0.0-rc1');
     assert.equal(info.product, 'ORBIS//1932');
-    assert.equal(vm.runInContext('ORBIS_VERSION.version', context), '0.7.0');
+    assert.equal(vm.runInContext('ORBIS_VERSION.version', context), '1.0.0-rc1');
+    assert.match(info.milestone, /M8c/);
+    const packageJson = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'));
+    assert.equal(packageJson.version, '1.0.0-rc1', 'package.json も正本に合わせる');
     assert.match(htmlSource, /id="orbis-build-version"/);
     assert.match(htmlSource, /src="orbis_version\.js"/);
     assert.match(htmlSource, /id="modal-about"/);
@@ -2745,7 +2749,7 @@ try {
     const work = await mkdtemp(path.join(tmpdir(), 'orbis-m7-dist-'));
     try {
       const result = await buildDist({ outDir: path.join(work, 'orbis1932'), zipPath: path.join(work, 'orbis1932.zip') });
-      assert.equal(result.version, '0.7.0');
+      assert.equal(result.version, '1.0.0-rc1');
       assert.equal(result.flags, 111);
       assert.equal(result.portraits, 8);
       assert.ok(result.dataFiles >= 1);
@@ -2759,7 +2763,7 @@ try {
       assert.ok(!/<script\b[^>]*\bsrc=["']https?:/i.test(html), '外部スクリプトに依存しない');
       assert.ok(html.includes('orbis_version.js') && html.includes('orbis_credits.js'));
       const buildInfo = JSON.parse(await readFile(path.join(result.outDir, 'BUILD_INFO.json'), 'utf8'));
-      assert.equal(buildInfo.version, '0.7.0');
+      assert.equal(buildInfo.version, '1.0.0-rc1');
       assert.equal(buildInfo.offline, true);
       const zipBytes = await readFile(result.zipPath);
       assert.equal(zipBytes.subarray(0, 4).toString('binary'), 'PK\x03\x04');
@@ -3053,6 +3057,61 @@ try {
     assert.equal(blocked.hidden, true, '逃げ場がなければバッジを隠す');
   });
 
+  await check('主要国と領土の大きい国の国名は画面端や都市ラベルとの衝突でも落とさない（ソ連を含む）', async () => {
+    const { context } = harness();
+    const labels = vm.runInContext('ORBIS_MAP_LABELS', context);
+    const names = vm.runInContext('COUNTRY_LABEL_NAMES', context);
+    assert.equal(names.russia, 'ソビエト連邦', 'ソ連の国名データがある');
+    assert.equal(labels.countryLabelVisible({ span: 4, zoom: 1, isMajor: false, isLarge: true }), true, '領土の大きい国は常に表示対象');
+    assert.equal(labels.countryLabelVisible({ span: 4, zoom: 1, isMajor: true }), true, '主要国は常に表示対象');
+
+    const viewport = { minX: 0, maxX: 500, minY: 0, maxY: 300 };
+    const candidates = [
+      { x: 430, y: 170, ll: [37.62, 55.75], vp: 12 },
+      { x: 300, y: 150, ll: [30.52, 50.45], vp: 6 }
+    ];
+    const cityRects = [{ x: 430, y: 170, hw: 70, hh: 24 }];
+    const place = labels.resolveCountryLabel({
+      desired: { x: 980, y: 170, ll: [100, 55] },
+      candidates,
+      viewport,
+      hw: 52,
+      hh: 9,
+      canPlace: (x, y) => labels.fits(x, y, 52, 9, cityRects),
+      mustShow: true
+    });
+    assert.equal(place.visible, true, '希望位置が画面外でも国名を落とさない');
+    assert.ok(place.x - 52 >= viewport.minX && place.x + 52 <= viewport.maxX, 'アンカーは画面内の自国領側へ移る');
+    assert.ok(place.y - 9 >= viewport.minY && place.y + 9 <= viewport.maxY);
+    assert.notEqual(`${place.x},${place.y}`, '430,170', '都市ラベルと重なる位置を避けてずらす');
+    assert.ok(place.ll && place.ll[0] === 37.62, 'ソ連の可視領土の経緯度を保持する');
+    assert.equal(labels.fits(430, 170, 70, 24, [{ x: 430, y: 170, hw: 54, hh: 11 }]), false, '国名と重なる都市ラベル側が落ちる');
+
+    const forced = labels.resolveCountryLabel({
+      desired: { x: 980, y: 170, ll: [100, 55] },
+      candidates,
+      viewport,
+      hw: 52,
+      hh: 9,
+      canPlace: () => false,
+      mustShow: true
+    });
+    assert.equal(forced.visible, true, '逃げ場がなくても大国名は落とさない');
+    assert.equal(forced.forced, true);
+    assert.ok(forced.x - 52 >= viewport.minX && forced.x + 52 <= viewport.maxX);
+
+    const small = labels.resolveCountryLabel({
+      desired: { x: 250, y: 150, ll: [10, 50] },
+      candidates: [],
+      viewport,
+      hw: 40,
+      hh: 8,
+      canPlace: () => false,
+      mustShow: false
+    });
+    assert.equal(small.visible, false, '衝突する小国名は従来通り抑制できる');
+  });
+
   await check('ミュート中は効果音を再生せず、音源の自作クレジットがある', async () => {
     const { api, context } = harness();
     const audio = vm.runInContext('ORBIS_AUDIO', context);
@@ -3179,6 +3238,33 @@ try {
     assert.ok(Object.hasOwn(run.postwar.japan.koreaSplit, 'southHolder'));
     const saved = JSON.parse(await readFile(reportPath, 'utf8'));
     assert.equal(saved.mode, 'mock-http');
+  });
+
+  await check('M8c通しプレイ脚本はモックで完走し、ソフトロック・異常膨張なしと勝敗経路を記録する', async () => {
+    const reportPath = '/tmp/opencode/m8c-playthrough-smoke.json';
+    const report = await runM8cPlaythrough({ totalHalves: 4, nations: ['usa'], reportPath, log: () => {}, throwOnFailure: false });
+    assert.equal(report.ok, true, report.totals.failures.join(' / '));
+    assert.equal(report.mode, 'mock-http');
+    assert.equal(report.scripted, true);
+    assert.equal(report.liveProviderCredentialsUsed, false);
+    assert.equal(report.runs.length, 1);
+    const run = report.runs[0];
+    assert.equal(run.nationId, 'usa');
+    assert.equal(run.reachedTarget, true);
+    assert.equal(run.softLocks.length, 0, 'ソフトロックなし');
+    assert.equal(run.anomalies.length, 0, '異常な領土移動なし');
+    assert.equal(run.invariantFailures.length, 0, '数値在庫の異常なし');
+    assert.ok(run.peakOwner.landStates <= report.thresholds.expansionLandStates, '異常膨張のしきい値以下');
+    assert.ok(run.actions.nationalActions >= 4, '毎ターン国家行動を提出');
+    assert.ok(run.actions.focusSelections >= 1, '国策を選択');
+    assert.equal(report.victoryPath.ok, true, '勝利経路がある');
+    assert.equal(report.victoryPath.result, 'victory');
+    assert.equal(report.defeatPath.ok, true, '負け経路がある');
+    assert.equal(report.defeatPath.result, 'defeat');
+    assert.ok(report.defeatPath.track.length >= 6, '財政・統治危機の継続を記録');
+    const saved = JSON.parse(await readFile(reportPath, 'utf8'));
+    assert.equal(saved.mode, 'mock-http');
+    assert.equal(saved.thresholds.expansionLandStates, 160);
   });
 
   console.log(`\n${passed} checks passed. Live provider credentials were not used.`);

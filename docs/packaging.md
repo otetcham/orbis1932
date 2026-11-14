@@ -8,7 +8,7 @@ node scripts/build_dist.mjs
 ```
 
 - フォルダ: `dist/orbis1932/`
-- ZIP: `dist/orbis1932-0.7.0-offline.zip`
+- ZIP: `dist/orbis1932-1.0.0-rc1-offline.zip`
 - 同梱: HTML（index / orbis_simulator）、実行JS、version / credits、`data/`、`flags/`、`portraits/`、`CREDITS`
 - 構築時に Google Fonts の `@import` を除去する。外部スクリプト・外部フォントに依存しない。
 - テスト、`scripts/`、`node_modules`、セーブ、APIキーは同梱しない。
@@ -16,7 +16,7 @@ node scripts/build_dist.mjs
 
 ## デスクトップ包装
 
-Tauri を第一候補として確認したが、この環境には `pkg-config` がなく、`libwebkit2gtk-4.1-dev` も入手できないため WebKitGTK 依存のビルドが成立しない。Electron の未署名ローカルビルドを足場とする。理由と確認結果は `/workspace/pm/orbis1932/m7/packaging-notes.md` に記録する。
+Tauri を第一候補として確認したが、この環境には `pkg-config` がなく、`libwebkit2gtk-4.1-dev` も入手できないため WebKitGTK 依存のビルドが成立しない。Electron の未署名ローカルビルドを足場とする。理由と確認結果は `/workspace/pm/orbis1932/m8c/packaging-notes.md` に記録する。
 
 ```sh
 cd /workspace/pm/orbis1932/repo/desktop
@@ -25,7 +25,7 @@ npm run build
 ```
 
 - 出力: `desktop/release/ORBIS-1932-linux-x64/`
-- 検証用ZIP: `/workspace/pm/orbis1932/m7/ORBIS-1932-0.7.0-linux-x64-unsigned.zip`
+- 検証用ZIP: `/workspace/pm/orbis1932/m8c/ORBIS-1932-1.0.0-rc1-linux-x64-unsigned.zip`
 - `main.js` は `contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`。
 - 署名・公証・公開・ストア提出は行わない。生成バイナリは git に含めない（`.gitignore`）。
 

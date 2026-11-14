@@ -2824,7 +2824,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
       <div class="modal-body about-content">
         <div class="about-hero"><span class="about-brand" id="about-brand">ORBIS//1932</span><span class="about-version" id="about-version"></span></div>
         <p class="about-description" id="about-description">一通の電報が、歴史を変える。1932年3月の世界を舞台に、国家の内政・外交・軍事を進める日本語の歴史シミュレーション。</p>
-        <dl class="credits-meta"><dt>版</dt><dd id="about-milestone">M7 製品化の下地</dd><dt>公開日</dt><dd id="about-released">2026-11-14</dd><dt>動作</dt><dd>オフライン起動可。AI対話のみ、利用者が指定したAPIへ接続する。</dd></dl>
+        <dl class="credits-meta"><dt>版</dt><dd id="about-milestone">M8c バランスとモック通しプレイ QA</dd><dt>公開日</dt><dd id="about-released">2026-11-14</dd><dt>動作</dt><dd>オフライン起動可。AI対話のみ、利用者が指定したAPIへ接続する。</dd></dl>
         <div class="about-actions">
           <button class="btn" type="button" id="btn-about-credits">クレジット／ライセンス</button>
           <button class="btn" type="button" id="btn-about-settings">設定を開く</button>
@@ -6140,14 +6140,21 @@ function repositionGlobeLabels() {
     const pt = projectLonLatPoint(node._ll[0], node._ll[1]);
     if (!pt.visible) { if (node.style.display !== 'none') node.style.display = 'none'; continue; }
     if (node.style.display === 'none') node.style.display = '';
-    node.setAttribute('x', pt.x.toFixed(1));
-    node.setAttribute('y', pt.y.toFixed(1));
+    node.setAttribute('x', (pt.x + (Number(node._labelDx) || 0)).toFixed(1));
+    node.setAttribute('y', (pt.y + (Number(node._labelDy) || 0)).toFixed(1));
   }
 }
 
 // 地図ラベルの出し分けと衝突回避。描画コードとテストで同じ判定を使う。
 globalThis.ORBIS_MAP_LABELS = (() => {
   const SPATIAL_CELL = 96;
+  // これ以上の地理的広がりを持つ国は、ズームや衝突判定で国名を落とさない。
+  const LARGE_COUNTRY_SPAN = 140;
+  const COUNTRY_LABEL_OFFSETS = Object.freeze([
+    [0, 0], [0, -15], [0, 15], [-24, 0], [24, 0], [-24, -15], [24, -15], [-24, 15], [24, 15],
+    [0, -30], [0, 30], [-48, 0], [48, 0], [-48, -30], [48, -30], [-48, 30], [48, 30],
+    [0, -48], [0, 48], [-72, 0], [72, 0]
+  ]);
   const rectsOverlap = (a, b, padding = 1) => Math.abs(a.x - b.x) < padding * (a.hw + b.hw)
     && Math.abs(a.y - b.y) < padding * (a.hh + b.hh);
   function fits(x, y, hw, hh, placed, padding = 1) {
@@ -6165,12 +6172,60 @@ globalThis.ORBIS_MAP_LABELS = (() => {
     }
     return units * font;
   }
-  function countryLabelVisible({ span, zoom, isMajor = false, isLobby = false, selected = false }) {
+  function countryLabelVisible({ span, zoom, isMajor = false, isLarge = false, isLobby = false, selected = false }) {
     if (selected) return true;
     if (isLobby) return true;
-    if (isMajor) return true;
+    if (isMajor || isLarge) return true;
     const screenSpan = Math.max(0, Number(span) || 0) * Math.max(0.5, Number(zoom) || 1);
     return screenSpan >= 60;
+  }
+  function pointInViewport(point, viewport) {
+    return Boolean(point && viewport
+      && point.x >= viewport.minX && point.x <= viewport.maxX
+      && point.y >= viewport.minY && point.y <= viewport.maxY);
+  }
+  function clampToViewport(point, viewport) {
+    const minX = viewport.minX + 8;
+    const maxX = viewport.maxX - 8;
+    const minY = viewport.minY + 8;
+    const maxY = viewport.maxY - 8;
+    return {
+      ...point,
+      x: minX <= maxX ? clamp(point.x, minX, maxX) : (viewport.minX + viewport.maxX) / 2,
+      y: minY <= maxY ? clamp(point.y, minY, maxY) : (viewport.minY + viewport.maxY) / 2
+    };
+  }
+  // 大国の国名は必ず置く。希望位置が画面外なら可視領土の候補へ移し、
+  // 都市ラベルはこの後に置くため、衝突時は都市側が落ちる。
+  function resolveCountryLabel({ desired, candidates = [], viewport, hw, hh, canPlace = () => true, mustShow = false, offsets = COUNTRY_LABEL_OFFSETS }) {
+    if (!viewport || !desired) return { visible: false, x: 0, y: 0, ll: null, forced: false };
+    const vc = { x: (viewport.minX + viewport.maxX) / 2, y: (viewport.minY + viewport.maxY) / 2 };
+    const inside = candidates.filter(point => point && pointInViewport(point, viewport));
+    const anchor = pointInViewport(desired, viewport)
+      ? { ...desired, source: 'desired' }
+      : inside.length
+        ? inside.slice().sort((a, b) => (Number(b.vp) || 0) - (Number(a.vp) || 0)
+          || Math.hypot((a.x || 0) - vc.x, (a.y || 0) - vc.y) - Math.hypot((b.x || 0) - vc.x, (b.y || 0) - vc.y))[0]
+        : { ...clampToViewport(desired, viewport), source: 'edge' };
+    const points = [anchor, ...inside.filter(point => point !== anchor)];
+    let fallback = null;
+    const safeX = { min: viewport.minX + hw + 4, max: viewport.maxX - hw - 4 };
+    const safeY = { min: viewport.minY + hh + 4, max: viewport.maxY - hh - 4 };
+    for (const point of points) {
+      const base = clampToViewport(point, viewport);
+      for (const [offsetX, offsetY] of offsets) {
+        const x = safeX.min <= safeX.max ? clamp(base.x + offsetX, safeX.min, safeX.max) : (viewport.minX + viewport.maxX) / 2;
+        const y = safeY.min <= safeY.max ? clamp(base.y + offsetY, safeY.min, safeY.max) : (viewport.minY + viewport.maxY) / 2;
+        const result = {
+          visible: true, x, y, dx: offsetX, dy: offsetY, ll: point.ll || desired.ll || null,
+          shifted: Boolean(offsetX || offsetY), forced: false, anchorSource: point.source || 'territory'
+        };
+        if (canPlace(x, y)) return result;
+        if (!fallback) fallback = result;
+      }
+    }
+    if (mustShow) return { ...fallback, forced: true };
+    return { visible: false, x: 0, y: 0, ll: desired.ll || null, forced: false };
   }
   function cityLabelVisible({ tier, zoom }) {
     const level = Math.max(0, Number(zoom) || 1);
@@ -6190,8 +6245,31 @@ globalThis.ORBIS_MAP_LABELS = (() => {
     }
     return { x, y, hidden: true, dx: 0, dy: 0 };
   }
-  return Object.freeze({ SPATIAL_CELL, rectsOverlap, fits, record, textWidth, countryLabelVisible, cityLabelVisible, placeBadge, BADGE_OFFSETS });
+  return Object.freeze({ SPATIAL_CELL, LARGE_COUNTRY_SPAN, COUNTRY_LABEL_OFFSETS, rectsOverlap, fits, record, textWidth, countryLabelVisible, pointInViewport, resolveCountryLabel, cityLabelVisible, placeBadge, BADGE_OFFSETS });
 })();
+
+function currentMapViewportBounds() {
+  const svg = document.getElementById('orbis-world-svg');
+  const vb = svg?.viewBox?.baseVal;
+  const x = Number(vb?.x) || 0;
+  const y = Number(vb?.y) || 60;
+  const width = Number(vb?.width) || 2000;
+  const height = Number(vb?.height) || 1158;
+  if (state.mapProjection === 'flat') {
+    const scale = Math.max(0.001, Number(state.mapTransform.scale) || 1);
+    const tx = Number(state.mapTransform.x) || 0;
+    const ty = Number(state.mapTransform.y) || 0;
+    return {
+      minX: (x - tx) / scale,
+      maxX: (x + width - tx) / scale,
+      minY: (y - ty) / scale,
+      maxY: (y + height - ty) / scale,
+      width: width / scale,
+      height: height / scale
+    };
+  }
+  return { minX: x, maxX: x + width, minY: y, maxY: y + height, width, height };
+}
 
 function projectedStateBounds(region) {
   if (!region?.rings?.length) {
@@ -6361,37 +6439,35 @@ function updateMapVisuals() {
         }
       });
 
+      const viewportBounds = currentMapViewportBounds();
       const entries = [...spanByCountry.entries()].map(([country, box]) => {
         const centerInfo = getCountryMainlandCenter(country);
         const pt = centerInfo ? projectLonLatPoint(centerInfo.lon, centerInfo.lat) : null;
-        let cx = pt?.visible ? pt.x : (box.minX + box.maxX) / 2;
-        let cy = pt?.visible ? pt.y : (box.minY + box.maxY) / 2;
-
-        let visMinX = Infinity, visMaxX = -Infinity, visMinY = Infinity, visMaxY = -Infinity;
-        let visibleCount = 0;
-        const mStates = centerInfo && centerInfo.mainlandStateIds;
+        const desired = {
+          x: pt?.visible ? pt.x : (box.minX + box.maxX) / 2,
+          y: pt?.visible ? pt.y : (box.minY + box.maxY) / 2,
+          ll: centerInfo ? [centerInfo.lon, centerInfo.lat] : null
+        };
+        const candidates = [];
         const countryStates = (statesByCountryMap && statesByCountryMap.get(country)) || state.states.filter(s => s.country === country);
         for (let i = 0; i < countryStates.length; i++) {
           const s = countryStates[i];
-          if (mStates && !mStates.has(s.id)) continue;
+          if (s.isSea || s.type === 'sea' || s.isSeaZone) continue;
           const spt = getProjectedStatePoint(s);
-          if (spt && spt.visible) {
-            visibleCount++;
-            if (spt.x < visMinX) visMinX = spt.x;
-            if (spt.x > visMaxX) visMaxX = spt.x;
-            if (spt.y < visMinY) visMinY = spt.y;
-            if (spt.y > visMaxY) visMaxY = spt.y;
-          }
+          if (!spt || !spt.visible) continue;
+          if (!ORBIS_MAP_LABELS.pointInViewport(spt, viewportBounds)) continue;
+          candidates.push({
+            x: spt.x,
+            y: spt.y,
+            lon: s.lon,
+            lat: s.lat,
+            ll: [s.lon, s.lat],
+            vp: Number(s.vp) || 0,
+            stateId: s.id
+          });
         }
-        if (visibleCount > 0) {
-          const marginX = Math.min(36, Math.max(0, (visMaxX - visMinX) * 0.35));
-          const marginY = Math.min(24, Math.max(0, (visMaxY - visMinY) * 0.35));
-          cx = clamp(cx, visMinX + marginX, visMaxX - marginX);
-          cy = clamp(cy, visMinY + marginY, visMaxY - marginY);
-        }
-
         const span = Math.max(box.maxX - box.minX, box.maxY - box.minY);
-        return { country, cx, cy, span, ll: centerInfo ? [centerInfo.lon, centerInfo.lat] : null };
+        return { country, desired, candidates, span };
       }).sort((a, b) => {
         if (isLobby && state.lobbyNationId) {
           if (a.country === state.lobbyNationId) return -1;
@@ -6400,25 +6476,49 @@ function updateMapVisuals() {
         return ((state.nations[b.country].isMajor ? 1 : 0) - (state.nations[a.country].isMajor ? 1 : 0)) || (b.span - a.span);
       });
 
-      for (const g of countryOp < 0.03 ? [] : entries) {
+      for (const g of entries) {
         const label = state.nations[g.country]?.labelOverride || COUNTRY_LABEL_NAMES[g.country] || (state.nations[g.country].name || g.country).split(/[（(・]/)[0];
         const isSelectedNation = isLobby && (g.country === state.lobbyNationId);
         const isMajor = Boolean(state.nations[g.country]?.isMajor);
-        if (!ORBIS_MAP_LABELS.countryLabelVisible({ span: g.span, zoom: zoomFactor, isMajor, isLobby, selected: isSelectedNation })) continue;
+        const isLarge = g.span >= ORBIS_MAP_LABELS.LARGE_COUNTRY_SPAN;
+        const mustShow = isMajor || isLarge || isSelectedNation || isLobby;
+        const hasVisibleTerritory = ORBIS_MAP_LABELS.pointInViewport(g.desired, viewportBounds) || g.candidates.length > 0;
+        if (!hasVisibleTerritory) continue;
+        if (!mustShow && countryOp < 0.03) continue;
+        if (!ORBIS_MAP_LABELS.countryLabelVisible({ span: g.span, zoom: zoomFactor, isMajor, isLarge, isLobby, selected: isSelectedNation })) continue;
         const font = (isSelectedNation ? Math.min(20, Math.max(13, 0.24 * g.span)) : Math.min(16, Math.max(10.5, 0.2 * g.span))) * invZoom;
         const hw = ORBIS_MAP_LABELS.textWidth(label, font);
         const hh = font * 0.66;
-        if (!fits(g.cx, g.cy, hw, hh)) continue;
-        recordPlaced(g.cx, g.cy, hw, hh);
+        const placement = ORBIS_MAP_LABELS.resolveCountryLabel({
+          desired: { ...g.desired, vp: 0 },
+          candidates: g.candidates,
+          viewport: viewportBounds,
+          hw,
+          hh,
+          canPlace: (x, y) => fits(x, y, hw, hh),
+          mustShow
+        });
+        if (!placement.visible) continue;
+        recordPlaced(placement.x, placement.y, hw, hh);
         mapLabelScreenRects.push({
-          x: isGlobe ? g.cx : g.cx * zoomFactor,
-          y: isGlobe ? g.cy : g.cy * zoomFactor,
+          x: isGlobe ? placement.x : placement.x * zoomFactor,
+          y: isGlobe ? placement.y : placement.y * zoomFactor,
           hw: isGlobe ? hw : hw * zoomFactor,
           hh: isGlobe ? hh : hh * zoomFactor
         });
         const labelCls = isSelectedNation ? 'map-label-country lobby-highlighted-label' : 'map-label-country';
-        const labelOp = isSelectedNation ? 1 : (isLobby && state.lobbyNationId ? 0.35 : countryOp);
-        wanted.set(`c:${g.country}`, { text: label, x: g.cx, y: g.cy, font, op: labelOp, cls: labelCls, ll: g.ll });
+        const labelOp = isSelectedNation ? 1 : (isLobby && state.lobbyNationId ? 0.35 : (mustShow ? Math.max(0.55, countryOp) : countryOp));
+        wanted.set(`c:${g.country}`, {
+          text: label,
+          x: placement.x,
+          y: placement.y,
+          font,
+          op: labelOp,
+          cls: labelCls,
+          ll: placement.ll,
+          dx: placement.dx || 0,
+          dy: placement.dy || 0
+        });
       }
 
       if (zoomFactor >= 1.05) {
@@ -6458,6 +6558,8 @@ function updateMapVisuals() {
           mapLabelPool.set(key, node);
         }
         node._ll = d.ll || null;
+        node._labelDx = d.dx || 0;
+        node._labelDy = d.dy || 0;
         node.style.display = '';
         node.setAttribute('data-label-key', key);
         node.setAttribute('class', `map-label ${d.cls}`);
