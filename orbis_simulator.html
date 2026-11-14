@@ -1763,7 +1763,7 @@ svg path:focus-visible,
 .desktop-workspace #btn-zoom-reset { display: block; font-size: 9px; }
 .desktop-workspace .map-label-country { font-weight: 700; letter-spacing: 0.08em; stroke-width: 4px; opacity: .95; }
 .desktop-workspace .map-label-city,
-.map-label-city { font-weight: 700; font-size: 11px; letter-spacing: 0.02em; stroke: rgba(7, 13, 24, 0.9); stroke-width: 2.8px; opacity: 0.95; fill: #ffffff !important; paint-order: stroke fill; }
+.map-label-city { font-weight: 700; font-size: 13px; letter-spacing: 0.02em; stroke: rgba(7, 13, 24, 0.9); stroke-width: 2.8px; opacity: 0.95; fill: #ffffff !important; paint-order: stroke fill; }
 .prov-path.player-owned { filter: none; }
 .desktop-workspace .state-inspector-card { left: 20px; right: auto; bottom: 106px; width: 310px; max-width: calc(100% - 40px); border-radius: 12px; border-color: #b9cbe0; background: rgba(255, 255, 255, 0.96); box-shadow: 0 4px 16px rgba(23, 42, 68, 0.16); }
 .desktop-workspace .insp-head { padding: 10px 12px; background: #f2f6fb; }
@@ -2158,8 +2158,8 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 </style>
-  <script src="orbis_states.js?v=1932.16" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
-  <script src="orbis_map_meta.js?v=1932.16" defer></script>
+  <script src="orbis_states.js?v=1932.17" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
+  <script src="orbis_map_meta.js?v=1932.17" defer></script>
 </head>
 <body>
 
@@ -2669,6 +2669,7 @@ const COUNTRY_MAP_COLORS = {
   manchukuo: '#eab308',      // 満洲国 (Imperial Yellow)
   china: '#3b82f6',          // 中華民国・南京国民政府 (Kuomintang Blue)
   tibet: '#8a6b4f',          // チベット
+  warlord_autonomous: '#93c5fd', // 自治軍閥（中華民国に近い薄青）
   warlord_neutral: '#7b8fa3', // 中立軍閥
   warlord_independent: '#a05a52', // 独立軍閥
   shanxi: '#c48a2c',         // 晋系（山西）
@@ -3053,7 +3054,7 @@ const SCENARIOS = {
       // ==================== 中国地方軍閥（1932年3月） ====================
       shanxi: {
         id: 'shanxi', code: 'JIN', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 70, loyalty: 48, legitimacy: 30 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 70, loyalty: 48, legitimacy: 30, warlordStatus: 'autonomous' },
         name: '晋系（山西）', bloc: 'neutral', blocName: '山西自治・反蔣中立',
         leader: '閻錫山 太原綏靖公署主任', ministry: '山西省政府・晋綏軍司令部',
         mil: 58, eco: 54, stb: 70, tech: 56, gdpText: '¥0.6B',
@@ -3073,7 +3074,7 @@ const SCENARIOS = {
       },
       guangxi: {
         id: 'guangxi', code: 'GXI', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 72, loyalty: 50, legitimacy: 30 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 72, loyalty: 50, legitimacy: 30, warlordStatus: 'autonomous' },
         name: '新広西派（広西）', bloc: 'neutral', blocName: '広西模範省・反蔣連合',
         leader: '李宗仁 第四集団軍総司令 / 白崇禧', ministry: '広西省政府・第四集団軍司令部',
         mil: 62, eco: 50, stb: 68, tech: 54, gdpText: '¥0.4B',
@@ -3093,7 +3094,7 @@ const SCENARIOS = {
       },
       guangdong: {
         id: 'guangdong', code: 'YUE', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 76, loyalty: 42, legitimacy: 28 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 76, loyalty: 42, legitimacy: 28, warlordStatus: 'autonomous' },
         name: '西南派（広東）', bloc: 'neutral', blocName: '西南政務委員会・反蔣連合',
         leader: '陳済棠 第八路軍総司令 / 広東省政府主席', ministry: '広東省政府・西南政務委員会',
         mil: 60, eco: 64, stb: 58, tech: 56, gdpText: '¥0.9B',
@@ -3113,7 +3114,7 @@ const SCENARIOS = {
       },
       sichuan: {
         id: 'sichuan', code: 'CHU', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 68, loyalty: 52, legitimacy: 32 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 68, loyalty: 52, legitimacy: 32, warlordStatus: 'autonomous' },
         name: '四川軍（川軍）', bloc: 'neutral', blocName: '四川軍閥連合・南京名目服属',
         leader: '劉湘 四川善後督弁', ministry: '四川善後督办公署・重慶市政府',
         mil: 58, eco: 56, stb: 46, tech: 50, gdpText: '¥0.9B',
@@ -3133,7 +3134,7 @@ const SCENARIOS = {
       },
       yunnan: {
         id: 'yunnan', code: 'DIAN', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 78, loyalty: 50, legitimacy: 30 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 78, loyalty: 50, legitimacy: 30, warlordStatus: 'autonomous' },
         name: '滇系（雲南）', bloc: 'neutral', blocName: '雲南自治・仏印交易圏',
         leader: '龍雲 雲南省政府主席', ministry: '雲南省政府・滇軍司令部',
         mil: 54, eco: 44, stb: 66, tech: 46, gdpText: '¥0.3B',
@@ -3153,7 +3154,7 @@ const SCENARIOS = {
       },
       shandong: {
         id: 'shandong', code: 'LU', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 66, loyalty: 54, legitimacy: 32 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 66, loyalty: 54, legitimacy: 32, warlordStatus: 'autonomous' },
         name: '魯系（山東）', bloc: 'neutral', blocName: '山東自治・華北緩衝',
         leader: '韓復榘 山東省政府主席', ministry: '山東省政府・第三路軍司令部',
         mil: 52, eco: 56, stb: 50, tech: 44, gdpText: '¥0.5B',
@@ -3173,7 +3174,7 @@ const SCENARIOS = {
       },
       xinjiang: {
         id: 'xinjiang', code: 'XIN', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 82, loyalty: 44, legitimacy: 26 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 82, loyalty: 44, legitimacy: 26, warlordStatus: 'autonomous' },
         name: '新疆政権', bloc: 'neutral', blocName: '新疆自治・ソ連交易圏',
         leader: '金樹仁 新疆省政府主席', ministry: '新疆省政府・新疆辺防督办公署',
         mil: 44, eco: 36, stb: 40, tech: 34, gdpText: '¥0.2B',
@@ -3193,7 +3194,7 @@ const SCENARIOS = {
       },
       ma_clique: {
         id: 'ma_clique', code: 'MAQ', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 80, loyalty: 46, legitimacy: 28 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 80, loyalty: 46, legitimacy: 28, warlordStatus: 'autonomous' },
         name: '西北三馬（甘寧青）', bloc: 'neutral', blocName: '馬家軍・西北イスラーム勢力',
         leader: '馬麟 青海省政府主席 / 馬鴻賓・馬鴻逵', ministry: '甘寧青三省連絡会議・騎兵軍司令部',
         mil: 50, eco: 36, stb: 62, tech: 38, gdpText: '¥0.2B',
@@ -3213,7 +3214,7 @@ const SCENARIOS = {
       },
       hunan: {
         id: 'hunan', code: 'XIANG', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 64, loyalty: 56, legitimacy: 34 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 64, loyalty: 56, legitimacy: 34, warlordStatus: 'autonomous' },
         name: '湘系（湖南）', bloc: 'neutral', blocName: '湖南自治・華中緩衝',
         leader: '何鍵 湖南省政府主席', ministry: '湖南省政府・第四路軍司令部',
         mil: 46, eco: 50, stb: 54, tech: 44, gdpText: '¥0.5B',
@@ -3233,7 +3234,7 @@ const SCENARIOS = {
       },
       guizhou: {
         id: 'guizhou', code: 'QIAN', region: '東アジア・太平洋', isMajor: false,
-        dependency: { overlordId: 'china', type: 'warlord', autonomy: 74, loyalty: 42, legitimacy: 26 },
+        dependency: { overlordId: 'china', type: 'warlord', autonomy: 74, loyalty: 42, legitimacy: 26, warlordStatus: 'autonomous' },
         name: '黔系（貴州）', bloc: 'neutral', blocName: '貴州軍閥・西南辺境',
         leader: '王家烈 貴州省政府主席 / 第二十五軍軍長', ministry: '貴州省政府・第二十五軍司令部',
         mil: 40, eco: 34, stb: 36, tech: 30, gdpText: '¥0.15B',
@@ -5931,8 +5932,8 @@ function updateMapVisuals() {
     } else {
       const isLobby = isLobbyOpen();
       // HOI4-style: country names keep a constant screen size and gradually fade out when zoomed in.
-      const fadeStart = isGlobe ? 2.2 : 3;
-      const fadeEnd = isGlobe ? 4.5 : 7;
+      const fadeStart = isGlobe ? 3.4 : 4.2;
+      const fadeEnd = isGlobe ? 6.4 : 9;
       const countryOp = zoomFactor <= fadeStart ? 0.95 : Math.max(0, 0.95 * (1 - (zoomFactor - fadeStart) / (fadeEnd - fadeStart)));
       const wanted = new Map();
       const placed = [];
@@ -6044,7 +6045,7 @@ function updateMapVisuals() {
           if (c.tier === 3 && zoomFactor < 2.15) continue;
           const pt = projectLonLatPoint(c.lon, c.lat);
           if (!pt || !pt.visible) continue;
-          const font = (c.tier === 1 ? 11.5 : 10.0) * invZoom;
+          const font = (c.tier === 1 ? 13.5 : 11.8) * invZoom;
           const hw = c.name.length * font * 0.55;
           const hh = font * 0.65;
           if (!fits(pt.x, pt.y, hw, hh)) continue;
@@ -6995,13 +6996,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
-<script src="orbis_events.js?v=1932.16"></script>
-<script src="orbis_region_labels.js?v=1932.16"></script>
-<script src="orbis_campaign_core.js?v=1932.16"></script>
-<script src="orbis_timeline_engine.js?v=1932.16"></script>
-<script src="orbis_turn_playback.js?v=1932.16"></script>
-<script src="orbis_text.js?v=1932.16"></script>
-<script src="orbis_game.js?v=1932.16"></script>
+<script src="orbis_events.js?v=1932.17"></script>
+<script src="orbis_region_labels.js?v=1932.17"></script>
+<script src="orbis_campaign_core.js?v=1932.17"></script>
+<script src="orbis_timeline_engine.js?v=1932.17"></script>
+<script src="orbis_turn_playback.js?v=1932.17"></script>
+<script src="orbis_text.js?v=1932.17"></script>
+<script src="orbis_game.js?v=1932.17"></script>
 
 </body>
 </html>

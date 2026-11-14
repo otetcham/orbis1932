@@ -53,7 +53,7 @@ const Orbis = (() => {
   };
   const DEPENDENCY_TYPES = { colony: '植民地', protectorate: '保護国', warlord: '軍閥', satellite: '衛星国', dominion: '自治領', puppet: '傀儡国' };
   const WARLORD_STATUS = { autonomous: '自治軍閥', neutral: '中立軍閥', independent: '独立軍閥' };
-  const WARLORD_STATUS_COLOR = { autonomous: '#3b82f6', neutral: '#7b8fa3', independent: '#a05a52' };
+  const WARLORD_STATUS_COLOR = { autonomous: '#93c5fd', neutral: '#7b8fa3', independent: '#a05a52' };
   const DEPENDENCY_DEFAULTS = {
     colony: { autonomy: 15, loyalty: 50, legitimacy: 40 },
     protectorate: { autonomy: 30, loyalty: 60, legitimacy: 55 },
@@ -383,7 +383,7 @@ const Orbis = (() => {
     return SCENARIOS.era_1932.nations[nationId] || game?.dynamicNations?.[nationId] || null;
   }
 
-  // 従属政権の領土は宗主国の色で描く（ゲーム内・ロビー共通）。
+  // 植民地は宗主国色、自治軍閥は宗主国に近い薄い青、中立・独立軍閥は専用色。
   function colorNation(nationId, game = campaign) {
     const client = game?.clients?.[nationId];
     if (client && !client.dissolved) {
@@ -392,7 +392,7 @@ const Orbis = (() => {
       if (type === 'colony') return client.sponsorId;
       if (type === 'warlord') {
         const status = client.warlordStatus || 'neutral';
-        if (status === 'autonomous') return client.sponsorId;
+        if (status === 'autonomous') return 'warlord_autonomous';
         return status === 'independent' ? 'warlord_independent' : 'warlord_neutral';
       }
       return nationId;
@@ -405,7 +405,7 @@ const Orbis = (() => {
         if (meta.type === 'colony') return meta.overlordId;
         if (meta.type === 'warlord') {
           const status = meta.warlordStatus || 'neutral';
-          if (status === 'autonomous') return meta.overlordId;
+          if (status === 'autonomous') return 'warlord_autonomous';
           return status === 'independent' ? 'warlord_independent' : 'warlord_neutral';
         }
         return nationId;
@@ -758,14 +758,10 @@ const Orbis = (() => {
     return result;
   }
 
-  // 宗主国と同じ地図色になる従属国（植民地と自治軍閥）。同色のため国境線の補助が必要。
+  // 宗主国と同じ地図色になる植民地だけが、国境線の補助を必要とする。
   function colonialColorGroups() {
     return Object.entries(campaign?.clients || {})
-      .filter(([, client]) => {
-        if (client.dissolved || client.independent || !client.sponsorId) return false;
-        const type = client.type || client.kind;
-        return type === 'colony' || (type === 'warlord' && (client.warlordStatus || 'neutral') === 'autonomous');
-      })
+      .filter(([, client]) => (client.type || client.kind) === 'colony' && !client.dissolved && !client.independent && client.sponsorId)
       .map(([id, client]) => ({ id, sponsorId: client.sponsorId }));
   }
 
