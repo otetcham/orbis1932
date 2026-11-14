@@ -151,6 +151,100 @@ function worldArcReport(snapshot) {
   return { fired, states, total: fired.length };
 }
 
+function independenceReport(snapshot) {
+  const ids = Object.entries(snapshot.nations || {})
+    .filter(([, nation]) => nation && !nation.dissolved && !nation.suzerain)
+    .map(([id]) => id)
+    .sort();
+  return { count: ids.length, ids };
+}
+
+function holderOf(snapshot, region) {
+  return snapshot.territories?.[region.id] || region.country;
+}
+
+function nationLandCount(snapshot, landRegions, nationId) {
+  return landRegions.reduce((sum, region) => sum + (holderOf(snapshot, region) === nationId ? 1 : 0), 0);
+}
+
+function decolonizationReport(snapshot, landRegions, startOwners, startSuzerain = {}) {
+  const groups = {
+    india_pakistan: { label: 'インド・パキスタン', regionIds: landRegions.filter(region => region.id.startsWith('india_pk_')).map(region => region.id) },
+    indonesia: { label: 'インドネシア', regionIds: landRegions.filter(region => region.id.startsWith('dutch_indies_')).map(region => region.id) },
+    indochina: { label: 'インドシナ', regionIds: ['france_vietnam', 'france_laos_cambodia'] },
+    philippines: { label: 'フィリピン', regionIds: landRegions.filter(region => region.id.startsWith('usa_phl_')).map(region => region.id) },
+    french_africa: { label: '仏領アフリカ', regionIds: ['france_fwa', 'france_algeria', 'france_fea', 'france_madagascar', 'france_cameroons', 'france_morocco', 'france_tunisia', 'france_djibouti'] },
+    british_africa: { label: '英領アフリカ', regionIds: ['uk_east_africa', 'uk_west_africa', 'uk_rhodesia', 'uk_southern_africa', 'uk_sudan', 'uk_somaliland', 'uk_aden'] },
+    congo: { label: 'コンゴ', regionIds: ['belgium_congo', 'belgium_ruanda_urundi'] }
+  };
+  const regionById = new Map(landRegions.map(region => [region.id, region]));
+  const result = {};
+  for (const [key, group] of Object.entries(groups)) {
+    const regions = group.regionIds.map(id => regionById.get(id)).filter(Boolean);
+    const holders = [...new Set(regions.map(region => holderOf(snapshot, region)))].sort();
+    const changed = regions.filter(region => startOwners?.get(region.id) && startOwners.get(region.id) !== holderOf(snapshot, region)).length;
+    const independentHolders = holders.filter(id => snapshot.nations?.[id] && !snapshot.nations[id].dissolved && !snapshot.nations[id].suzerain);
+    const stillDependent = holders.filter(id => snapshot.nations?.[id]?.suzerain);
+    const newlyIndependent = holders.some(id => startSuzerain[id] && !snapshot.nations?.[id]?.suzerain);
+    const pakistanLand = key === 'india_pakistan' ? nationLandCount(snapshot, landRegions, 'pakistan') : undefined;
+    result[key] = {
+      label: group.label,
+      regions: regions.length,
+      holders,
+      changedStates: changed,
+      independentHolders,
+      stillDependent,
+      independent: (changed > 0 || newlyIndependent) && stillDependent.length === 0,
+      pakistanLand
+    };
+  }
+  return result;
+}
+
+function postwarReport(snapshot, landRegions, startOwners, startSuzerain = {}) {
+  const countByCountry = countryId => landRegions.filter(region => region.country === countryId).length;
+  const restoredHeld = countryId => landRegions.filter(region => region.country === countryId && holderOf(snapshot, region) === countryId).length;
+  const germanyHeldBy = countryId => landRegions.filter(region => region.country === countryId && holderOf(snapshot, region) === 'germany').length;
+  const koreaClient = snapshot.clients?.col_japan_korea;
+  const koreaHolder = snapshot.territories?.japan_empire_kor || 'japan';
+  const taiwanHolder = snapshot.territories?.japan_empire_twn || 'japan';
+  const taiwanChinaSide = taiwanHolder === 'china' || String(taiwanHolder).startsWith('china_');
+  const manchukuoLand = nationLandCount(snapshot, landRegions, 'manchukuo');
+  return {
+    settlement: snapshot.postwarSettlement || null,
+    germany: {
+      exists: Boolean(snapshot.nations?.germany),
+      dissolved: Boolean(snapshot.nations?.germany?.dissolved),
+      landStates: nationLandCount(snapshot, landRegions, 'germany'),
+      west: { exists: Boolean(snapshot.nations?.west_germany), dissolved: Boolean(snapshot.nations?.west_germany?.dissolved), landStates: nationLandCount(snapshot, landRegions, 'west_germany') },
+      east: { exists: Boolean(snapshot.nations?.east_germany), dissolved: Boolean(snapshot.nations?.east_germany?.dissolved), landStates: nationLandCount(snapshot, landRegions, 'east_germany') },
+      austriaHeldByGermany: germanyHeldBy('austria'),
+      czechoslovakiaHeldByGermany: germanyHeldBy('czechoslovakia'),
+      polandHeldByGermany: germanyHeldBy('poland'),
+      restored: {
+        austria: restoredHeld('austria'), austriaTotal: countByCountry('austria'),
+        czechoslovakia: restoredHeld('czechoslovakia'), czechoslovakiaTotal: countByCountry('czechoslovakia'),
+        poland: restoredHeld('poland'), polandTotal: countByCountry('poland')
+      }
+    },
+    japan: {
+      koreaHolder,
+      koreaIndependent: Boolean(koreaClient?.independent) || Boolean(snapshot.nations?.[koreaHolder] && !snapshot.nations[koreaHolder].suzerain),
+      taiwanHolder,
+      taiwanChinaSide,
+      manchukuoDissolved: Boolean(snapshot.nations?.manchukuo?.dissolved),
+      manchukuoLand
+    },
+    italy: {
+      libyaHolder: snapshot.territories?.italy_libya || 'italy',
+      eritreaHolder: snapshot.territories?.italy_eritrea || 'italy',
+      somaliaHolder: snapshot.territories?.italy_somalia || 'italy',
+      ethiopiaRestored: restoredHeld('ethiopia')
+    },
+    decolonization: decolonizationReport(snapshot, landRegions, startOwners, startSuzerain)
+  };
+}
+
 function warStats(snapshot) {
   const wars = Object.values(snapshot.wars || {});
   return {
@@ -191,6 +285,10 @@ export async function runLongRun(options = {}) {
   const nations = Array.isArray(options.nations) && options.nations.length ? options.nations : DEFAULT_NATIONS;
   const reportPath = options.reportPath || DEFAULT_REPORT;
   const requireArcs = options.requireArcs ?? totalHalves >= 120;
+  const postwarChecks = Boolean(options.postwarChecks);
+  const checkpointHalves = new Set((Array.isArray(options.checkpointHalves) ? options.checkpointHalves : [])
+    .map(value => Math.max(0, Math.min(totalHalves, Math.round(Number(value)))))
+    .filter(Number.isFinite));
   const log = options.log || console.log;
   const { server, endpoint } = await startMockServer();
   const startedAt = Date.now();
@@ -213,12 +311,18 @@ export async function runLongRun(options = {}) {
       let intervalPeak = { nationId: null, landStates: 0 };
       let peakOwner = { nationId: null, landStates: 0 };
       let startOwners = null;
+      let startIndependence = { count: 0, ids: [] };
+      let startSuzerain = {};
       let lastArcReport = { fired: [], states: {}, total: 0 };
+      const checkpoints = [];
       const ownerHistory = [];
       try {
         const started = await api.start({ nationId, difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true });
         if (!started) throw new Error('start failed');
-        startOwners = ownerMap(api.snapshot(), landRegions);
+        const startSnapshot = api.snapshot();
+        startOwners = ownerMap(startSnapshot, landRegions);
+        startIndependence = independenceReport(startSnapshot);
+        startSuzerain = Object.fromEntries(Object.entries(startSnapshot.nations || {}).map(([id, nation]) => [id, nation.suzerain || null]));
         for (let index = 0; index < totalHalves; index++) {
           let snapshot = api.snapshot();
           if (snapshot.phase === 'milestone') {
@@ -276,6 +380,19 @@ export async function runLongRun(options = {}) {
           }
           previous = current;
 
+          if (checkpointHalves.has(completed)) {
+            checkpoints.push({
+              half: completed,
+              date: dateLabel(Math.max(0, completed - 1)),
+              topOwners: currentTop,
+              independence: independenceReport(snapshot),
+              territoryChanges: changedTerritoryCount(snapshot, landRegions, startOwners),
+              activeWars: warStats(snapshot).activeWars,
+              totalWars: warStats(snapshot).totalWars,
+              saveBytes: Buffer.byteLength(storage.get(SAVE_KEY) || '', 'utf8')
+            });
+          }
+
           if (completed % 120 === 0 || index === totalHalves - 1) {
             const saveBytes = Buffer.byteLength(storage.get(SAVE_KEY) || '', 'utf8');
             const arcReport = worldArcReport(snapshot);
@@ -308,6 +425,8 @@ export async function runLongRun(options = {}) {
       const finalWars = finalSnapshot ? warStats(finalSnapshot) : { activeWars: 0, totalWars: 0, activeWarList: [] };
       if (finalSnapshot) lastArcReport = finalArcs;
       const finalTerritoryChanges = finalSnapshot ? changedTerritoryCount(finalSnapshot, landRegions, startOwners) : 0;
+      const finalIndependence = finalSnapshot ? independenceReport(finalSnapshot) : startIndependence;
+      const postwar = finalSnapshot ? postwarReport(finalSnapshot, landRegions, startOwners, startSuzerain) : null;
       const run = {
         nationId,
         targetHalves: totalHalves,
@@ -327,6 +446,9 @@ export async function runLongRun(options = {}) {
         territoryChanges: finalTerritoryChanges,
         worldArcs: finalArcs.fired,
         worldArcStates: finalArcs.states,
+        independence: { start: startIndependence.count, final: finalIndependence.count, delta: finalIndependence.count - startIndependence.count, finalIds: finalIndependence.ids },
+        checkpoints,
+        postwar,
         peakOwner,
         intervals,
         anomalies,
@@ -336,6 +458,39 @@ export async function runLongRun(options = {}) {
       if (requireArcs && (finalArcs.total < 2 || finalTerritoryChanges === 0)) {
         failures.push(`${nationId}: 史実の弧 ${finalArcs.total}件、領土変更 ${finalTerritoryChanges}州。受動プレイで世界が動いていない。`);
       }
+      if (requireArcs && totalHalves >= 900) {
+        for (const arcId of ['ww2_end_europe', 'ww2_end_pacific']) {
+          if (finalArcs.states[arcId]?.status !== 'fired') failures.push(`${nationId}: 終戦弧 ${arcId} が発火していない (${finalArcs.states[arcId]?.status || 'missing'})`);
+        }
+        if (nationId === 'usa' && finalArcs.states.pacific_war?.status !== 'fired') {
+          failures.push(`usa: 常設方針なしでも太平洋戦争弧が発火すべき (${finalArcs.states.pacific_war?.status || 'missing'})`);
+        }
+      }
+      if (postwarChecks && postwar) {
+        const europeOutcome = postwar.settlement?.europe?.outcome;
+        if (europeOutcome !== 'axis_victory') {
+          const g = postwar.germany;
+          const successorLand = g.west.landStates + g.east.landStates;
+          if (g.landStates > 1 || successorLand === 0) {
+            failures.push(`${nationId}: 枢軸敗戦後も統一ドイツが ${g.landStates}州を保持（西${g.west.landStates}/東${g.east.landStates}）`);
+          }
+          if (g.austriaHeldByGermany || g.czechoslovakiaHeldByGermany || g.polandHeldByGermany) {
+            failures.push(`${nationId}: 敗戦後のドイツがオーストリア${g.austriaHeldByGermany}/チェコ${g.czechoslovakiaHeldByGermany}/ポーランド${g.polandHeldByGermany}州を保持`);
+          }
+        }
+        const pacificOutcome = postwar.settlement?.pacific?.outcome;
+        if (pacificOutcome !== 'axis_victory') {
+          if (!postwar.japan.koreaIndependent || postwar.japan.koreaHolder === 'japan') failures.push(`${nationId}: 敗戦後の朝鮮が独立していない (${postwar.japan.koreaHolder})`);
+          if (!postwar.japan.taiwanChinaSide) failures.push(`${nationId}: 敗戦後の台湾が中国側へ戻っていない (${postwar.japan.taiwanHolder})`);
+          if (postwar.japan.manchukuoLand > 0) failures.push(`${nationId}: 敗戦後の満洲国が ${postwar.japan.manchukuoLand}州を保持`);
+        }
+        const decolonization = postwar.decolonization || {};
+        for (const key of ['india_pakistan', 'indonesia', 'indochina', 'philippines', 'french_africa', 'british_africa', 'congo']) {
+          const group = decolonization[key];
+          if (!group?.independent) failures.push(`${nationId}: 脱植民地化 ${key} が独立国になっていない (${group?.holders?.join(',') || 'なし'})`);
+          if (key === 'india_pakistan' && !(group?.pakistanLand > 0)) failures.push(`${nationId}: パキスタンが州を保有していない`);
+        }
+      }
       log(`[${nationId}] ${completed}/${totalHalves} 半月 ${run.lastCompletedDate} 完了 平均 ${run.avgTurnMs}ms 最終セーブ ${run.finalSaveBytes} bytes 最大保有 ${run.peakOwner.nationId || '-'} ${run.peakOwner.landStates}州 戦争 ${run.totalWars}件 領土変更 ${run.territoryChanges}州 主要弧 ${run.worldArcs.length}件`);
       for (const interval of intervals) {
         const top = interval.topOwners.map(item => `${item.nationId} ${item.landStates}州`).join(' / ');
@@ -343,6 +498,11 @@ export async function runLongRun(options = {}) {
         log(`  ${interval.half}半月 ${interval.date} 上位: ${top} 戦争 進行${interval.activeWars}/累計${interval.totalWars} 領土変更 ${interval.territoryChanges}州 弧 ${arcIds} セーブ ${interval.saveBytes} bytes 平均 ${interval.avgTurnMs}ms`);
         for (const entry of interval.worldArcs) log(`    弧 ${entry.id} ${entry.date}: ${entry.summary}`);
       }
+      for (const checkpoint of checkpoints) {
+        const top = checkpoint.topOwners.map(item => `${item.nationId} ${item.landStates}州`).join(' / ');
+        log(`  チェックポイント ${checkpoint.date} 上位: ${top} 独立国 ${checkpoint.independence.count} 領土変更 ${checkpoint.territoryChanges}州`);
+      }
+      if (postwar) log(`  独立国 ${run.independence.start}→${run.independence.final} / ドイツ 統一${postwar.germany.landStates}州 西${postwar.germany.west.landStates} 東${postwar.germany.east.landStates} / パキスタン ${postwar.decolonization.india_pakistan?.pakistanLand || 0}州`);
       if (run.anomalies.length) for (const anomaly of run.anomalies) log(`  異常: ${JSON.stringify(anomaly)}`);
       if (run.invariantFailures.length) for (const failure of run.invariantFailures.slice(0, 8)) log(`  在庫異常: ${failure}`);
     }
@@ -377,6 +537,9 @@ export async function runLongRun(options = {}) {
       activeWars: run.activeWars,
       territoryChanges: run.territoryChanges,
       worldArcs: run.worldArcs.map(entry => ({ id: entry.id, date: entry.date, summary: entry.summary })),
+      independence: run.independence,
+      checkpoints: run.checkpoints,
+      postwar: run.postwar,
       intervalMaxLandStates: run.intervals.map(interval => ({ half: interval.half, nationId: interval.intervalPeak.nationId, landStates: interval.intervalPeak.landStates, territoryChanges: interval.territoryChanges }))
     }))
   };

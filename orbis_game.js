@@ -351,9 +351,11 @@ const Orbis = (() => {
       id: 'ww2_end_europe', label: '欧州戦争の終結', major: true,
       from: [1945, 3], to: [1945, 7], keywords: ['欧州', '終戦'],
       run(game, notes) {
-        const result = arcEndWarsFor(game, ['germany', 'italy'], 'defender', notes);
-        if (!result.ended) return { headline: '欧州の停戦交渉', body: '大規模な戦線はすでに和平済みで、欧州の政治再編が進んだ。', summary: '新たな終戦処理なし（既に和平済み）', location: '欧州', stateId: 'germany_de_be' };
-        return { headline: '欧州戦争が終結', body: `ドイツ・イタリアを当事者とする${result.ended}戦争が終結し、占領地${result.changed}州の統治が再編された。`, summary: `${result.ended}戦争を終結、${result.changed}州を返還・再編`, location: '欧州', stateId: 'germany_de_be' };
+        const result = arcSettleEurope(game, notes);
+        if (result.outcome === 'axis_victory') {
+          return { headline: '欧州で枢軸側が勝利', body: `ドイツを中心とする枢軸側の勝利が確定し、${result.ended}戦争が終結した。征服地の統治はそのまま残された。`, summary: result.summary, location: '欧州', stateId: 'germany_de_be' };
+        }
+        return { headline: '欧州戦争が終結', body: `ドイツ・イタリアの敗戦により${result.ended}戦争が終結し、${result.changed}州の統治が再編された。ドイツは東西に分割され、オーストリア・チェコスロバキア・ポーランドが復活した。`, summary: result.summary, location: '欧州', stateId: 'germany_de_be' };
       }
     },
     {
@@ -415,7 +417,7 @@ const Orbis = (() => {
       id: 'pacific_war', label: '太平洋戦争', major: true,
       from: [1941, 10], to: [1941, 12], keywords: ['太平洋', '日米', '真珠湾'],
       playerCanBlock: ['japan', 'usa', 'uk'],
-      playerSensitive: ['japan', 'usa'],
+      playerSensitive: ['japan'],
       requires: game => Boolean(game.nations.japan && game.nations.usa && !game.nations.usa.dissolved),
       run(game, notes) {
         const goals = ['usa_pacific', 'usa_us_hi', 'usa_us_ak'].filter(id => regionHolder(game, regionById(id)) === 'usa');
@@ -431,9 +433,11 @@ const Orbis = (() => {
       id: 'ww2_end_pacific', label: '太平洋戦争の終結', major: true,
       from: [1945, 6], to: [1945, 10], keywords: ['太平洋', '終戦'],
       run(game, notes) {
-        const result = arcEndWarsFor(game, ['japan'], 'defender', notes);
-        if (!result.ended) return { headline: '太平洋の停戦', body: '太平洋の大規模戦争はすでに和平済みで、戦後秩序の再編が進んだ。', summary: '新たな終戦処理なし（既に和平済み）', location: '太平洋', stateId: 'usa_pacific' };
-        return { headline: '太平洋戦争が終結', body: `日本を当事者とする${result.ended}戦争が終結し、${result.changed}州の統治が再編された。`, summary: `${result.ended}戦争を終結、${result.changed}州を再編`, location: '太平洋', stateId: 'usa_pacific' };
+        const result = arcSettlePacific(game, notes);
+        if (result.outcome === 'axis_victory') {
+          return { headline: '太平洋で日本が勝利', body: `日本の勝利が確定し、${result.ended}戦争が終結した。占領した島嶼と権益はそのまま残された。`, summary: result.summary, location: '太平洋', stateId: 'usa_pacific' };
+        }
+        return { headline: '太平洋戦争が終結', body: `日本の敗戦により${result.ended}戦争が終結し、${result.changed}州の統治が再編された。朝鮮は独立し、台湾は中国へ戻り、満洲国は解体された。`, summary: result.summary, location: '太平洋', stateId: 'usa_pacific' };
       }
     },
     {
@@ -457,8 +461,14 @@ const Orbis = (() => {
       requires: game => Boolean(game.clients.india && !game.clients.india.independent && !game.clients.india.dissolved),
       run(game, notes) {
         const ok = arcGrantIndependence(game, 'india', 'インド連邦', notes);
-        if (!ok) return null;
-        return { headline: 'インドが独立', body: '英国からインド連邦が独立し、南アジアの政治地図が変わった。宗主国との関係は対等な外交へ移行する。', summary: '英領インドを独立国へ', location: 'インド', stateId: 'india_in_wb' };
+        const pakistanStates = window.ORBIS_STATES_DB
+          .filter(region => isLandRegion(region) && region.id.startsWith('india_pk_') && regionHolder(game, region) === 'india')
+          .map(region => region.id);
+        const pakistan = pakistanStates.length
+          ? arcCreateIndependentFromStates(game, 'india', 'pakistan', 'パキスタン', pakistanStates, notes, { color: NEW_NATION_COLORS.pakistan, code: 'PAK' })
+          : 0;
+        if (!ok && !pakistan) return null;
+        return { headline: 'インドとパキスタンが独立', body: `英国からインド連邦が独立し、西部の${pakistan}州にはパキスタンが成立した。南アジアの政治地図が大きく変わった。`, summary: `英領インドを独立国へ、パキスタンへ${pakistan}州を移管`, location: 'インド', stateId: 'india_pk_pb' };
       }
     },
     {
@@ -498,26 +508,50 @@ const Orbis = (() => {
       id: 'africa_french', label: '仏領アフリカの独立', major: true,
       from: [1958, 1], to: [1962, 12], keywords: ['アフリカ', 'フランス', 'アルジェリア'],
       playerCanBlock: ['france', 'col_france_fwa', 'col_france_algeria'],
-      requires: game => ['col_france_fwa', 'col_france_algeria'].some(id => game.clients[id] && !game.clients[id].independent && !game.clients[id].dissolved),
+      requires: game => ['col_france_fwa', 'col_france_algeria'].some(id => game.clients[id] && !game.clients[id].independent && !game.clients[id].dissolved)
+        || ['france_fea', 'france_madagascar', 'france_cameroons', 'france_morocco', 'france_tunisia', 'france_djibouti'].some(id => regionHolder(game, regionById(id)) === 'france'),
       run(game, notes) {
         let count = 0;
+        let states = 0;
         if (arcGrantIndependence(game, 'col_france_fwa', '西アフリカ連邦', notes)) count++;
         if (arcGrantIndependence(game, 'col_france_algeria', 'アルジェリア', notes)) count++;
+        const direct = [
+          { id: 'french_equatorial_africa', name: '赤道アフリカ', stateIds: ['france_fea'], color: '#0f766e', code: 'FEA' },
+          { id: 'cameroon_togo', name: 'カメルーン・トーゴ', stateIds: ['france_cameroons'], color: '#4d7c0f', code: 'CMR' },
+          { id: 'morocco', name: 'モロッコ', stateIds: ['france_morocco'], color: '#b45309', code: 'MAR' },
+          { id: 'tunisia', name: 'チュニジア', stateIds: ['france_tunisia'], color: '#be123c', code: 'TUN' },
+          { id: 'madagascar', name: 'マダガスカル', stateIds: ['france_madagascar'], color: '#7c3aed', code: 'MDG' },
+          { id: 'french_somaliland', name: '仏領ソマリランド', stateIds: ['france_djibouti'], color: '#0369a1', code: 'DJI' }
+        ];
+        for (const item of direct) {
+          const moved = arcCreateIndependentFromStates(game, 'france', item.id, item.name, item.stateIds, notes, { color: item.color, code: item.code });
+          if (moved) { count++; states += moved; }
+        }
         if (!count) return null;
-        return { headline: '仏領アフリカが独立', body: `フランス領西アフリカとアルジェリアなど${count}政権が独立し、アフリカの政治地図が大きく変わった。`, summary: `仏領アフリカ${count}政権を独立`, location: 'アフリカ', stateId: 'france_algeria' };
+        return { headline: '仏領アフリカが独立', body: `フランス領西アフリカとアルジェリアなど${count}政権が独立し、アフリカの政治地図が大きく変わった。`, summary: `仏領アフリカ${count}政権を独立、${states}州を新国家へ移管`, location: 'アフリカ', stateId: 'france_algeria' };
       }
     },
     {
       id: 'africa_british', label: '英領アフリカ・マラヤの独立', major: true,
       from: [1957, 1], to: [1963, 12], keywords: ['アフリカ', '英領', 'マラヤ'],
       playerCanBlock: ['uk', 'col_uk_africa', 'col_uk_malaya'],
-      requires: game => ['col_uk_africa', 'col_uk_malaya'].some(id => game.clients[id] && !game.clients[id].independent && !game.clients[id].dissolved),
+      requires: game => ['col_uk_africa', 'col_uk_malaya'].some(id => game.clients[id] && !game.clients[id].independent && !game.clients[id].dissolved)
+        || ['uk_sudan', 'uk_somaliland'].some(id => regionHolder(game, regionById(id)) === 'uk'),
       run(game, notes) {
         let count = 0;
+        let states = 0;
         if (arcGrantIndependence(game, 'col_uk_africa', 'ガーナ・ナイジェリア', notes)) count++;
         if (arcGrantIndependence(game, 'col_uk_malaya', 'マラヤ連邦', notes)) count++;
+        const direct = [
+          { id: 'sudan', name: 'スーダン', stateIds: ['uk_sudan'], color: '#a16207', code: 'SDN' },
+          { id: 'british_somaliland', name: 'ソマリランド', stateIds: ['uk_somaliland'], color: '#4338ca', code: 'SOM' }
+        ];
+        for (const item of direct) {
+          const moved = arcCreateIndependentFromStates(game, 'uk', item.id, item.name, item.stateIds, notes, { color: item.color, code: item.code });
+          if (moved) { count++; states += moved; }
+        }
         if (!count) return null;
-        return { headline: '英領アフリカとマラヤが独立', body: `英国の植民地${count}政権が独立し、英連邦内の関係が再編された。`, summary: `英領植民地${count}政権を独立`, location: 'アフリカ・マラヤ', stateId: 'uk_west_africa' };
+        return { headline: '英領アフリカとマラヤが独立', body: `英国の植民地${count}政権が独立し、英連邦内の関係が再編された。`, summary: `英領植民地${count}政権を独立、${states}州を新国家へ移管`, location: 'アフリカ・マラヤ', stateId: 'uk_west_africa' };
       }
     },
     {
@@ -3176,20 +3210,110 @@ const Orbis = (() => {
     return count;
   }
 
-  function arcGrantIndependence(game, clientId, newName, notes = []) {
+  const NEW_NATION_COLORS = {
+    west_germany: '#1d4ed8', east_germany: '#b91c1c', pakistan: '#15803d',
+    libya: '#0f766e', eritrea_somalia: '#b45309', korea: '#dc2626'
+  };
+  const NEW_NATION_PALETTE = ['#1d4ed8', '#b91c1c', '#0f766e', '#7c3aed', '#c2410c', '#4d7c0f', '#0369a1', '#a16207', '#be123c', '#4338ca'];
+
+  function dynamicNationColor(id) {
+    if (NEW_NATION_COLORS[id]) return NEW_NATION_COLORS[id];
+    let hash = 0;
+    for (const char of String(id)) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+    return NEW_NATION_PALETTE[Math.abs(hash) % NEW_NATION_PALETTE.length];
+  }
+
+  function ensureDynamicNationMeta(game, id, name, options = {}) {
+    if (!game?.nations?.[id]) return null;
+    const existingScenario = SCENARIOS.era_1932.nations[id];
+    if (existingScenario && !game.dynamicNations?.[id]) return null;
+    game.dynamicNations = game.dynamicNations || {};
+    let meta = game.dynamicNations[id];
+    if (!meta) {
+      const base = game.nations[id];
+      const label = String(name || id).slice(0, 40);
+      meta = {
+        id, code: String(options.code || id.slice(0, 3).toUpperCase()).slice(0, 6),
+        region: options.region || '世界', isMajor: false,
+        name: label, bloc: 'neutral', blocName: '独立国',
+        leader: `${label} 指導者`, ministry: `${label}政府`,
+        mil: base.mil, eco: base.eco, stb: base.stb, tech: base.tech,
+        gdpText: '—',
+        aiAgenda: '独立国の主権を維持し、地域の安定と復興を進める',
+        summary: `${label}。第二次世界大戦後の再編で成立した独立国。`,
+        interestGroups: defaultDependentGroups(),
+        cabinet: [
+          { role: '国家元首', name: `${label} 指導者`, trait: '独立の維持 (+安定)' },
+          { role: '行政長官', name: '暫定行政官', trait: '行政機構の整備 (+経済)' }
+        ],
+        color: options.color || dynamicNationColor(id)
+      };
+      game.dynamicNations[id] = meta;
+    } else {
+      if (name) meta.name = String(name).slice(0, 40);
+      if (options.color) meta.color = options.color;
+      else if (!meta.color) meta.color = dynamicNationColor(id);
+      meta.isMajor = false;
+    }
+    return meta;
+  }
+
+  function reviveNation(game, nationId) {
+    const nation = game?.nations?.[nationId];
+    if (!nation) return false;
+    nation.dissolved = false;
+    const client = game.clients?.[nationId];
+    if (client) {
+      client.dissolved = false;
+      delete client.integratedInto;
+      if (client.independent) nation.suzerain = null;
+    } else {
+      nation.suzerain = null;
+      nation.vassalType = null;
+    }
+    return true;
+  }
+
+  function arcTransferClientStates(game, clientId, sponsorId, stateIds) {
+    let moved = 0;
+    const seen = new Set();
+    const tryTransfer = stateId => {
+      if (!stateId || seen.has(stateId)) return;
+      seen.add(stateId);
+      const region = regionById(stateId);
+      if (!region || !isLandRegion(region)) return;
+      if (regionHolder(game, region) !== sponsorId) return;
+      if (arcTransferRegion(game, stateId, clientId, '独立に伴う州の移管')) moved++;
+    };
+    for (const stateId of stateIds || []) tryTransfer(stateId);
+    for (const region of window.ORBIS_STATES_DB) {
+      if (isLandRegion(region) && region.country === clientId && regionHolder(game, region) === sponsorId) tryTransfer(region.id);
+    }
+    return moved;
+  }
+
+  function arcGrantIndependence(game, clientId, newName, notes = [], options = {}) {
     const client = game?.clients?.[clientId];
-    if (!client || client.dissolved || client.independent || client.annexed) return false;
+    if (!client || client.annexed) return false;
+    if (client.dissolved) {
+      client.dissolved = false;
+      delete client.integratedInto;
+    }
     const sponsorId = client.sponsorId;
+    const moved = client.independent ? 0 : arcTransferClientStates(game, clientId, sponsorId, options.stateIds);
+    if (client.independent) return false;
     client.independent = true;
     client.independentAt = game.completedTurns;
     if (newName) client.name = String(newName).slice(0, 80);
+    if (options.color) client.color = options.color;
     const nation = game.nations?.[clientId];
     if (nation) {
       nation.suzerain = null;
       nation.vassalType = null;
       nation.dissolved = false;
     }
-    if (newName && game.dynamicNations?.[clientId]) game.dynamicNations[clientId].name = String(newName).slice(0, 80);
+    const meta = ensureDynamicNationMeta(game, clientId, newName || client.name, options);
+    if (meta && newName) meta.name = String(newName).slice(0, 80);
     if (sponsorId && game.relations?.[clientId] && game.relations?.[sponsorId]) {
       const relation = clamp((game.relations[clientId][sponsorId] ?? 0) - 20, -100, 100);
       game.relations[clientId][sponsorId] = relation;
@@ -3197,18 +3321,190 @@ const Orbis = (() => {
     }
     game.tension = clamp((game.tension || 0) + 2, 0, 100);
     game.establishedFacts = [...(game.establishedFacts || []), `${client.name || shortName(clientId)}が${shortName(sponsorId)}から独立した`].slice(-400);
-    if (notes.length || Array.isArray(notes)) notes.push(`${client.name || shortName(clientId)}が独立を宣言。`);
+    if (Array.isArray(notes)) notes.push(`${client.name || shortName(clientId)}が独立を宣言${moved ? `（${moved}州を移管）` : ''}。`);
     return true;
+  }
+
+  function arcCreateIndependentFromStates(game, sponsorId, newId, name, stateIds, notes = [], options = {}) {
+    if (!game?.nations?.[sponsorId]) return 0;
+    const available = [...new Set(stateIds || [])].filter(stateId => {
+      const region = regionById(stateId);
+      return region && isLandRegion(region) && regionHolder(game, region) === sponsorId;
+    });
+    if (!available.length) return 0;
+    if (!game.nations[newId]) {
+      const created = createDependentFromRegion(sponsorId, available[0], newId, name, options.type || 'colony', game);
+      if (!created.ok) return 0;
+    } else {
+      reviveNation(game, newId);
+    }
+    const meta = ensureDynamicNationMeta(game, newId, name, options);
+    if (meta) {
+      meta.name = String(name || meta.name).slice(0, 40);
+      meta.color = options.color || meta.color || dynamicNationColor(newId);
+    }
+    let moved = regionHolder(game, regionById(available[0])) === newId ? 1 : 0;
+    for (const stateId of available) {
+      if (regionHolder(game, regionById(stateId)) !== sponsorId) continue;
+      if (arcTransferRegion(game, stateId, newId, `${name}の独立`)) moved++;
+    }
+    arcGrantIndependence(game, newId, name, notes, { ...options, stateIds: available });
+    return moved;
   }
 
   function arcCreateIndependentNation(game, sponsorId, regionId, newId, name, type = 'colony', notes = []) {
     const region = regionById(regionId);
     if (!region || regionHolder(game, region) !== sponsorId) return false;
-    if (!game.nations?.[newId]) {
-      const created = createDependentFromRegion(sponsorId, regionId, newId, name, type, game);
-      if (!created.ok) return false;
+    return arcCreateIndependentFromStates(game, sponsorId, newId, name, [regionId], notes, { type }) > 0;
+  }
+
+  function arcRestoreOriginalStates(game, countryId, fromIds, reason) {
+    if (!game?.nations?.[countryId]) return 0;
+    reviveNation(game, countryId);
+    const allowed = new Set(fromIds || []);
+    let moved = 0;
+    for (const region of window.ORBIS_STATES_DB) {
+      if (!isLandRegion(region) || region.country !== countryId) continue;
+      const holder = regionHolder(game, region);
+      if (holder === countryId || (allowed.size && !allowed.has(holder))) continue;
+      if (arcTransferRegion(game, region.id, countryId, reason)) moved++;
     }
-    return arcGrantIndependence(game, newId, name, notes);
+    return moved;
+  }
+
+  function arcReturnConquests(game, holderId, reason) {
+    if (!game?.nations?.[holderId]) return 0;
+    let moved = 0;
+    for (const region of window.ORBIS_STATES_DB) {
+      if (!isLandRegion(region) || region.country === holderId) continue;
+      if (regionHolder(game, region) !== holderId) continue;
+      if (!game.nations[region.country]) continue;
+      reviveNation(game, region.country);
+      if (arcTransferRegion(game, region.id, region.country, reason)) moved++;
+    }
+    return moved;
+  }
+
+  function arcAxisVictoryEurope(game) {
+    if (!game.nations?.germany || game.nations.germany.dissolved) return false;
+    return ['russia_ru_mow', 'uk_england', 'uk_scotland'].some(id => regionHolder(game, regionById(id)) === 'germany');
+  }
+
+  function arcAxisVictoryPacific(game) {
+    if (!game.nations?.japan || game.nations.japan.dissolved) return false;
+    const held = id => regionHolder(game, regionById(id)) === 'japan';
+    return held('usa_us_dc') || (held('usa_us_hi') && held('usa_pacific'));
+  }
+
+  const GERMANY_WEST_STATES = ['germany_de_bw', 'germany_de_by', 'germany_de_hb', 'germany_de_hh', 'germany_de_he', 'germany_de_ni', 'germany_de_rp', 'germany_de_sh', 'germany_saar', 'de_rhineland'];
+  const GERMANY_EAST_STATES = ['germany_de_bb', 'germany_de_be', 'germany_de_mv', 'germany_de_sn', 'germany_de_st', 'germany_de_th', 'germany_east_prussia', 'germany_pomerania', 'germany_silesia'];
+
+  function arcPartitionGermany(game, notes = []) {
+    const coreHeld = window.ORBIS_STATES_DB
+      .filter(region => isLandRegion(region) && region.country === 'germany' && regionHolder(game, region) === 'germany')
+      .map(region => region.id);
+    if (!coreHeld.length) return { west: 0, east: 0, westStates: [], eastStates: [] };
+    const westStates = coreHeld.filter(id => GERMANY_WEST_STATES.includes(id));
+    const eastStates = coreHeld.filter(id => GERMANY_EAST_STATES.includes(id));
+    for (const id of coreHeld) if (!westStates.includes(id) && !eastStates.includes(id)) eastStates.push(id);
+    if (!westStates.length && eastStates.length > 1) westStates.push(eastStates.shift());
+    if (!eastStates.length && westStates.length > 1) eastStates.push(westStates.pop());
+    const west = arcCreateIndependentFromStates(game, 'germany', 'west_germany', '西ドイツ', westStates, notes, { color: NEW_NATION_COLORS.west_germany, code: 'FRG' });
+    const east = arcCreateIndependentFromStates(game, 'germany', 'east_germany', '東ドイツ', eastStates, notes, { color: NEW_NATION_COLORS.east_germany, code: 'GDR' });
+    let remainder = 0;
+    for (const region of window.ORBIS_STATES_DB) {
+      if (!isLandRegion(region) || region.country !== 'germany' || regionHolder(game, region) !== 'germany') continue;
+      if (arcTransferRegion(game, region.id, eastStates.length ? 'east_germany' : 'west_germany', 'ドイツ分割の残余州')) remainder++;
+    }
+    if (game.nations.germany) {
+      game.nations.germany.dissolved = true;
+      game.nations.germany.suzerain = null;
+      game.nations.germany.vassalType = null;
+    }
+    game.establishedFacts = [...(game.establishedFacts || []), 'ドイツは西ドイツと東ドイツに分割された'].slice(-400);
+    notes.push(`ドイツを東西に分割（西ドイツ${west}州、東ドイツ${east + remainder}州）。`);
+    return { west, east, westStates, eastStates, remainder };
+  }
+
+  function arcSettleEurope(game, notes = []) {
+    const victory = arcAxisVictoryEurope(game);
+    if (victory) {
+      const result = arcEndWarsFor(game, ['germany', 'italy'], 'axis', notes);
+      game.postwarSettlement = { ...(game.postwarSettlement || {}), europe: { outcome: 'axis_victory', ended: result.ended, changed: result.changed } };
+      notes.push('欧州では枢軸側の勝利が確認され、征服結果を維持した。');
+      return { outcome: 'axis_victory', ended: result.ended, changed: result.changed, summary: `枢軸勝利を認定、${result.ended}戦争を終結し征服地を維持` };
+    }
+    const ended = arcEndWarsFor(game, ['germany', 'italy'], 'defender', notes);
+    let returned = arcReturnConquests(game, 'germany', '枢軸敗戦による征服地返還');
+    returned += arcReturnConquests(game, 'italy', '枢軸敗戦による征服地返還');
+    let restored = 0;
+    for (const countryId of ['austria', 'czechoslovakia', 'poland']) restored += arcRestoreOriginalStates(game, countryId, ['germany'], '枢軸敗戦による国家復活');
+    restored += arcRestoreOriginalStates(game, 'ethiopia', ['italy'], 'エチオピアの復活');
+    let colonies = 0;
+    const italianColonies = [
+      { clientId: 'col_italy_libya', name: 'リビア', stateIds: ['italy_libya'], newId: 'libya', color: NEW_NATION_COLORS.libya, code: 'LBY' },
+      { clientId: 'col_italy_eastafrica', name: 'エリトリア・ソマリア', stateIds: ['italy_eritrea', 'italy_somalia'], newId: 'eritrea_somalia', color: NEW_NATION_COLORS.eritrea_somalia, code: 'ERA' }
+    ];
+    for (const item of italianColonies) {
+      const client = game.clients?.[item.clientId];
+      if (client) {
+        if (client.dissolved) reviveNation(game, item.clientId);
+        if (!client.independent && arcGrantIndependence(game, item.clientId, item.name, notes, { stateIds: item.stateIds, color: item.color })) colonies++;
+        else if (client.independent) { client.name = item.name; ensureDynamicNationMeta(game, item.clientId, item.name, { color: item.color }); }
+      } else {
+        const direct = item.stateIds.filter(id => regionHolder(game, regionById(id)) === 'italy');
+        if (direct.length && arcCreateIndependentFromStates(game, 'italy', item.newId, item.name, direct, notes, { color: item.color, code: item.code })) colonies++;
+      }
+    }
+    const split = arcPartitionGermany(game, notes);
+    const changed = ended.changed + returned + restored + colonies + split.west + split.east + split.remainder;
+    game.postwarSettlement = { ...(game.postwarSettlement || {}), europe: { outcome: 'axis_defeat', ended: ended.ended, changed, returned, restored, colonies, germanySplit: { west: split.west, east: split.east } } };
+    notes.push(`枢軸敗戦の講和を適用。征服地${returned}州を返還、復活・再編${restored}州、イタリア植民地${colonies}件、ドイツを東西分割。`);
+    return { outcome: 'axis_defeat', ended: ended.ended, changed, returned, restored, colonies, split, summary: `枢軸敗戦を認定、${ended.ended}戦争を終結、${returned + restored}州を返還・再編、ドイツを東西分割、イタリア植民地${colonies}件を独立` };
+  }
+
+  function arcSettlePacific(game, notes = []) {
+    const victory = arcAxisVictoryPacific(game);
+    if (victory) {
+      const result = arcEndWarsFor(game, ['japan'], 'axis', notes);
+      game.postwarSettlement = { ...(game.postwarSettlement || {}), pacific: { outcome: 'axis_victory', ended: result.ended, changed: result.changed } };
+      notes.push('太平洋では日本の勝利が確認され、征服結果を維持した。');
+      return { outcome: 'axis_victory', ended: result.ended, changed: result.changed, summary: `日本の勝利を認定、${result.ended}戦争を終結し征服地を維持` };
+    }
+    const ended = arcEndWarsFor(game, ['japan'], 'defender', notes);
+    let returned = arcReturnConquests(game, 'japan', '日本の敗戦による征服地返還');
+    let korea = 0;
+    const koreaClient = game.clients?.col_japan_korea;
+    if (koreaClient) {
+      if (koreaClient.dissolved) reviveNation(game, 'col_japan_korea');
+      if (!koreaClient.independent && arcGrantIndependence(game, 'col_japan_korea', '朝鮮', notes, { stateIds: ['japan_empire_kor'], color: NEW_NATION_COLORS.korea })) korea = 1;
+      else if (koreaClient.independent && regionHolder(game, regionById('japan_empire_kor')) !== 'col_japan_korea' && regionHolder(game, regionById('japan_empire_kor')) === 'japan') {
+        if (arcTransferRegion(game, 'japan_empire_kor', 'col_japan_korea', '朝鮮独立の確定')) korea = 1;
+      }
+    } else if (regionHolder(game, regionById('japan_empire_kor')) === 'japan') {
+      korea = arcCreateIndependentFromStates(game, 'japan', 'korea', '朝鮮', ['japan_empire_kor'], notes, { color: NEW_NATION_COLORS.korea, code: 'KOR' }) ? 1 : 0;
+    }
+    reviveNation(game, 'china');
+    let taiwan = 0;
+    if (regionHolder(game, regionById('japan_empire_twn')) !== 'china' && arcTransferRegion(game, 'japan_empire_twn', 'china', '台湾の中国復帰')) taiwan = 1;
+    const taiwanClient = game.clients?.col_japan_taiwan;
+    if (taiwanClient) {
+      taiwanClient.dissolved = true;
+      taiwanClient.integratedInto = 'china';
+      if (game.nations.col_japan_taiwan) {
+        game.nations.col_japan_taiwan.dissolved = true;
+        game.nations.col_japan_taiwan.suzerain = null;
+      }
+    }
+    let manchukuo = 0;
+    if (game.nations.manchukuo) {
+      manchukuo = arcAnnexNation(game, 'manchukuo', 'china', '満洲国の解体と中国復帰');
+      game.clients.manchukuo = { ...(game.clients.manchukuo || CLIENTS.manchukuo), dissolved: true, integratedInto: 'china' };
+    }
+    const changed = ended.changed + returned + korea + taiwan + manchukuo;
+    game.postwarSettlement = { ...(game.postwarSettlement || {}), pacific: { outcome: 'axis_defeat', ended: ended.ended, changed, returned, korea, taiwan, manchukuo } };
+    notes.push(`日本の敗戦講和を適用。征服地${returned}州を返還、朝鮮独立、台湾を中国へ、満洲国${manchukuo}州を解体。`);
+    return { outcome: 'axis_defeat', ended: ended.ended, changed, returned, korea, taiwan, manchukuo, summary: `日本の敗戦を認定、${ended.ended}戦争を終結、${returned}州を返還、朝鮮独立・台湾中国復帰・満洲国解体` };
   }
 
   function evolveFaction(game, factionId, parentNationId, label) {
@@ -3383,12 +3679,12 @@ const Orbis = (() => {
     let changed = 0;
     for (const [warId, war] of Object.entries(game.wars || {})) {
       if (war.status !== 'active') continue;
-      if (war.attacker === game.playerNationId || war.defender === game.playerNationId) continue;
       if (!targets.has(war.attacker) && !targets.has(war.defender)) continue;
+      const axisSide = victorSide === 'axis';
       const victor = victorSide === 'defender'
         ? (targets.has(war.attacker) ? war.defender : war.attacker)
         : (targets.has(war.attacker) ? war.attacker : war.defender);
-      const result = forceNpcWarPeace(game, warId, victor, { defenderAnnex: false }, notes);
+      const result = forceNpcWarPeace(game, warId, victor, { defenderAnnex: axisSide }, notes);
       if (result) {
         ended++;
         changed += result.annexed.length + result.returned.length;
@@ -5723,12 +6019,41 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       state.formations = campaign.formations || [];
       state.mapFactions = campaign.factions || {};
       state.factionColors = Object.fromEntries(Object.entries(campaign.factions || {}).map(([id, f]) => [id, f.color || '#c2410c']));
+      for (const [id, meta] of Object.entries(campaign.dynamicNations || {})) {
+        if (!state.nations[id]) state.nations[id] = copy(meta);
+        else {
+          state.nations[id].name = meta.name || state.nations[id].name;
+          state.nations[id].color = meta.color || state.nations[id].color || dynamicNationColor(id);
+          state.nations[id].isMajor = Boolean(meta.isMajor);
+        }
+        state.nations[id].labelOverride = meta.name || state.nations[id].name;
+      }
+      for (const [id, client] of Object.entries(campaign.clients || {})) {
+        const meta = campaign.dynamicNations?.[id];
+        if (!state.nations[id] && meta) state.nations[id] = copy(meta);
+        if (!state.nations[id]) continue;
+        if (client.name) state.nations[id].name = client.name;
+        if (client.independent) state.nations[id].labelOverride = client.name || state.nations[id].name;
+        if (client.independent && !state.nations[id].color) state.nations[id].color = dynamicNationColor(id);
+      }
     }
     for (const [id, nation] of Object.entries(state.nations)) {
       const current = campaign?.nations[id] || base[id];
+      if (!current) continue;
+      const meta = campaign?.dynamicNations?.[id] || base[id];
       for (const key of ['mil', 'eco', 'stb', 'tech']) nation[key] = current[key];
-      nation.leader = campaign?.leaders[id] || base[id].leader;
-      for (const group of nation.interestGroups) group.approval = campaign ? current.groups[group.id] : base[id].interestGroups.find(item => item.id === group.id).approval;
+      if (meta) {
+        nation.name = campaign?.clients?.[id]?.name || meta.name || nation.name || id;
+        nation.isMajor = Boolean(meta.isMajor);
+        nation.color = meta.color || nation.color;
+        nation.bloc = meta.bloc || nation.bloc;
+        nation.blocName = meta.blocName || nation.blocName;
+        nation.region = meta.region || nation.region;
+      }
+      nation.leader = campaign?.leaders[id] || meta?.leader || nation.leader || '';
+      nation.interestGroups = nation.interestGroups || meta?.interestGroups || defaultDependentGroups();
+      const currentGroups = current.groups || {};
+      for (const group of nation.interestGroups) group.approval = campaign ? (currentGroups[group.id] ?? group.approval ?? 50) : (base[id]?.interestGroups?.find(item => item.id === group.id)?.approval ?? group.approval ?? 50);
     }
     for (let i = 0; i < state.states.length; i++) {
       const region = state.states[i];
@@ -7425,6 +7750,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
           blocName: String(meta.blocName || '宗主国の影響圏').slice(0, 80),
           isMajor: false,
           name,
+          color: /^#[0-9a-f]{6}$/i.test(String(meta.color || '')) ? String(meta.color) : dynamicNationColor(id),
           leader: String(meta.leader || `${name} 現地指導者`).slice(0, 140),
           ministry: String(meta.ministry || `${name}政庁`).slice(0, 120),
           mil: finite(meta.mil, 0, 100, 50),
@@ -7459,6 +7785,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       }
       requireObject(saved.groups, `${id}の利益集団`);
       for (const groupId of Object.keys(game.nations[id].groups)) game.nations[id].groups[groupId] = saveNumber(saved.groups[groupId], `${id}.${groupId}`, 0, 100);
+      if (typeof saved.dissolved === 'boolean') game.nations[id].dissolved = saved.dissolved;
       requireObject(raw.relations[id], `${id}の外交関係`);
       for (const otherId of Object.keys(game.nations)) game.relations[id][otherId] = saveNumber(raw.relations[id][otherId], `${id}との関係`, -100, 100);
     }
@@ -7535,16 +7862,16 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         unrestHalves: finite(item.unrestHalves, 0, 10)
       };
       const nation = game.nations[id];
-      nation.suzerain = game.clients[id].dissolved || !game.clients[id].sponsorId ? null : game.clients[id].sponsorId;
-      nation.vassalType = game.clients[id].dissolved ? null : type;
+      nation.suzerain = game.clients[id].independent || game.clients[id].dissolved || !game.clients[id].sponsorId ? null : game.clients[id].sponsorId;
+      nation.vassalType = game.clients[id].independent || game.clients[id].dissolved ? null : type;
       nation.dissolved = Boolean(item.dissolved);
     }
     for (const [id, seeded] of Object.entries(CLIENTS)) {
       if (!game.clients[id]) game.clients[id] = { ...seeded, unrestHalves: 0 };
       const nation = game.nations[id];
       if (!nation) continue;
-      nation.suzerain = game.clients[id].dissolved || !game.clients[id].sponsorId ? null : game.clients[id].sponsorId;
-      nation.vassalType = game.clients[id].dissolved ? null : game.clients[id].type;
+      nation.suzerain = game.clients[id].independent || game.clients[id].dissolved || !game.clients[id].sponsorId ? null : game.clients[id].sponsorId;
+      nation.vassalType = game.clients[id].independent || game.clients[id].dissolved ? null : game.clients[id].type;
       nation.dissolved = Boolean(game.clients[id].dissolved);
     }
     game.warlordConference = null;

@@ -2883,6 +2883,10 @@ const COUNTRY_MAP_COLORS = {
   south_africa: '#0891b2',   // 南アフリカ連邦 (Cape Cyan)
   india: '#ea580c',          // 英領インド帝国 (Raj Saffron)
   dutch_indies: '#fb923c',   // 蘭領東インド (Batavia Orange)
+  pakistan: '#15803d',       // パキスタン (Independence Green)
+  west_germany: '#1d4ed8',   // 西ドイツ (Federal Blue)
+  east_germany: '#b91c1c',   // 東ドイツ (Democratic Red)
+  korea: '#dc2626',          // 朝鮮 (Korean Red)
   australia: '#0f766e',      // オーストラリア連邦 (Southern Teal)
   canada: '#ef4444',         // カナダ自治領 (Dominion Red)
   mexico: '#15803d',         // メキシコ合衆国 (Mexican Green)
@@ -5890,8 +5894,8 @@ function ensureOccupationPattern(occupier, victim) {
   if (occupationPatternCache.has(key)) return;
   const defs = document.querySelector('#orbis-world-svg defs');
   if (!defs) return;
-  const victimFill = COUNTRY_MAP_COLORS[victim] || '#64748b';
-  const occupierStroke = COUNTRY_MAP_COLORS[occupier] || '#dc2626';
+  const victimFill = nationMapColor(victim, '#64748b');
+  const occupierStroke = nationMapColor(occupier, '#dc2626');
   const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
   pattern.id = `occupy-${occupier}-${victim}`;
   pattern.setAttribute('patternUnits', 'userSpaceOnUse');
@@ -6189,7 +6193,7 @@ function updateMapVisuals() {
       });
 
       for (const g of countryOp < 0.03 ? [] : entries) {
-        const label = COUNTRY_LABEL_NAMES[g.country] || (state.nations[g.country].name || g.country).split(/[（(・]/)[0];
+        const label = state.nations[g.country]?.labelOverride || COUNTRY_LABEL_NAMES[g.country] || (state.nations[g.country].name || g.country).split(/[（(・]/)[0];
         const isSelectedNation = isLobby && (g.country === state.lobbyNationId);
         const font = (isSelectedNation ? Math.min(20, Math.max(13, 0.24 * g.span)) : Math.min(16, Math.max(10.5, 0.2 * g.span))) * invZoom;
         const hw = label.length * font * 0.58;
@@ -6362,9 +6366,17 @@ function formationRegionById(id) {
   return state.states?.find(region => region.id === id) || window.ORBIS_STATES_DB?.find(region => region.id === id) || null;
 }
 
-function formationNationColor(nationId) {
+function nationMapColor(nationId, fallback = '#64748b') {
   const source = (typeof Orbis !== 'undefined' && Orbis.colorNation) ? Orbis.colorNation(nationId) : nationId;
-  return COUNTRY_MAP_COLORS[source] || COUNTRY_MAP_COLORS[nationId] || '#64748b';
+  return COUNTRY_MAP_COLORS[source]
+    || state.nations?.[source]?.color
+    || COUNTRY_MAP_COLORS[nationId]
+    || state.nations?.[nationId]?.color
+    || fallback;
+}
+
+function formationNationColor(nationId) {
+  return nationMapColor(nationId);
 }
 
 function formationClusterLabel(members) {
@@ -6681,7 +6693,7 @@ function getStateColor(s) {
 
   if (mode === 'country') {
     if (state.factionColors?.[colorSource]) return state.factionColors[colorSource];
-    return COUNTRY_MAP_COLORS[colorSource] || '#475569';
+    return nationMapColor(colorSource, '#475569');
   }
 
   if (mode === 'faction') {
@@ -6707,7 +6719,7 @@ function getStateColor(s) {
     return tColors[s.terrain] || '#65a30d';
   }
 
-  return COUNTRY_MAP_COLORS[s.country] || '#475569';
+  return nationMapColor(s.country, '#475569');
 }
 
 let mapLegendMode = '';
