@@ -922,13 +922,46 @@ try {
     const { api, context } = harness();
     await api.start({ nationId: 'japan', maxTurns: 48, replace: true });
     assert.equal(api.declareWar('china', '満州国境'), true);
-    const snap = api.snapshot();
-    assert.ok(api.verifyOccupationsAdjacent(snap, 'japan'));
+    assert.equal(Object.keys(api.snapshot().occupations).length, 0, '宣戦だけでは占領しない');
     const land = id => context.window.ORBIS_STATES_DB.find(r => r.id === id);
-    for (const id of Object.keys(snap.occupations)) {
+    const isLand = region => region && !region.isSea && !region.isSeaZone && region.type !== 'sea';
+    const snapshot = api.snapshot();
+    const adjacency = api.landAdjacency();
+    const frontier = regionId => [...(adjacency.get(regionId) || [])].find(id => {
+      const r = land(id);
+      return isLand(r) && (snapshot.territories[id] || r.country) === 'china';
+    });
+    const field = api.listFormations().find(item => item.nationId === 'japan' && item.type === 'field' && frontier(item.regionId));
+    assert.ok(field, '中国領に隣接する野戦部隊');
+    const targetId = frontier(field.regionId);
+    assert.equal(api.setFormationOrder(field.id, { kind: 'offensive', targetRegionId: targetId, targetNationId: 'china' }), true, api.formationOrderError());
+    assert.equal(await api.finishTurn(), true);
+    const after = api.snapshot();
+    assert.ok(Object.keys(after.occupations).length > 0, '攻勢で占領が進む');
+    assert.ok(api.verifyOccupationsAdjacent(after, 'japan'));
+    for (const id of Object.keys(after.occupations)) {
       const r = land(id);
       assert.ok(r, id);
       assert.ok((r.lon || 0) > 95, `${id} が西方で占領されている (${r.lon})`);
+    }
+  });
+
+  await check('宣戦直後は自動占領せず、内陸の中国領も変化しない', async () => {
+    const { api, context } = harness();
+    await begin(api);
+    const db = id => context.window.ORBIS_STATES_DB.find(region => region.id === id);
+    const watched = ['china_cn_js', 'china_cn_hb', 'cn_beijing'];
+    const before = api.snapshot();
+    const ownersBefore = Object.fromEntries(watched.map(id => [id, before.territories[id] || db(id).country]));
+    assert.equal(api.declareWar('china', '満州国境の戦線'), true);
+    const after = api.snapshot();
+    assert.equal(Object.keys(after.occupations).length, 0, '宣戦だけでは占領が発生しない');
+    assert.ok(Object.values(after.wars).filter(war => war.status === 'active').length >= 1, '戦争は成立する');
+    for (const id of watched) {
+      const region = db(id);
+      assert.ok(region, id);
+      assert.equal(after.occupations[id], undefined, `${region.nameJa}は宣戦時に占領されない`);
+      assert.equal(after.territories[id] || region.country, ownersBefore[id], `${region.nameJa}の領有は宣戦時に変わらない`);
     }
   });
 
@@ -938,13 +971,13 @@ try {
     assert.equal(api.declareWar('china', '満州情勢'), true);
     const conflicts = api.listConflicts();
     assert.ok(conflicts.wars.length >= 1);
-    assert.ok(Object.keys(api.snapshot().occupations).length >= 3);
+    assert.equal(Object.keys(api.snapshot().occupations).length, 0, '宣戦だけでは占領しない');
     const warId = conflicts.wars[0].id;
     const warm = api.snapshot();
     warm.relations.japan.china = 30;
     warm.relations.china.japan = 30;
     await api.restore(warm);
-    assert.equal(api.proposePeace(warId, { returnStateIds: Object.keys(api.snapshot().occupations) }), true);
+    assert.equal(api.proposePeace(warId, { returnStateIds: [] }), true);
     assert.equal(api.listConflicts().wars.filter(w => w.status === 'active').length, 0);
   });
 
@@ -1451,12 +1484,6 @@ try {
     assert.equal(ordered.api.declareWar('china', '満州国境の戦線'), true);
     const isLand = region => region && !region.isSea && !region.isSeaZone && region.type !== 'sea';
     const db = id => ordered.context.window.ORBIS_STATES_DB.find(region => region.id === id);
-    const prepared = ordered.api.snapshot();
-    // 宣戦時の自動占領で満洲の前面が埋まるため、接する中国領を1州だけ戻して前線を作る。
-    prepared.territories['china_cn_he'] = 'china';
-    delete prepared.occupations['china_cn_he'];
-    delete prepared.conflicts['china_cn_he'];
-    await ordered.api.restore(prepared);
     const snapshot = ordered.api.snapshot();
     const field = ordered.api.listFormations().find(item => item.nationId === 'japan' && item.type === 'field'
       && (ordered.api.landAdjacency().get(item.regionId) || new Set()).has('china_cn_he'));
@@ -1493,13 +1520,6 @@ try {
     const db = id => context.window.ORBIS_STATES_DB.find(region => region.id === id);
     const jiangsu = db('china_cn_js');
     assert.equal(jiangsu?.nameJa, '江蘇省');
-    const prepared = api.snapshot();
-    // 宣戦時の自動占領で河北省が日本領になっていても、満洲に接する中国領を1州だけ用意する。
-    prepared.territories['china_cn_he'] = 'china';
-    delete prepared.occupations['china_cn_he'];
-    delete prepared.conflicts['china_cn_he'];
-    await api.restore(prepared);
-
     const adjacency = api.landAdjacency();
     const field = api.listFormations().find(item => item.nationId === 'japan' && item.type === 'field'
       && isLand(db(item.regionId)) && (adjacency.get(item.regionId) || new Set()).has('china_cn_he'));

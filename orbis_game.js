@@ -1536,7 +1536,9 @@ const Orbis = (() => {
   }
 
   function addClaim(game, stateId, nationId, reason) {
-    if (!stateId || !nationId || !game.territories[stateId] || game.territories[stateId] === nationId) return;
+    if (!stateId || !nationId) return;
+    if (!window.ORBIS_STATES_DB.some(region => region.id === stateId)) return;
+    if (game.territories[stateId] === nationId) return;
     game.claims = game.claims || {};
     const list = game.claims[stateId] || [];
     if (list.some(claim => claim.nationId === nationId)) return;
@@ -1586,10 +1588,6 @@ const Orbis = (() => {
     campaign.wars[warId] = { attacker: campaign.playerNationId, defender: targetNationId, startedTurn: campaign.completedTurns, status: 'active', reason: requiredText(reason || '宣戦布告', '宣戦理由', 400) };
     campaign.tension = clamp(campaign.tension + 6, 0, 100);
     campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(campaign.playerNationId)}と${shortName(targetNationId)}は戦争状態に入った`].slice(-400);
-    const warNotes = [];
-    const pool = window.ORBIS_STATES_DB.filter(r => !r.isSea && !r.isSeaZone && r.type !== 'sea' && (campaign.territories[r.id] || r.country) === targetNationId);
-    pool.sort((a, b) => (b.vp || 0) - (a.vp || 0));
-    seizeProvinces(campaign, campaign.playerNationId, targetNationId, Math.min(6, pool.length), warNotes);
     saveCampaign();
     syncWorld();
     render();
