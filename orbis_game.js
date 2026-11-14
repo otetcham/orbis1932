@@ -51,108 +51,8 @@ const Orbis = (() => {
     hunan: { sponsorId: 'china', type: 'warlord', autonomy: 64, loyalty: 56, legitimacy: 34, name: '湘系（湖南）', dissolved: false, warlordStatus: 'autonomous' },
     guizhou: { sponsorId: 'china', type: 'warlord', autonomy: 74, loyalty: 42, legitimacy: 26, name: '黔系（貴州）', dissolved: false, warlordStatus: 'autonomous' }
   };
-  // 国策ツリー。1932年3月を起点に、史実寄りの道筋と代替史の分岐を短く持つ。
-  // effects は完了時にコードで適用する。数値系は持続補正、装備・兵力などは即時加算。
-  const FOCUS_TREES = {
-    japan: {
-      label: '日本',
-      focuses: [
-        { id: 'jp_manchukuo', name: '満洲国の経営', tier: 1, cost: 50, desc: '満洲国の統治を整え、現地の産業と治安を安定させる。', effects: { stability: 3, equipment: 10, factoryEfficiency: 5 } },
-        { id: 'jp_army_reform', name: '軍制改革', tier: 1, cost: 50, desc: '軍部の指揮系統を整理し、動員と補充の基礎を固める。', effects: { manpower: 40, attackBonus: 3 } },
-        { id: 'jp_league_withdrawal', name: '国際連盟脱退の決意', tier: 2, cost: 55, requires: ['jp_manchukuo'], exclusive: 'jp_grand_strategy', desc: '満洲国を巡る国際批判に屈せず、連盟からの離脱を決意する。史実の脱退は1933年3月。', effects: { prestige: 4, tension: 6, researchSpeed: 8, warGoal: 'china' } },
-        { id: 'jp_asia_cooperation', name: 'アジア協調路線', tier: 2, cost: 55, requires: ['jp_manchukuo'], exclusive: 'jp_grand_strategy', desc: '中国との経済協調を優先し、軍事的拡張を抑える代替史の道。', effects: { stability: 4, researchSpeed: 12, relation: { nationId: 'china', delta: 10 } } },
-        { id: 'jp_industrial_priority', name: '重工業優先', tier: 2, cost: 55, requires: ['jp_army_reform'], desc: '重化学工業と軍需工場の効率を高め、装備の増産を図る。', effects: { factoryEfficiency: 15, equipment: 15 } },
-        { id: 'jp_naval_expansion', name: '海軍拡張', tier: 3, cost: 60, requires: ['jp_industrial_priority'], desc: '艦隊の整備を進め、太平洋方面への圧力を強める。', effects: { equipment: 20, tension: 4, warGoal: 'usa' } },
-        { id: 'jp_total_mobilization', name: '国家総動員準備', tier: 3, cost: 60, requires: ['jp_industrial_priority'], desc: '産業と行政を戦時体制へ移行する準備を整える。', effects: { manpower: 80, ppGain: 2, supplyBonus: 4 } }
-      ]
-    },
-    usa: {
-      label: '米国',
-      focuses: [
-        { id: 'us_new_deal', name: 'ニューディール', tier: 1, cost: 50, desc: '公共事業と金融安定で恐慌からの回復を図る。', effects: { stability: 5, factoryEfficiency: 8, treasury: 3 } },
-        { id: 'us_public_works', name: '公共事業の拡大', tier: 1, cost: 50, desc: '道路・電力・港湾への投資で雇用と研究基盤を整える。', effects: { researchSpeed: 10, equipment: 5 } },
-        { id: 'us_isolation', name: '孤立主義の堅持', tier: 2, cost: 55, requires: ['us_new_deal'], exclusive: 'us_foreign_policy', desc: '欧州の紛争に関与せず、国内の復興を優先する。', effects: { stability: 3, researchSpeed: 5, tension: -3 } },
-        { id: 'us_internationalism', name: '国際協調への転換', tier: 2, cost: 55, requires: ['us_new_deal'], exclusive: 'us_foreign_policy', desc: '英国との協調を深め、国際秩序の維持に踏み出す代替史。', effects: { researchSpeed: 8, relation: { nationId: 'uk', delta: 8 }, warGoal: 'japan' } },
-        { id: 'us_two_ocean_navy', name: '両洋海軍', tier: 3, cost: 60, requires: ['us_public_works'], desc: '大西洋と太平洋の双方に艦隊を展開できる体制を作る。', effects: { equipment: 25, tension: 3, warGoal: 'japan' } },
-        { id: 'us_industrial_mobilization', name: '産業動員計画', tier: 3, cost: 60, requires: ['us_public_works'], desc: '自動車・航空機産業を軍需へ転換する計画を立てる。', effects: { factoryEfficiency: 18, equipment: 15 } }
-      ]
-    },
-    uk: {
-      label: '英国',
-      focuses: [
-        { id: 'uk_imperial_preference', name: '帝国特恵関税', tier: 1, cost: 50, desc: '帝国圏内の通商を優先し、本国の財政と産業を支える。', effects: { factoryEfficiency: 10, treasury: 4 } },
-        { id: 'uk_rearmament', name: '再軍備の開始', tier: 1, cost: 50, desc: '陸軍と防空の不足を補い、軍需生産を立ち上げる。', effects: { equipment: 15, manpower: 30 } },
-        { id: 'uk_collective_security', name: '集団安全保障', tier: 2, cost: 60, requires: ['uk_imperial_preference'], exclusive: 'uk_strategy', desc: 'フランスとの協調を軸に、ドイツへの抑止を強める。', effects: { researchSpeed: 8, relation: { nationId: 'france', delta: 8 }, warGoal: 'germany' } },
-        { id: 'uk_appeasement', name: '宥和政策', tier: 2, cost: 60, requires: ['uk_imperial_preference'], exclusive: 'uk_strategy', desc: '対独緊張を避け、再軍備の時間を稼ぐ代替史の道。', effects: { stability: 4, researchSpeed: 5, tension: -4 } },
-        { id: 'uk_navy_standard', name: '海軍基準維持', tier: 3, cost: 60, requires: ['uk_rearmament'], desc: '地中海と極東の海軍力を維持し、帝国の連絡線を守る。', effects: { equipment: 20, supplyBonus: 4, warGoal: 'italy' } }
-      ]
-    },
-    france: {
-      label: 'フランス',
-      focuses: [
-        { id: 'fr_maginot', name: 'マジノ線の充実', tier: 1, cost: 50, desc: '国境要塞と補給線を整え、防御体制を固める。', effects: { equipment: 10, supplyBonus: 5, stability: 2 } },
-        { id: 'fr_popular_front', name: '人民戦線の準備', tier: 1, cost: 50, desc: '労働者と中道の連携を図り、国内の分断を和らげる。', effects: { stability: 4, researchSpeed: 6 } },
-        { id: 'fr_containment', name: '対独封じ込め', tier: 2, cost: 60, requires: ['fr_maginot'], exclusive: 'fr_germany_policy', desc: '東欧の同盟国と連携し、ドイツを包囲する。', effects: { equipment: 10, warGoal: 'germany', tension: 4 } },
-        { id: 'fr_european_detente', name: '欧州融和', tier: 2, cost: 60, requires: ['fr_popular_front'], exclusive: 'fr_germany_policy', desc: 'ドイツとの緊張緩和を優先する代替史の道。', effects: { researchSpeed: 8, relation: { nationId: 'germany', delta: 10 }, tension: -3 } },
-        { id: 'fr_colonial_army', name: '植民地軍の再編', tier: 2, cost: 55, requires: ['fr_popular_front'], desc: '北アフリカとインドシナの部隊を再編し、兵力を補う。', effects: { manpower: 50, equipment: 8 } },
-        { id: 'fr_rearmament', name: '再軍備計画', tier: 3, cost: 60, requires: ['fr_maginot'], desc: '航空機と機甲部隊の近代化を進める。', effects: { equipment: 18, manpower: 40, attackBonus: 3 } }
-      ]
-    },
-    germany: {
-      label: 'ドイツ',
-      focuses: [
-        { id: 'de_secret_rearmament', name: '秘密再軍備', tier: 1, cost: 50, desc: 'ヴァイマル共和国の制約下で軍備を整える。首相交代は1933年。', effects: { factoryEfficiency: 10, equipment: 10, tension: 2 } },
-        { id: 'de_republic_stabilization', name: '共和政の安定', tier: 1, cost: 50, desc: '議会と州の協調でヴァイマル体制の基盤を立て直す。', effects: { stability: 4, researchSpeed: 6, relation: { nationId: 'france', delta: 4 } } },
-        { id: 'de_authoritarian_turn', name: '強権体制への移行', tier: 2, cost: 55, requires: ['de_secret_rearmament'], exclusive: 'de_political_path', desc: '大統領権限を拡大し、議会の制約を弱める。', effects: { ppGain: 2, attackBonus: 4, tension: 5 } },
-        { id: 'de_republican_front', name: '共和政擁護', tier: 2, cost: 55, requires: ['de_republic_stabilization'], exclusive: 'de_political_path', desc: '社会民主党と中道の連携で共和政を守る代替史の道。', effects: { stability: 6, researchSpeed: 8, relation: { nationId: 'uk', delta: 6 } } },
-        { id: 'de_army_expansion', name: '陸軍拡張', tier: 2, cost: 50, requires: ['de_secret_rearmament'], desc: '師団数を増やし、機動戦の訓練を進める。', effects: { manpower: 60, equipment: 15, attackBonus: 2 } },
-        { id: 'de_anschluss_prep', name: 'オーストリア併合準備', tier: 3, cost: 60, requires: ['de_authoritarian_turn'], desc: 'オーストリアへの政治的圧力を強め、併合の機会をうかがう。', effects: { prestige: 4, warGoal: 'austria', tension: 4 } }
-      ]
-    },
-    italy: {
-      label: 'イタリア',
-      focuses: [
-        { id: 'it_corporatism', name: '協調体制の整備', tier: 1, cost: 50, desc: '産業界と労働組合を国家の枠組みに組み込み、生産を安定させる。', effects: { stability: 4, factoryEfficiency: 8 } },
-        { id: 'it_ethiopia', name: 'エチオピア作戦準備', tier: 1, cost: 55, desc: '東アフリカの軍備を整え、エチオピアへの圧力を強める。', effects: { equipment: 12, tension: 4, warGoal: 'ethiopia' } },
-        { id: 'it_mediterranean', name: '地中海艦隊', tier: 2, cost: 60, requires: ['it_corporatism'], desc: '地中海の制海を狙い、艦隊と港を整備する。', effects: { equipment: 20, supplyBonus: 4, warGoal: 'uk' } },
-        { id: 'it_autarky', name: '自給自足経済', tier: 2, cost: 55, requires: ['it_corporatism'], desc: '輸入依存を減らし、国内資源の活用を進める。', effects: { factoryEfficiency: 12, treasury: 3 } },
-        { id: 'it_army_reform', name: '陸軍の再編', tier: 3, cost: 60, requires: ['it_ethiopia'], desc: '山岳部隊と機動部隊の編成を改め、攻勢能力を高める。', effects: { manpower: 50, attackBonus: 4, equipment: 10 } }
-      ]
-    },
-    russia: {
-      label: 'ソ連',
-      focuses: [
-        { id: 'ru_five_year', name: '五カ年計画', tier: 1, cost: 50, desc: '重工業への投資を加速し、工場の生産効率を高める。', effects: { factoryEfficiency: 15, equipment: 10 } },
-        { id: 'ru_collectivization', name: '農業集団化', tier: 1, cost: 50, desc: '農村の統制を強め、食料と労働力を都市へ供給する。', effects: { treasury: 5, manpower: 30, stability: -2 } },
-        { id: 'ru_purge', name: '赤軍の粛清', tier: 2, cost: 55, requires: ['ru_collectivization'], exclusive: 'ru_political_path', desc: '軍内の反対派を排除し、政治統制を強める。', effects: { ppGain: 2, attackBonus: 4, stability: -4, tension: 3 } },
-        { id: 'ru_collective_security', name: '集団安全保障', tier: 2, cost: 55, requires: ['ru_collectivization'], exclusive: 'ru_political_path', desc: '仏英との協調でドイツを抑止する代替史の道。', effects: { researchSpeed: 8, relation: { nationId: 'france', delta: 8 }, warGoal: 'germany' } },
-        { id: 'ru_rearmament', name: '赤軍再建', tier: 2, cost: 60, requires: ['ru_five_year'], desc: '戦車と航空機の生産を増やし、機械化部隊を育てる。', effects: { manpower: 60, equipment: 20, attackBonus: 3 } },
-        { id: 'ru_industry_relocation', name: '工業の東方移転', tier: 3, cost: 60, requires: ['ru_five_year'], desc: 'ウラル以東に工場を分散し、戦時の生産を確保する。', effects: { factoryEfficiency: 12, supplyBonus: 5 } }
-      ]
-    },
-    china: {
-      label: '中国（中華民国）',
-      focuses: [
-        { id: 'cn_nanjing_decade', name: '南京の十年', tier: 1, cost: 50, desc: '国民政府の財政・交通・教育を整え、国家の基礎を固める。', effects: { factoryEfficiency: 10, stability: 3 } },
-        { id: 'cn_german_advisers', name: 'ドイツ軍事顧問', tier: 1, cost: 55, desc: '外国顧問の助言で部隊訓練と装備を近代化する。', effects: { attackBonus: 4, equipment: 10 } },
-        { id: 'cn_united_front', name: '抗日統一戦線', tier: 2, cost: 60, requires: ['cn_nanjing_decade'], exclusive: 'cn_political_path', desc: '国内の対立を抑え、日本への抵抗を優先する。', effects: { manpower: 60, stability: 2, warGoal: 'japan' } },
-        { id: 'cn_anti_communist', name: '剿共優先', tier: 2, cost: 60, requires: ['cn_nanjing_decade'], exclusive: 'cn_political_path', desc: '共産党勢力の掃討を優先する代替史の道。', effects: { stability: 3, ppGain: 2, attackBonus: 3 } },
-        { id: 'cn_industrial_relocation', name: '産業の内陸移転', tier: 2, cost: 60, requires: ['cn_nanjing_decade'], desc: '沿岸部の工場を内陸へ分散し、戦時の生産を守る。', effects: { factoryEfficiency: 15, researchSpeed: 5 } },
-        { id: 'cn_constitutional_rule', name: '憲政準備', tier: 3, cost: 55, requires: ['cn_nanjing_decade'], desc: '地方勢力との妥協を進め、中央政府の正統性を高める。', effects: { stability: 5, researchSpeed: 8, prestige: 3 } }
-      ]
-    },
-    generic: {
-      label: '共通',
-      focuses: [
-        { id: 'gen_industry', name: '産業振興', tier: 1, cost: 45, desc: '国内の工場と輸送網を整え、生産効率を高める。', effects: { factoryEfficiency: 10 } },
-        { id: 'gen_army', name: '軍制近代化', tier: 1, cost: 45, desc: '部隊の訓練と装備を更新し、動員体制を整える。', effects: { manpower: 30, equipment: 8 } },
-        { id: 'gen_research', name: '科学研究振興', tier: 1, cost: 50, desc: '大学と研究所への投資で研究速度を高める。', effects: { researchSpeed: 10 } },
-        { id: 'gen_diplomacy', name: '近隣外交', tier: 1, cost: 45, desc: '近隣国との関係を安定させ、国際的な信用を得る。', effects: { stability: 3, prestige: 3 } },
-        { id: 'gen_mobilization', name: '国防動員計画', tier: 2, cost: 50, requires: ['gen_army'], desc: '予備役と軍需在庫を整え、戦時の動員を早める。', effects: { equipment: 12, attackBonus: 2, manpower: 20 } },
-        { id: 'gen_stability', name: '内政安定', tier: 2, cost: 50, requires: ['gen_industry'], desc: '行政の執行力を高め、社会の緊張を和らげる。', effects: { stability: 5, treasury: 3 } }
-      ]
-    }
-  };
+  // 国策ツリーは orbis_focus.js で定義する。既存の FOCUS_TREES API はそのまま使う。
+  const FOCUS_TREES = globalThis.FOCUS_TREES || { generic: { label: '共通', focuses: [] } };
 
   const RESEARCH_BRANCHES = {
     army_doctrine: {
@@ -215,6 +115,9 @@ const Orbis = (() => {
     warGoal: value => `戦争目標: ${shortName(value)}`,
     relation: value => `対${shortName(value.nationId)}関係 ${signed(value.delta)}`
   };
+
+  const FOCUS_PATH_LABELS = { common: '共通基盤', historical: '史実経路', alt1: '代替経路 A', alt2: '代替経路 B' };
+  const FOCUS_ERA_LABELS = { '1930s': '1930年代', wartime: '戦中', postwar: '戦後', coldwar: '冷戦' };
 
   const FOCUS_PP_BASE = 14;
   const FOCUS_PP_ALLOCATION = 18;
@@ -356,6 +259,31 @@ const Orbis = (() => {
           return { headline: '欧州で枢軸側が勝利', body: `ドイツを中心とする枢軸側の勝利が確定し、${result.ended}戦争が終結した。征服地の統治はそのまま残された。`, summary: result.summary, location: '欧州', stateId: 'germany_de_be' };
         }
         return { headline: '欧州戦争が終結', body: `ドイツ・イタリアの敗戦により${result.ended}戦争が終結し、${result.changed}州の統治が再編された。ドイツは東西に分割され、オーストリア・チェコスロバキア・ポーランドが復活した。`, summary: result.summary, location: '欧州', stateId: 'germany_de_be' };
+      }
+    },
+    {
+      id: 'libya_independence', label: 'リビア独立', major: true,
+      from: [1950, 10], to: [1951, 6], keywords: ['リビア', '独立'],
+      playerCanBlock: ['libya', 'italy', 'uk'],
+      requires: game => game.postwarSettlement?.europe?.outcome === 'axis_defeat'
+        && Boolean(game.clients?.libya) && !game.clients.libya.independent,
+      run(game, notes) {
+        const result = arcEndLibyaTrusteeship(game, notes);
+        if (!result) return null;
+        return { headline: 'リビアが独立', body: 'イタリアの主権が失われていたリビアが、信託統治を経て独立国となった。', summary: `リビア独立、保有者 ${result.holder}`, location: 'リビア', stateId: 'italy_libya' };
+      }
+    },
+    {
+      id: 'somalia_independence', label: 'ソマリア独立', major: true,
+      from: [1960, 1], to: [1960, 12], keywords: ['ソマリア', '独立', 'ソマリランド'],
+      playerCanBlock: ['col_italy_eastafrica', 'italy', 'uk'],
+      requires: game => game.postwarSettlement?.europe?.outcome === 'axis_defeat'
+        && ((Boolean(game.clients?.col_italy_eastafrica) && !game.clients.col_italy_eastafrica.independent)
+          || regionHolder(game, regionById('italy_somalia')) === 'italy'),
+      run(game, notes) {
+        const result = arcUniteSomalia(game, notes);
+        if (!result) return null;
+        return { headline: 'ソマリアが独立', body: 'イタリア信託統治領ソマリアが独立し、英領ソマリランドと統合された。', summary: `ソマリア独立、ソマリア ${result.somaliaHolder} / ソマリランド ${result.somalilandHolder}`, location: 'ソマリア', stateId: 'italy_somalia' };
       }
     },
     {
@@ -1515,7 +1443,7 @@ const Orbis = (() => {
   function availableActors(game) {
     const activeIds = new Set(['adviser', ...Object.keys(actors).filter(id => actors[id].kind === 'domestic' || actors[id].kind === 'client')]);
     for (const id of Object.keys(game.threads)) activeIds.add(id);
-    const player = SCENARIOS.era_1932.nations[game.playerNationId];
+    const player = nationMeta(game.playerNationId, game) || SCENARIOS.era_1932.nations[game.playerNationId];
     const nearby = Object.values(SCENARIOS.era_1932.nations).filter(nation => nation.id !== player.id && (nation.isMajor || nation.region === player.region));
     for (const nation of nearby) {
       activeIds.add(`ministry:${nation.id}`);
@@ -1533,7 +1461,7 @@ const Orbis = (() => {
         if (message.role === 'player' && message.visibility === 'official') publicStatements.push({ actorId, turn: message.turn, text: message.text });
       }
     }
-    const player = SCENARIOS.era_1932.nations[game.playerNationId];
+    const player = nationMeta(game.playerNationId, game) || SCENARIOS.era_1932.nations[game.playerNationId];
     const context = {
       date: dateOf(game), turn: game.completedTurns + 1, player: { id: player.id, name: player.name, leader: game.leaders[player.id] || player.leader, agenda: player.aiAgenda, ...game.nations[player.id], treasury: game.treasury, prestige: game.prestige },
       tension: game.tension, difficulty: game.difficulty, mandate: mandateInfo(game),
@@ -2115,6 +2043,17 @@ const Orbis = (() => {
     const atWar = Object.values(game.wars || {}).some(war => war.status === 'active' && (war.attacker === nationId || war.defender === nationId));
     const candidates = tree.focuses.filter(focus => focusStatus(game, nationId, focus).status === 'available');
     if (!candidates.length) return null;
+    const pathOf = focus => focus.path || 'common';
+    // すでに分岐していれば、その経路を最後まで続ける。まだ分岐していなければ史実経路を優先する。
+    const chosen = state.completed
+      .map(id => focusById(nationId, id))
+      .filter(focus => focus && ['historical', 'alt1', 'alt2'].includes(pathOf(focus)));
+    const activePath = chosen.length ? pathOf(chosen[chosen.length - 1]) : null;
+    const preferredPath = activePath || 'historical';
+    let pool = candidates.filter(focus => pathOf(focus) === preferredPath);
+    if (!pool.length) pool = candidates.filter(focus => pathOf(focus) === 'common');
+    if (!pool.length && !activePath) pool = candidates.filter(focus => pathOf(focus) !== 'common');
+    if (!pool.length) pool = candidates;
     const score = focus => {
       const effects = focus.effects || {};
       if (atWar) return (effects.equipment || 0) * 3 + (effects.manpower || 0) + (effects.attackBonus || 0) * 5
@@ -2122,7 +2061,7 @@ const Orbis = (() => {
       return (effects.factoryEfficiency || 0) * 3 + (effects.researchSpeed || 0) * 2 + (effects.stability || 0) * 2
         + (effects.treasury || 0) * 3 + (effects.ppGain || 0) * 4;
     };
-    return candidates.slice().sort((a, b) => score(b) - score(a) || a.tier - b.tier || a.cost - b.cost)[0] || null;
+    return pool.slice().sort((a, b) => score(b) - score(a) || a.tier - b.tier || a.cost - b.cost)[0] || null;
   }
 
   function chooseNpcResearch(game, nationId) {
@@ -2217,6 +2156,20 @@ const Orbis = (() => {
     const tree = focusTreeFor(id);
     const mods = nationalModifiers(campaign, id);
     const current = state.current ? focusById(id, state.current.id) : null;
+    const focuses = tree.focuses.map(focus => ({
+      ...copy(focus),
+      ...focusStatus(campaign, id, focus),
+      pathLabel: FOCUS_PATH_LABELS[focus.path] || FOCUS_PATH_LABELS.common,
+      eraLabel: FOCUS_ERA_LABELS[focus.era] || '',
+      effectText: focusEffectText(focus.effects)
+    }));
+    const focusIds = new Set(focuses.map(focus => focus.id));
+    const edges = [];
+    for (const focus of focuses) {
+      for (const from of focus.requires || []) {
+        if (focusIds.has(from)) edges.push({ from, to: focus.id, path: focus.path || 'common' });
+      }
+    }
     return {
       nationId: id,
       nationLabel: shortName(id),
@@ -2229,7 +2182,12 @@ const Orbis = (() => {
       completed: state.completed.slice(),
       warGoals: state.warGoals.slice(),
       modifiers: copy(mods),
-      focuses: tree.focuses.map(focus => ({ ...copy(focus), ...focusStatus(campaign, id, focus), effectText: focusEffectText(focus.effects) }))
+      focuses,
+      graph: {
+        edges,
+        tiers: [...new Set(focuses.map(focus => focus.tier))].sort((a, b) => a - b),
+        pathLabels: copy(FOCUS_PATH_LABELS)
+      }
     };
   }
 
@@ -2301,38 +2259,81 @@ const Orbis = (() => {
     if (!summary) return;
     const current = summary.current
       ? `<div class="focus-stat"><span>進行中</span><strong>${escapeHtml(summary.current.name)}</strong><small>${summary.current.progress} / ${summary.current.cost} · 毎半月 最大 ${summary.allocation}</small><div class="focus-progress" style="margin-top:6px"><span style="width:${Math.min(100, Math.round(summary.current.progress / summary.current.cost * 100))}%"></span></div></div>`
-      : '<div class="focus-stat"><span>進行中</span><strong>未選択</strong><small>下のツリーから次の国策を選ぶ</small></div>';
+      : '<div class="focus-stat"><span>進行中</span><strong>未選択</strong><small>グラフから次の国策を選ぶ</small></div>';
     const warGoals = summary.warGoals.length
       ? summary.warGoals.map(id => `<span class="focus-badge">${escapeHtml(shortName(id))}</span>`).join(' ')
       : '<span class="small muted">なし</span>';
-    const tiers = [...new Set(summary.focuses.map(focus => focus.tier))].sort((a, b) => a - b);
-    const tierRows = tiers.map(tier => {
-      const cards = summary.focuses.filter(focus => focus.tier === tier).map(focus => {
-        const statusLabel = { completed: '完了', current: '進行中', locked: 'ロック', available: '選択可' }[focus.status];
-        const badgeClass = focus.status === 'completed' ? 'completed' : focus.status === 'current' ? 'current' : focus.status === 'locked' ? 'locked' : '';
-        const button = focus.status === 'completed' ? '<span class="small muted">効果を適用済み</span>'
-          : focus.status === 'current' ? '<button class="btn btn-ghost" disabled>進行中</button>'
-            : focus.status === 'locked' ? '<button class="btn btn-ghost" disabled>ロック中</button>'
-              : `<button class="btn btn-primary" data-focus-select="${escapeHtml(focus.id)}" ${summary.current ? 'disabled' : ''}>${summary.current ? '別の国策を進行中' : 'この国策を選ぶ'}</button>`;
-        return `<article class="focus-card is-${focus.status}">
-          <div class="focus-card-head"><strong>${escapeHtml(focus.name)}</strong><span class="focus-badge ${badgeClass}">${statusLabel}</span></div>
-          <p class="focus-desc">${escapeHtml(focus.desc)}</p>
-          <p class="focus-effects">${escapeHtml(focus.effectText)}</p>
-          <p class="focus-meta">費用 ${focus.cost} 政治力 · 第${focus.tier}段階</p>
-          ${focus.status === 'locked' ? `<p class="focus-lock">${escapeHtml(focus.reason)}</p>` : ''}
-          ${button}
-        </article>`;
-      }).join('');
-      return `<section class="focus-tier"><h3>第${tier}段階</h3><div class="focus-grid">${cards}</div></section>`;
+    const tiers = summary.graph.tiers;
+    const pathOrder = { common: 0, historical: 1, alt1: 2, alt2: 3 };
+    const cardWidth = 176;
+    const cardHeight = 120;
+    const gapX = 34;
+    const gapY = 16;
+    const pad = 26;
+    const byTier = new Map(tiers.map(tier => [tier, summary.focuses.filter(focus => focus.tier === tier)]));
+    for (const list of byTier.values()) {
+      list.sort((a, b) => (pathOrder[a.path] ?? 9) - (pathOrder[b.path] ?? 9) || a.id.localeCompare(b.id));
+    }
+    const maxRows = Math.max(1, ...[...byTier.values()].map(list => list.length));
+    const width = pad * 2 + tiers.length * cardWidth + Math.max(0, tiers.length - 1) * gapX;
+    const height = pad * 2 + maxRows * cardHeight + Math.max(0, maxRows - 1) * gapY;
+    const positions = new Map();
+    tiers.forEach((tier, column) => {
+      byTier.get(tier).forEach((focus, row) => {
+        positions.set(focus.id, {
+          x: pad + column * (cardWidth + gapX),
+          y: pad + row * (cardHeight + gapY)
+        });
+      });
+    });
+    const edges = summary.graph.edges.map(edge => {
+      const from = positions.get(edge.from);
+      const to = positions.get(edge.to);
+      if (!from || !to) return '';
+      const x1 = from.x + cardWidth / 2;
+      const y1 = from.y + cardHeight;
+      const x2 = to.x + cardWidth / 2;
+      const y2 = to.y;
+      const bend = Math.max(18, Math.abs(y2 - y1) * 0.45);
+      return `<path class="focus-edge path-${escapeHtml(edge.path)}" data-focus-edge="${escapeHtml(edge.from)}-${escapeHtml(edge.to)}" d="M ${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}" marker-end="url(#focus-arrow)"></path>`;
     }).join('');
+    const nodes = summary.focuses.map(focus => {
+      const position = positions.get(focus.id);
+      const statusLabel = { completed: '完了', current: '進行中', locked: 'ロック', available: '選択可' }[focus.status];
+      const badgeClass = focus.status === 'completed' ? 'completed' : focus.status === 'current' ? 'current' : focus.status === 'locked' ? 'locked' : '';
+      const button = focus.status === 'completed' ? '<span class="focus-node-done">効果を適用済み</span>'
+        : focus.status === 'current' ? '<button class="btn btn-ghost" disabled>進行中</button>'
+          : focus.status === 'locked' ? '<button class="btn btn-ghost" disabled>ロック中</button>'
+            : `<button class="btn btn-primary" data-focus-select="${escapeHtml(focus.id)}" ${summary.current ? 'disabled' : ''}>${summary.current ? '別の国策を進行中' : 'この国策を選ぶ'}</button>`;
+      const pathClass = `path-${focus.path || 'common'}`;
+      const exclusive = focus.exclusive ? '<span class="focus-exclusive-badge">排他</span>' : '';
+      const lock = focus.status === 'locked' ? `<p class="focus-lock">${escapeHtml(focus.reason)}</p>` : `<p class="focus-desc">${escapeHtml(focus.desc)}</p>`;
+      return `<article class="focus-card focus-node is-${focus.status} ${pathClass}" data-focus-node="${escapeHtml(focus.id)}" style="left:${position.x}px;top:${position.y}px;width:${cardWidth}px;height:${cardHeight}px" title="${escapeHtml(`${focus.name} / ${focus.pathLabel} / ${focus.eraLabel} / ${focus.effectText}`)}">
+        <div class="focus-card-head"><strong>${escapeHtml(focus.name)}</strong><span class="focus-badge ${badgeClass}">${statusLabel}</span></div>
+        <p class="focus-node-meta">${escapeHtml(focus.pathLabel)}${exclusive} · ${escapeHtml(focus.eraLabel)} · 第${focus.tier}段階</p>
+        ${lock}
+        <p class="focus-effects">${escapeHtml(focus.effectText)}</p>
+        <div class="focus-node-foot"><span class="focus-meta">費用 ${focus.cost}</span>${button}</div>
+      </article>`;
+    }).join('');
+    const legend = ['common', 'historical', 'alt1', 'alt2'].map(path => `<span class="focus-legend-item path-${path}"><i></i>${escapeHtml(FOCUS_PATH_LABELS[path])}</span>`).join('');
     html('focus-panel-body', `<section class="focus-summary">
       <div class="focus-stat"><span>政治力</span><strong>${summary.politicalPower} / ${summary.maxPoliticalPower}</strong><small>毎半月 +${summary.gain} · 国策へ最大 ${summary.allocation}</small></div>
       ${current}
       <div class="focus-stat"><span>完了済み</span><strong>${summary.completed.length} / ${summary.focuses.length}</strong><small>${escapeHtml(summary.treeLabel)}の国策</small></div>
       <div class="focus-stat"><span>戦争目標</span><strong>${summary.warGoals.length}</strong><small>${warGoals}</small></div>
     </section>
-    <p class="small muted">1932年3月を起点とする。政治力は威信とは別の指標で、半月ごとに増える。国策は1件ずつ進み、完了すると効果が数値・フラグとして残る。排他分岐は片方を選ぶと他方がロックされる。</p>
-    <div class="focus-branch"><h3>${escapeHtml(summary.treeLabel)} · 国策ツリー</h3><p class="small muted">史実寄りの経路と代替史の分岐。前提と分岐のロックを確認して選ぶ。</p>${tierRows}</div>`);
+    <p class="small muted">1932年3月を起点とする。前提を線で結んだノードグラフで、史実経路と2本の代替経路をたどる。排他分岐は片方を選ぶと他方がロックされる。</p>
+    <div class="focus-branch"><h3>${escapeHtml(summary.treeLabel)} · 国策ノードグラフ</h3>
+      <div class="focus-graph-head"><p class="small muted">線は前提関係を示す。色は経路、枠は状態（完了・進行中・選択可・ロック）を示す。</p><div class="focus-legend">${legend}</div></div>
+      <div class="focus-graph-scroll"><div class="focus-graph" style="width:${width}px;height:${height}px">
+        <svg class="focus-graph-edges" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+          <defs><marker id="focus-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7b8fa3"></path></marker></defs>
+          ${edges}
+        </svg>
+        ${nodes}
+      </div></div>
+    </div>`);
     openDialog('modal-focus');
   }
 
@@ -3309,7 +3310,7 @@ const Orbis = (() => {
       delete client.integratedInto;
     }
     const sponsorId = client.sponsorId;
-    const moved = client.independent ? 0 : arcTransferClientStates(game, clientId, sponsorId, options.stateIds);
+    const moved = client.independent || options.noTransfer ? 0 : arcTransferClientStates(game, clientId, sponsorId, options.stateIds);
     if (client.independent) return false;
     client.independent = true;
     client.independentAt = game.completedTurns;
@@ -3381,6 +3382,16 @@ const Orbis = (() => {
     return moved;
   }
 
+  function arcEnsureTaiwanChina(game, reason = '台湾の中華民国復帰', chinaSideOnly = false) {
+    const region = regionById('japan_empire_twn');
+    if (!region || !game?.nations?.china) return false;
+    reviveNation(game, 'china');
+    const holder = regionHolder(game, region);
+    if (holder === 'china') return true;
+    if (chinaSideOnly && holder !== 'japan' && !String(holder).startsWith('china_')) return false;
+    return arcTransferRegion(game, 'japan_empire_twn', 'china', reason);
+  }
+
   function arcReturnConquests(game, holderId, reason) {
     if (!game?.nations?.[holderId]) return 0;
     let moved = 0;
@@ -3432,7 +3443,90 @@ const Orbis = (() => {
     }
     game.establishedFacts = [...(game.establishedFacts || []), 'ドイツは西ドイツと東ドイツに分割された'].slice(-400);
     notes.push(`ドイツを東西に分割（西ドイツ${west}州、東ドイツ${east + remainder}州）。`);
+    if (game.playerNationId === 'germany') {
+      const successor = game.nations.west_germany && !game.nations.west_germany.dissolved ? 'west_germany'
+        : game.nations.east_germany && !game.nations.east_germany.dissolved ? 'east_germany' : null;
+      if (successor) {
+        const oldFocus = focusStateFor(game, 'germany', false);
+        const nextFocus = focusStateFor(game, successor);
+        if (oldFocus) {
+          nextFocus.politicalPower = Math.max(nextFocus.politicalPower, oldFocus.politicalPower);
+          nextFocus.completed = (oldFocus.completed || []).filter(id => Boolean(focusById(successor, id)));
+        }
+        const oldResearch = researchStateFor(game, 'germany', false);
+        if (oldResearch) {
+          const nextResearch = researchStateFor(game, successor);
+          nextResearch.completed = (oldResearch.completed || []).slice();
+          nextResearch.current = oldResearch.current ? { ...oldResearch.current } : null;
+        }
+        if (game.economy?.germany && !game.economy[successor]) game.economy[successor] = copy(game.economy.germany);
+        game.playerNationId = successor;
+        game.establishedFacts = [...(game.establishedFacts || []), `プレイヤーは${shortName(successor)}の指導者として戦後を継承した`].slice(-400);
+        notes.push(`プレイヤーを${shortName(successor)}へ引き継ぎ、戦後の国策を継続する。`);
+      }
+    }
     return { west, east, westStates, eastStates, remainder };
+  }
+
+  function arcEndLibyaTrusteeship(game, notes = []) {
+    const client = game.clients?.libya;
+    if (!client || client.independent || client.dissolved) return null;
+    reviveNation(game, 'libya');
+    arcGrantIndependence(game, 'libya', 'リビア', notes, { noTransfer: true, color: NEW_NATION_COLORS.libya });
+    client.trusteeship = false;
+    delete client.trustee;
+    client.sovereigntyRevoked = false;
+    client.name = 'リビア';
+    ensureDynamicNationMeta(game, 'libya', 'リビア', { color: NEW_NATION_COLORS.libya, code: 'LBY' });
+    return { nationId: 'libya', holder: regionHolder(game, regionById('italy_libya')) };
+  }
+
+  function arcUniteSomalia(game, notes = []) {
+    let somaliaId = null;
+    let moved = 0;
+    const client = game.clients?.col_italy_eastafrica;
+    if (client) {
+      if (regionHolder(game, regionById('italy_somalia')) !== 'col_italy_eastafrica') {
+        if (arcTransferRegion(game, 'italy_somalia', 'col_italy_eastafrica', 'ソマリア信託統治の確定')) moved++;
+      }
+      if (!client.independent) {
+        arcGrantIndependence(game, 'col_italy_eastafrica', 'ソマリア', notes, { stateIds: ['italy_somalia'], color: NEW_NATION_COLORS.eritrea_somalia });
+      }
+      client.trusteeship = false;
+      delete client.trustee;
+      client.name = 'ソマリア';
+      reviveNation(game, 'col_italy_eastafrica');
+      ensureDynamicNationMeta(game, 'col_italy_eastafrica', 'ソマリア', { color: NEW_NATION_COLORS.eritrea_somalia, code: 'SOM' });
+      somaliaId = 'col_italy_eastafrica';
+    } else if (regionHolder(game, regionById('italy_somalia')) === 'italy') {
+      moved += arcCreateIndependentFromStates(game, 'italy', 'somalia', 'ソマリア', ['italy_somalia'], notes, { color: NEW_NATION_COLORS.eritrea_somalia, code: 'SOM' });
+      if (moved) somaliaId = 'somalia';
+    }
+    if (!somaliaId) return null;
+    const somaliland = regionById('uk_somaliland');
+    const holder = regionHolder(game, somaliland);
+    if (holder !== somaliaId && ['uk', 'british_somaliland', 'somaliland'].includes(holder)) {
+      if (arcTransferRegion(game, 'uk_somaliland', somaliaId, 'ソマリア独立に伴うソマリランド統合')) moved++;
+      if (holder !== 'uk') {
+        const remaining = window.ORBIS_STATES_DB.filter(region => isLandRegion(region) && regionHolder(game, region) === holder).length;
+        const oldNation = game.nations?.[holder];
+        if (remaining === 0 && oldNation) {
+          oldNation.dissolved = true;
+          oldNation.suzerain = null;
+          const oldClient = game.clients?.[holder];
+          if (oldClient) {
+            oldClient.dissolved = true;
+            oldClient.integratedInto = somaliaId;
+          }
+        }
+      }
+    }
+    return {
+      nationId: somaliaId,
+      somaliaHolder: regionHolder(game, regionById('italy_somalia')),
+      somalilandHolder: regionHolder(game, regionById('uk_somaliland')),
+      moved
+    };
   }
 
   function arcSettleEurope(game, notes = []) {
@@ -3448,28 +3542,72 @@ const Orbis = (() => {
     returned += arcReturnConquests(game, 'italy', '枢軸敗戦による征服地返還');
     let restored = 0;
     for (const countryId of ['austria', 'czechoslovakia', 'poland']) restored += arcRestoreOriginalStates(game, countryId, ['germany'], '枢軸敗戦による国家復活');
-    restored += arcRestoreOriginalStates(game, 'ethiopia', ['italy'], 'エチオピアの復活');
+    restored += arcRestoreOriginalStates(game, 'ethiopia', ['italy', 'col_italy_eastafrica'], 'エチオピアの復活');
     let colonies = 0;
-    const italianColonies = [
-      { clientId: 'col_italy_libya', name: 'リビア', stateIds: ['italy_libya'], newId: 'libya', color: NEW_NATION_COLORS.libya, code: 'LBY' },
-      { clientId: 'col_italy_eastafrica', name: 'エリトリア・ソマリア', stateIds: ['italy_eritrea', 'italy_somalia'], newId: 'eritrea_somalia', color: NEW_NATION_COLORS.eritrea_somalia, code: 'ERA' }
-    ];
-    for (const item of italianColonies) {
-      const client = game.clients?.[item.clientId];
-      if (client) {
-        if (client.dissolved) reviveNation(game, item.clientId);
-        if (!client.independent && arcGrantIndependence(game, item.clientId, item.name, notes, { stateIds: item.stateIds, color: item.color })) colonies++;
-        else if (client.independent) { client.name = item.name; ensureDynamicNationMeta(game, item.clientId, item.name, { color: item.color }); }
-      } else {
-        const direct = item.stateIds.filter(id => regionHolder(game, regionById(id)) === 'italy');
-        if (direct.length && arcCreateIndependentFromStates(game, 'italy', item.newId, item.name, direct, notes, { color: item.color, code: item.code })) colonies++;
+    // リビアは終戦でイタリア主権を失うが、1951年まで独立させない。英国の信託行政下に置く。
+    const libyaClient = game.clients?.col_italy_libya;
+    const libyaRegion = regionById('italy_libya');
+    if (libyaClient && !libyaClient.independent) {
+      if (libyaClient.dissolved) reviveNation(game, 'col_italy_libya');
+      if (regionHolder(game, libyaRegion) === 'col_italy_libya') arcTransferRegion(game, 'italy_libya', 'italy', 'リビア信託統治への移行準備');
+      libyaClient.dissolved = true;
+      libyaClient.integratedInto = 'italy';
+      if (game.nations.col_italy_libya) {
+        game.nations.col_italy_libya.dissolved = true;
+        game.nations.col_italy_libya.suzerain = null;
       }
+      if (!game.nations.libya) {
+        const created = createDependentFromRegion('italy', 'italy_libya', 'libya', 'リビア信託統治', 'protectorate', game);
+        if (created.ok) {
+          const trust = game.clients.libya;
+          trust.name = 'リビア信託統治';
+          trust.trusteeship = true;
+          trust.trustee = 'uk';
+          trust.sovereigntyRevoked = true;
+          const admin = game.nations.uk && !game.nations.uk.dissolved ? 'uk' : (game.nations.usa && !game.nations.usa.dissolved ? 'usa' : null);
+          if (admin) transferDependent('libya', admin, game);
+          ensureDynamicNationMeta(game, 'libya', 'リビア信託統治', { color: NEW_NATION_COLORS.libya, code: 'LBY' });
+          colonies++;
+        }
+      }
+    }
+    // エリトリアはエチオピアへ、ソマリアはイタリア信託統治として残す。
+    const eastAfricaClient = game.clients?.col_italy_eastafrica;
+    if (eastAfricaClient) {
+      if (eastAfricaClient.dissolved) reviveNation(game, 'col_italy_eastafrica');
+      if (game.nations.ethiopia?.dissolved) reviveNation(game, 'ethiopia');
+      if (regionHolder(game, regionById('italy_eritrea')) !== 'ethiopia') {
+        if (arcTransferRegion(game, 'italy_eritrea', 'ethiopia', 'エリトリアのエチオピア移管')) restored++;
+      }
+      const somaliaHolder = regionHolder(game, regionById('italy_somalia'));
+      if (somaliaHolder !== 'col_italy_eastafrica' && somaliaHolder !== 'italy') {
+        arcTransferRegion(game, 'italy_somalia', 'col_italy_eastafrica', 'ソマリアのイタリア信託統治復帰');
+      }
+      eastAfricaClient.stateIds = ['italy_somalia'];
+      eastAfricaClient.name = 'イタリア信託統治領ソマリア';
+      eastAfricaClient.trusteeship = true;
+      eastAfricaClient.trustee = 'italy';
+      eastAfricaClient.sovereigntyRetained = false;
+      if (game.nations.col_italy_eastafrica) {
+        game.nations.col_italy_eastafrica.dissolved = false;
+        ensureDynamicNationMeta(game, 'col_italy_eastafrica', 'イタリア信託統治領ソマリア', { color: NEW_NATION_COLORS.eritrea_somalia, code: 'SOM' });
+      }
+    } else if (game.nations.ethiopia) {
+      if (regionHolder(game, regionById('italy_eritrea')) !== 'ethiopia'
+        && arcTransferRegion(game, 'italy_eritrea', 'ethiopia', 'エリトリアのエチオピア移管')) restored++;
     }
     const split = arcPartitionGermany(game, notes);
     const changed = ended.changed + returned + restored + colonies + split.west + split.east + split.remainder;
-    game.postwarSettlement = { ...(game.postwarSettlement || {}), europe: { outcome: 'axis_defeat', ended: ended.ended, changed, returned, restored, colonies, germanySplit: { west: split.west, east: split.east } } };
-    notes.push(`枢軸敗戦の講和を適用。征服地${returned}州を返還、復活・再編${restored}州、イタリア植民地${colonies}件、ドイツを東西分割。`);
-    return { outcome: 'axis_defeat', ended: ended.ended, changed, returned, restored, colonies, split, summary: `枢軸敗戦を認定、${ended.ended}戦争を終結、${returned + restored}州を返還・再編、ドイツを東西分割、イタリア植民地${colonies}件を独立` };
+    const italySettlement = {
+      libyaTrusteeship: Boolean(game.clients?.libya?.trusteeship),
+      libyaIndependentAt: 1951,
+      somaliaTrusteeship: Boolean(game.clients?.col_italy_eastafrica?.trusteeship),
+      somaliaIndependentAt: 1960,
+      eritreaToEthiopia: regionHolder(game, regionById('italy_eritrea')) === 'ethiopia'
+    };
+    game.postwarSettlement = { ...(game.postwarSettlement || {}), europe: { outcome: 'axis_defeat', ended: ended.ended, changed, returned, restored, colonies, italySettlement, germanySplit: { west: split.west, east: split.east } } };
+    notes.push(`枢軸敗戦の講和を適用。征服地${returned}州を返還、復活・再編${restored}州、リビアは信託統治、ソマリアはイタリア信託、エリトリアはエチオピアへ、ドイツを東西分割。`);
+    return { outcome: 'axis_defeat', ended: ended.ended, changed, returned, restored, colonies, split, summary: `枢軸敗戦を認定、${ended.ended}戦争を終結、${returned + restored}州を返還・再編、ドイツを東西分割、リビア・ソマリアは信託統治、エリトリアはエチオピアへ` };
   }
 
   function arcSettlePacific(game, notes = []) {
@@ -3495,7 +3633,8 @@ const Orbis = (() => {
     }
     reviveNation(game, 'china');
     let taiwan = 0;
-    if (regionHolder(game, regionById('japan_empire_twn')) !== 'china' && arcTransferRegion(game, 'japan_empire_twn', 'china', '台湾の中国復帰')) taiwan = 1;
+    if (regionHolder(game, regionById('japan_empire_twn')) !== 'china'
+      && arcEnsureTaiwanChina(game, '台湾の中華民国復帰')) taiwan = 1;
     const taiwanClient = game.clients?.col_japan_taiwan;
     if (taiwanClient) {
       taiwanClient.dissolved = true;
@@ -3563,6 +3702,7 @@ const Orbis = (() => {
       }
       if (game.nations[nationId]) game.nations[nationId].stb = clamp(game.nations[nationId].stb + 6, 0, 100);
     }
+    if (nationId === 'china') arcEnsureTaiwanChina(game, '中国内戦後の台湾復帰', true);
     war.status = 'resolved';
     war.resolvedTurn = game.completedTurns;
     war.settlement = mode === 'autonomy' ? 'autonomy' : 'return';
@@ -3918,7 +4058,9 @@ const Orbis = (() => {
       war.halves = (war.halves || 0) + 1;
       const factionId = war.factionId || `${nationId}_rebels`;
       ensureFaction(game, factionId, nationId, war.label || '反乱軍');
-      const owned = window.ORBIS_STATES_DB.filter(r => !r.isSea && (game.territories[r.id] || r.country) === nationId);
+      if (nationId === 'china') arcEnsureTaiwanChina(game, '中国内戦中の台湾復帰', true);
+      const owned = window.ORBIS_STATES_DB.filter(r => !r.isSea && (game.territories[r.id] || r.country) === nationId
+        && !(nationId === 'china' && r.id === 'japan_empire_twn'));
       if (owned.length && war.halves % 3 === 0 && owned.length > 2) {
         const target = owned[war.halves % owned.length];
         game.territories[target.id] = factionId;
@@ -4253,6 +4395,7 @@ const Orbis = (() => {
       campaign.nations[nationId].stb = clamp(campaign.nations[nationId].stb + 8, 0, 100);
       campaign.establishedFacts = [...(campaign.establishedFacts || []), `${shortName(nationId)}内戦：支配州を政府へ返還して収束`].slice(-400);
     }
+    if (nationId === 'china') arcEnsureTaiwanChina(campaign, '中国内戦後の台湾復帰', true);
     war.status = 'resolved';
     war.resolvedTurn = campaign.completedTurns;
     war.settlement = mode === 'autonomy' ? 'autonomy' : 'return';
@@ -4421,6 +4564,7 @@ const Orbis = (() => {
     const war = campaign?.civilWars?.[nationId];
     if (!war || war.status !== 'active') return false;
     if (mode === 'amnesty') {
+      if (nationId === 'china') arcEnsureTaiwanChina(campaign, '中国内戦後の台湾復帰', true);
       war.status = 'resolved';
       for (const [rid, owner] of Object.entries(campaign.occupations || {})) {
         if (owner === nationId && campaign.territories[rid] === war.factionId) {
@@ -5606,7 +5750,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
 
   function mandateInfo(game) {
     const nation = game.nations[game.playerNationId];
-    const initial = SCENARIOS.era_1932.nations[game.playerNationId];
+    const initial = SCENARIOS.era_1932.nations[game.playerNationId]
+      || (game.nations.germany ? SCENARIOS.era_1932.nations.germany : null)
+      || { eco: nation.eco, mil: nation.mil, stb: nation.stb, tech: nation.tech };
     const definitions = {
       recovery: { name: '復興と憲政', conditions: [{ label: `経済 ${initial.eco + 8}以上`, met: nation.eco >= initial.eco + 8 }, { label: '安定度 60以上', met: nation.stb >= 60 }, { label: '財政余力 20以上', met: game.treasury >= 20 }, { label: '緊張度 70以下', met: game.tension <= 70 }] },
       diplomacy: { name: '協調と影響力', conditions: [{ label: '威信 60以上', met: game.prestige >= 60 }, { label: '国家間合意を通算2件締結', met: game.cumulative.treaties >= 2 }, { label: '緊張度 50以下', met: game.tension <= 50 }, { label: '安定度 45以上', met: nation.stb >= 45 }] },
@@ -5706,7 +5852,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       const addressed = reaction?.addressed || game.turnActions.some(action => actors[action.actorId]?.groupId === id);
       nation.groups[id] = clamp(approval + (reaction?.delta || 0) - (addressed || silentHalf ? 0 : 1), 0, 100);
     }
-    const groups = SCENARIOS.era_1932.nations[game.playerNationId].interestGroups;
+    const groups = (nationMeta(game.playerNationId, game) || SCENARIOS.era_1932.nations[game.playerNationId]).interestGroups;
     const totalInfluence = groups.reduce((sum, group) => sum + group.influence, 0);
     const support = groups.reduce((sum, group) => sum + nation.groups[group.id] * group.influence, 0) / totalInfluence;
     const discontent = groups.filter(group => nation.groups[group.id] < 30 && group.influence >= 15).length;
@@ -7752,7 +7898,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       throw new Error('この版以前のセーブとは形式が異なります。現行版で新しい歴史を始めてください。');
     }
     const raw = CORE()?.migrateSavePayload(copy(rawIn)) || rawIn;
-    if (!SCENARIOS.era_1932.nations[raw.playerNationId] || !RULES[raw.difficulty] || !['recovery', 'diplomacy', 'security'].includes(raw.mandate) || !allowedMaxTurns(raw.maxTurns)) throw new Error('セーブのキャンペーン設定が不正です。');
+    const savedPlayerKnown = Boolean(SCENARIOS.era_1932.nations[raw.playerNationId]
+      || (raw.playerNationId && raw.dynamicNations && typeof raw.dynamicNations === 'object' && Object.hasOwn(raw.dynamicNations, raw.playerNationId)));
+    if (!savedPlayerKnown || !RULES[raw.difficulty] || !['recovery', 'diplomacy', 'security'].includes(raw.mandate) || !allowedMaxTurns(raw.maxTurns)) throw new Error('セーブのキャンペーン設定が不正です。');
     const game = createCampaign(raw.playerNationId, raw.difficulty, raw.mandate, raw.maxTurns);
     game.id = requiredText(raw.id, 'キャンペーンID', 100);
     game.halfMonth = raw.halfMonth !== false;

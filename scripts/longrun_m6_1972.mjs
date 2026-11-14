@@ -88,7 +88,7 @@ async function loadGame(endpoint) {
   const html = await readFile(new URL('../orbis_simulator.html', import.meta.url), 'utf8');
   const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
   const preload = ['orbis_states.js', 'orbis_map_meta.js', 'orbis_region_labels.js'];
-  const afterInline = ['orbis_events.js', 'orbis_text.js', 'orbis_campaign_core.js', 'orbis_timeline_engine.js', 'orbis_turn_playback.js', 'orbis_game.js'];
+  const afterInline = ['orbis_events.js', 'orbis_text.js', 'orbis_campaign_core.js', 'orbis_timeline_engine.js', 'orbis_turn_playback.js', 'orbis_focus.js', 'orbis_game.js'];
   const { context, storage } = createContext(endpoint);
   for (const file of preload) vm.runInContext(await readFile(new URL(`../${file}`, import.meta.url), 'utf8'), context, { timeout: 8000 });
   for (const script of inlineScripts) if (script.trim()) vm.runInContext(script, context, { timeout: 8000 });
@@ -208,8 +208,14 @@ function postwarReport(snapshot, landRegions, startOwners, startSuzerain = {}) {
   const koreaClient = snapshot.clients?.col_japan_korea;
   const koreaHolder = snapshot.territories?.japan_empire_kor || 'japan';
   const taiwanHolder = snapshot.territories?.japan_empire_twn || 'japan';
-  const taiwanChinaSide = taiwanHolder === 'china' || String(taiwanHolder).startsWith('china_');
+  const taiwanRepublicOfChina = taiwanHolder === 'china';
+  const taiwanChinaSide = taiwanRepublicOfChina;
   const manchukuoLand = nationLandCount(snapshot, landRegions, 'manchukuo');
+  const independentNation = id => Boolean(snapshot.nations?.[id] && !snapshot.nations[id].dissolved && !snapshot.nations[id].suzerain);
+  const libyaHolder = snapshot.territories?.italy_libya || 'italy';
+  const somaliaHolder = snapshot.territories?.italy_somalia || 'italy';
+  const somalilandHolder = snapshot.territories?.uk_somaliland || 'uk';
+  const eritreaHolder = snapshot.territories?.italy_eritrea || 'italy';
   return {
     settlement: snapshot.postwarSettlement || null,
     germany: {
@@ -231,14 +237,20 @@ function postwarReport(snapshot, landRegions, startOwners, startSuzerain = {}) {
       koreaHolder,
       koreaIndependent: Boolean(koreaClient?.independent) || Boolean(snapshot.nations?.[koreaHolder] && !snapshot.nations[koreaHolder].suzerain),
       taiwanHolder,
+      taiwanRepublicOfChina,
       taiwanChinaSide,
       manchukuoDissolved: Boolean(snapshot.nations?.manchukuo?.dissolved),
       manchukuoLand
     },
     italy: {
-      libyaHolder: snapshot.territories?.italy_libya || 'italy',
-      eritreaHolder: snapshot.territories?.italy_eritrea || 'italy',
-      somaliaHolder: snapshot.territories?.italy_somalia || 'italy',
+      libyaHolder,
+      libyaIndependent: libyaHolder === 'libya' && independentNation('libya'),
+      eritreaHolder,
+      eritreaEthiopian: eritreaHolder === 'ethiopia',
+      somaliaHolder,
+      somaliaIndependent: independentNation(somaliaHolder) && somaliaHolder !== 'ethiopia',
+      somalilandHolder,
+      somaliaHoldsSomaliland: somaliaHolder === somalilandHolder && somaliaHolder !== 'uk',
       ethiopiaRestored: restoredHeld('ethiopia')
     },
     decolonization: decolonizationReport(snapshot, landRegions, startOwners, startSuzerain)
@@ -286,6 +298,7 @@ export async function runLongRun(options = {}) {
   const reportPath = options.reportPath || DEFAULT_REPORT;
   const requireArcs = options.requireArcs ?? totalHalves >= 120;
   const postwarChecks = Boolean(options.postwarChecks);
+  const m8aChecks = Boolean(options.m8aChecks);
   const checkpointHalves = new Set((Array.isArray(options.checkpointHalves) ? options.checkpointHalves : [])
     .map(value => Math.max(0, Math.min(totalHalves, Math.round(Number(value)))))
     .filter(Number.isFinite));
@@ -314,6 +327,7 @@ export async function runLongRun(options = {}) {
       let startIndependence = { count: 0, ids: [] };
       let startSuzerain = {};
       let lastArcReport = { fired: [], states: {}, total: 0 };
+      let taiwanViolationReported = false;
       const checkpoints = [];
       const ownerHistory = [];
       try {
@@ -342,6 +356,15 @@ export async function runLongRun(options = {}) {
           snapshot = api.snapshot();
           completed = snapshot.completedTurns;
           invariantFailures.push(...checkInvariants(snapshot, `${nationId}@${completed}`));
+
+          if (m8aChecks && completed >= 379 && !taiwanViolationReported) {
+            const pacificOutcome = snapshot.postwarSettlement?.pacific?.outcome;
+            const taiwanHolder = snapshot.territories?.japan_empire_twn || 'japan';
+            if (pacificOutcome !== 'axis_victory' && taiwanHolder !== 'china') {
+              failures.push(`${nationId}: 1947年以降の台湾保有者が china ではない (${taiwanHolder})`);
+              taiwanViolationReported = true;
+            }
+          }
 
           const current = ownerCounts(snapshot, landRegions, baseOwner);
           const currentTop = topOwners(current.counts, 3);
@@ -381,6 +404,7 @@ export async function runLongRun(options = {}) {
           previous = current;
 
           if (checkpointHalves.has(completed)) {
+            const checkpointPostwar = (m8aChecks || postwarChecks) ? postwarReport(snapshot, landRegions, startOwners, startSuzerain) : null;
             checkpoints.push({
               half: completed,
               date: dateLabel(Math.max(0, completed - 1)),
@@ -389,8 +413,17 @@ export async function runLongRun(options = {}) {
               territoryChanges: changedTerritoryCount(snapshot, landRegions, startOwners),
               activeWars: warStats(snapshot).activeWars,
               totalWars: warStats(snapshot).totalWars,
-              saveBytes: Buffer.byteLength(storage.get(SAVE_KEY) || '', 'utf8')
+              saveBytes: Buffer.byteLength(storage.get(SAVE_KEY) || '', 'utf8'),
+              postwar: checkpointPostwar
             });
+            if (m8aChecks && completed === 571 && checkpointPostwar && checkpointPostwar.settlement?.europe?.outcome !== 'axis_victory') {
+              if (!checkpointPostwar.italy.libyaIndependent) {
+                failures.push(`${nationId}: 1955年にリビアが独立していない (${checkpointPostwar.italy.libyaHolder})`);
+              }
+              if (checkpointPostwar.italy.somaliaHolder === 'ethiopia') {
+                failures.push(`${nationId}: 1955年にソマリアがエチオピア保有になっている`);
+              }
+            }
           }
 
           if (completed % 120 === 0 || index === totalHalves - 1) {
@@ -489,6 +522,14 @@ export async function runLongRun(options = {}) {
           const group = decolonization[key];
           if (!group?.independent) failures.push(`${nationId}: 脱植民地化 ${key} が独立国になっていない (${group?.holders?.join(',') || 'なし'})`);
           if (key === 'india_pakistan' && !(group?.pakistanLand > 0)) failures.push(`${nationId}: パキスタンが州を保有していない`);
+        }
+        if (m8aChecks && europeOutcome !== 'axis_victory') {
+          if (postwar.japan.taiwanHolder !== 'china') failures.push(`${nationId}: 1972年の台湾保有者が china ではない (${postwar.japan.taiwanHolder})`);
+          if (!postwar.italy.libyaIndependent) failures.push(`${nationId}: 1972年にリビアが独立していない (${postwar.italy.libyaHolder})`);
+          if (!postwar.italy.somaliaIndependent) failures.push(`${nationId}: 1972年にソマリアが独立していない (${postwar.italy.somaliaHolder})`);
+          if (!postwar.italy.somaliaHoldsSomaliland) failures.push(`${nationId}: 1972年にソマリアがソマリランドを保有していない (${postwar.italy.somalilandHolder})`);
+          if (!postwar.italy.eritreaEthiopian) failures.push(`${nationId}: 1972年にエリトリアがエチオピア保有ではない (${postwar.italy.eritreaHolder})`);
+          if (postwar.italy.somaliaHolder === 'ethiopia') failures.push(`${nationId}: ソマリアがエチオピア保有になっている`);
         }
       }
       log(`[${nationId}] ${completed}/${totalHalves} 半月 ${run.lastCompletedDate} 完了 平均 ${run.avgTurnMs}ms 最終セーブ ${run.finalSaveBytes} bytes 最大保有 ${run.peakOwner.nationId || '-'} ${run.peakOwner.landStates}州 戦争 ${run.totalWars}件 領土変更 ${run.territoryChanges}州 主要弧 ${run.worldArcs.length}件`);
