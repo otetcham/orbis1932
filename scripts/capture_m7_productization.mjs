@@ -73,7 +73,7 @@ await page.evaluate(() => {
 });
 
 const version = await page.textContent('#orbis-build-version');
-check('バージョン表示', version === 'v1.0.0-rc1', version);
+check('バージョン表示', version === 'v1.0.0-rc2', version);
 
 await page.evaluate(() => Orbis.openAbout());
 await page.waitForSelector('#modal-about[open]');
@@ -84,7 +84,7 @@ const about = await page.evaluate(() => ({
   brand: document.getElementById('about-brand')?.textContent,
   body: document.getElementById('modal-about')?.innerText || ''
 }));
-check('Aboutのバージョン', about.version === 'v1.0.0-rc1', about.version);
+check('Aboutのバージョン', about.version === 'v1.0.0-rc2', about.version);
 check('Aboutのタイトル', about.title === 'このソフトについて', about.title);
 check('Aboutの説明', about.body.includes('歴史シミュレーション') && about.body.includes('© 2026'));
 const chip = await page.evaluate(() => {

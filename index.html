@@ -6,8 +6,6 @@
   <meta name="theme-color" content="#eef4fb">
   <title>ORBIS//1932 — 一通の電報が、歴史を変える</title>
   <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap');
-
 * {
   box-sizing: border-box;
   margin: 0;
@@ -936,17 +934,17 @@ html, body {
 .focus-node.path-alt1 { border-left-color: #b45309; }
 .focus-node.path-alt2 { border-left-color: #7c3aed; }
 .focus-node.is-locked { opacity: 0.78; }
-.focus-node .focus-card-head { gap: 4px; align-items: center; }
-.focus-node .focus-card-head strong { font-size: 11px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.focus-node .focus-badge { font-size: 8px; padding: 0 5px; }
-.focus-node-meta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 8.5px; line-height: 1.25; color: #566d86; }
+.focus-node .focus-card-head { gap: 4px; align-items: flex-start; }
+.focus-node .focus-card-head strong { font-size: 11px; line-height: 1.25; overflow-wrap: anywhere; }
+.focus-node .focus-badge { font-size: 8px; padding: 0 5px; white-space: nowrap; }
+.focus-node-meta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 8.5px; line-height: 1.25; color: #566d86; overflow-wrap: anywhere; }
 .focus-exclusive-badge { padding: 0 4px; border-radius: 999px; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; font-size: 8px; font-weight: 700; }
-.focus-node .focus-desc { font-size: 9px; line-height: 1.32; color: #3d5570; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.focus-node .focus-lock { font-size: 8.5px; line-height: 1.25; color: #8a4b16; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.focus-node .focus-effects { margin: 0; padding: 2px 4px; font-size: 8px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.focus-node-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.focus-node .focus-desc { font-size: 9px; line-height: 1.32; color: #3d5570; overflow-wrap: anywhere; }
+.focus-node .focus-lock { font-size: 8.5px; line-height: 1.25; color: #8a4b16; overflow-wrap: anywhere; }
+.focus-node .focus-effects { margin: 0; padding: 2px 4px; font-size: 8px; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+.focus-node-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 4px; flex-wrap: wrap; }
 .focus-node-foot .focus-meta { font-size: 8px; }
-.focus-node-foot .btn { padding: 2px 6px; font-size: 8.5px; line-height: 1.2; }
+.focus-node-foot .btn { padding: 2px 6px; font-size: 8.5px; line-height: 1.2; white-space: normal; text-align: center; }
 .focus-node-done { font-size: 8px; color: #1f7a4d; }
 .research-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 12px; }
 .research-branch { border: 1px solid #d3dfec; border-radius: 9px; background: #f8fafd; padding: 11px 12px; }
@@ -2384,6 +2382,359 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   .virtual-window .composer-foot { margin-top: 5px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* ==========================================================================
+   M9 DESIGN SYSTEM — one bar, one dock, one nav
+   ========================================================================== */
+:root {
+  --ui-bg: #eef2f6;
+  --ui-surface: #ffffff;
+  --ui-border: #d7e0ea;
+  --ui-text: #163047;
+  --ui-muted: #5b6f86;
+  --ui-accent: #1f4e86;
+  --ui-accent-hover: #173a64;
+  --ui-ok: #1f7a4d;
+  --ui-warn: #a15c12;
+  --ui-danger: #b42318;
+  --font-sans: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
+  --bg-void: var(--ui-bg);
+  --bg-panel-solid: var(--ui-surface);
+  --text-primary: var(--ui-text);
+  --text-secondary: #35506b;
+  --text-muted: var(--ui-muted);
+  --blue-primary: var(--ui-accent);
+  --cyan-bright: var(--ui-accent);
+  --border-panel: var(--ui-border);
+  --border-subtle: #e4eaf1;
+  --left-w: 360px;
+  --right-w: 360px;
+}
+html, body { background: var(--ui-bg); color: var(--ui-text); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; }
+body { user-select: text; background: var(--ui-bg); }
+.os-shell { display: flex; flex-direction: column; height: 100dvh; background: var(--ui-bg); }
+.os-shell .btn, .game-dialog .btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+}
+.os-shell .btn:hover, .game-dialog .btn:hover { background: #f5f8fb; border-color: #c4d2df; }
+.os-shell .btn-primary, .game-dialog .btn-primary,
+.os-shell .btn-primary:hover, .game-dialog .btn-primary:hover {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: #ffffff;
+}
+.os-shell .btn-primary:hover, .game-dialog .btn-primary:hover { background: var(--ui-accent-hover); border-color: var(--ui-accent-hover); }
+.os-shell .btn-ghost, .game-dialog .btn-ghost { background: transparent; border-color: var(--ui-border); color: var(--ui-text); }
+.os-shell .btn-cyan { background: var(--ui-surface); border-color: var(--ui-border); color: var(--ui-accent); }
+.os-shell .form-input, .os-shell .form-select, .os-shell .form-textarea,
+.game-dialog .form-input, .game-dialog .form-select, .game-dialog .form-textarea {
+  width: 100%;
+  min-height: 36px;
+  height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+.os-shell textarea.form-input, .game-dialog textarea.form-input { height: auto; min-height: 96px; line-height: 1.6; }
+.os-shell .form-input:focus, .os-shell .form-select:focus, .os-shell .form-textarea:focus,
+.game-dialog .form-input:focus, .game-dialog .form-select:focus { border-color: var(--ui-accent); outline: none; box-shadow: 0 0 0 2px rgba(31, 78, 134, 0.12); }
+.request-status { padding: 8px 16px; border-bottom: 1px solid var(--ui-border); background: #eaf1f8; color: var(--ui-accent); font-size: 12px; }
+.game-error { padding: 8px 16px; border-bottom: 1px solid #e8c4c1; background: #fdf1f0; color: var(--ui-danger); font-size: 12px; }
+
+/* Top bar: 52px, short name, date, four metrics, bell/settings/end turn */
+.orbis-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  min-height: 52px;
+  padding: 0 14px;
+  gap: 16px;
+  background: var(--ui-surface);
+  border-bottom: 1px solid var(--ui-border);
+  z-index: 70;
+  box-shadow: none;
+}
+.topbar-left { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1; }
+.topbar-right { display: flex; align-items: center; gap: 8px; flex: none; }
+.orbis-topbar .nation-plaque { display: flex; align-items: center; gap: 8px; max-width: 220px; padding: 0; background: none; border: 0; }
+.orbis-topbar .nation-plaque:hover { background: none; }
+.topbar-flag .flag-badge { width: 24px; height: 16px; border-radius: 2px; border-color: var(--ui-border); box-shadow: none; }
+.topbar-nation { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+#topbar-player-name { font-size: 14px; font-weight: 700; color: var(--ui-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+.topbar-suzerain { font-size: 9.5px; line-height: 1.2; color: var(--ui-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-suzerain .flag-badge { width: 13px; height: 9px; border-radius: 1px; }
+.header-brand { display: none; }
+.topbar-date { display: flex; align-items: baseline; gap: 6px; padding: 4px 0; border: 0; border-radius: 6px; background: none; cursor: pointer; white-space: nowrap; }
+.topbar-date:hover { background: #f5f8fb; }
+#hud-date { font-size: 14px; font-weight: 700; color: var(--ui-text); }
+#hud-turn { padding: 1px 6px; border-radius: 6px; background: #f0f4f8; color: var(--ui-muted); font-size: 12px; font-weight: 600; }
+.topbar-gauges { display: flex; align-items: center; gap: 16px; min-width: 0; overflow: hidden; }
+.gauge-pill { display: inline-flex; align-items: center; gap: 5px; height: auto; padding: 0; border: 0; border-radius: 0; background: none; flex-shrink: 0; }
+.gauge-icon { display: inline-flex; color: var(--ui-muted); }
+.gauge-icon svg { width: 14px; height: 14px; }
+.gauge-label { font-size: 11px; font-weight: 600; color: var(--ui-muted); letter-spacing: 0; }
+.gauge-pill strong { font: 600 13px var(--font-mono); color: var(--ui-text); letter-spacing: 0; }
+.icon-button { position: relative; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--ui-muted); cursor: pointer; }
+.icon-button:hover { background: #f2f6fa; color: var(--ui-text); }
+.icon-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.notification-badge { position: absolute; top: 1px; right: 1px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; border: 2px solid var(--ui-surface); background: var(--ui-danger); color: #ffffff; font: 600 10px/13px var(--font-mono); text-align: center; }
+.topbar-end-turn { height: 36px; min-height: 36px; padding: 0 16px; font-size: 13px; font-weight: 700; }
+
+/* Map stage and one compact tool cluster */
+.os-workspace.desktop-workspace { position: relative; flex: 1; min-height: 0; width: 100%; overflow: hidden; background: var(--ui-bg); }
+.desktop-workspace > .os-map-stage { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: #dfe9f3; }
+.desktop-workspace .svg-viewport { width: 100%; height: 100%; min-height: 0; touch-action: none; }
+.map-toolbar { position: absolute; top: 10px; right: 12px; z-index: 20; display: flex; align-items: center; gap: 3px; padding: 4px; border: 1px solid var(--ui-border); border-radius: 10px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 4px 14px rgba(22, 48, 71, 0.10); transition: right 0.18s ease; }
+body.dock-open .map-toolbar { right: 372px; }
+.map-tool-group { display: flex; align-items: center; gap: 2px; }
+.map-tool { display: inline-flex; align-items: center; justify-content: center; height: 30px; min-width: 32px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent; color: var(--ui-muted); font-family: var(--font-sans); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.map-tool:hover { background: #f2f6fa; color: var(--ui-text); }
+.map-tool.active { background: #eaf1f8; color: var(--ui-accent); }
+.map-tool-icon { width: 30px; min-width: 30px; padding: 0; font-size: 17px; }
+.map-tool-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.map-tool-divider { width: 1px; height: 18px; background: var(--ui-border); margin: 0 2px; }
+body.in-lobby .map-toolbar { display: none; }
+
+/* Right dock: exactly one panel at a time */
+#shell-dock { position: absolute; top: 10px; right: 10px; bottom: 74px; width: 360px; z-index: 40; pointer-events: none; }
+#shell-dock .dock-panel {
+  position: static !important;
+  display: flex;
+  flex-direction: column;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  box-shadow: 0 8px 24px rgba(22, 48, 71, 0.10);
+  pointer-events: auto;
+}
+#shell-dock .dock-panel::before, #window-state::before, #window-chat::before, #window-history::before, #window-actions::before, #window-warlords::before { display: none !important; }
+#shell-dock .window-titlebar { height: 48px; min-height: 48px; padding: 0 6px 0 16px; background: var(--ui-surface); border-bottom: 1px solid var(--ui-border); cursor: default; }
+#shell-dock .window-title { font-size: 16px; font-weight: 700; color: var(--ui-text); }
+#shell-dock .window-controls button { width: 36px; min-height: 36px; font-size: 20px; color: var(--ui-muted); }
+#shell-dock .window-controls button:hover { background: #f2f6fa; }
+#shell-dock .window-body { flex: 1; min-height: 0; padding: 0; overflow-y: auto; }
+#shell-dock .window-resize-handle { display: none !important; }
+#window-state-body { display: flex; flex-direction: column; overflow: hidden; }
+#shell-dock .left-tabs-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 6px 8px; background: var(--ui-surface); border-bottom: 1px solid var(--ui-border); flex: none; }
+.left-tab-btn { min-height: 32px; padding: 4px 6px; border: 0; border-radius: 7px; background: transparent; color: var(--ui-muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+.left-tab-btn:hover { background: #f2f6fa; color: var(--ui-text); }
+.left-tab-btn.active { background: #eaf1f8; color: var(--ui-accent); box-shadow: inset 0 -2px 0 var(--ui-accent); }
+#shell-dock .left-tab-pane { padding: 16px; gap: 16px; overflow-y: auto; }
+#shell-dock .actions-content { padding: 16px; height: auto; overflow: visible; gap: 16px; }
+#shell-dock .actions-content form { gap: 8px; }
+#shell-dock .actions-content textarea { min-height: 88px; }
+#shell-dock .actions-content h2 { font-size: 16px; font-weight: 700; }
+#shell-dock .actions-buttons .btn { min-height: 38px; }
+#shell-dock .order-queue-card, #shell-dock .compact-disclosure, #shell-dock .ig-card, #shell-dock .dep-card, #shell-dock .review-item {
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 12px;
+}
+#shell-dock .order-queue-card p, #shell-dock .compact-disclosure, #shell-dock .ig-card { font-size: 12px; line-height: 1.65; }
+#shell-dock .nation-overview { font-size: 12px; line-height: 1.65; color: var(--ui-text); }
+#shell-dock .mini-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#shell-dock .mini-metrics > div { padding: 10px 12px; border-radius: 10px; background: #f8fafc; border-color: var(--ui-border); }
+#shell-dock .mini-metrics strong { font-size: 17px; }
+#shell-dock .ig-card { gap: 7px; }
+#shell-dock .ig-btn-action { min-height: 32px; border-color: var(--ui-border); color: var(--ui-accent); }
+#shell-dock .dock-section { display: flex; flex-direction: column; gap: 8px; }
+.dock-section-title { font-size: 13px; font-weight: 700; color: var(--ui-muted); letter-spacing: 0.02em; }
+#shell-dock .nation-row { min-height: 42px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: 9px; background: var(--ui-surface); }
+#shell-dock .nation-row:hover { background: #f5f8fb; }
+#shell-dock .nation-row .nation-row-name { font-size: 13px; }
+#shell-dock .nation-row .nation-row-name small { font-size: 11px; }
+
+/* Bottom nav: five tabs, one system */
+.shell-nav { position: absolute; left: 50%; bottom: 12px; z-index: 60; display: flex; align-items: center; gap: 2px; padding: 5px; border: 1px solid var(--ui-border); border-radius: 14px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 10px 28px rgba(22, 48, 71, 0.14); transform: translateX(-50%); }
+.nav-tab { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: var(--ui-muted); font-family: var(--font-sans); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.nav-tab:hover { background: #f2f6fa; color: var(--ui-text); }
+.nav-tab.active { background: #eaf1f8; color: var(--ui-accent); box-shadow: inset 0 -2px 0 var(--ui-accent); }
+.nav-tab svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Map labels: smaller, thin white outline, no city names until deep zoom */
+#orbis-world-svg .map-label { font-family: var(--font-sans); font-weight: 600; fill: #1c3550; stroke: rgba(255, 255, 255, 0.92); stroke-linecap: round; stroke-linejoin: round; paint-order: stroke fill; letter-spacing: 0.01em; }
+#orbis-world-svg .map-label-country { font-weight: 600; letter-spacing: 0.02em; }
+#orbis-world-svg .map-label-city { font-weight: 500; fill: #284863 !important; stroke: rgba(255, 255, 255, 0.9) !important; letter-spacing: 0; }
+#orbis-world-svg .map-label.lobby-highlighted-label { font-weight: 700 !important; fill: #0d3b5c !important; stroke: rgba(255, 255, 255, 0.95) !important; stroke-width: 2.2px !important; }
+
+/* Notifications and history */
+.notification-list { display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 0; }
+.notification-group { padding: 12px; border: 1px solid var(--ui-border); border-radius: 10px; background: #f8fafc; }
+.notification-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.notification-head h2 { font-size: 13px; font-weight: 700; color: var(--ui-text); }
+.notification-head span { font: 600 11px var(--font-mono); color: var(--ui-muted); }
+.notification-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 0; border: 0; border-top: 1px solid var(--ui-border); background: none; text-align: left; cursor: pointer; }
+.notification-row:first-of-type { border-top: 0; }
+.notification-row:hover .notification-row-main strong { color: var(--ui-accent); }
+.notification-row-main { flex: 1; min-width: 0; }
+.notification-row-main strong { display: block; font-size: 12px; font-weight: 600; color: var(--ui-text); }
+.notification-row-main small { display: block; margin-top: 2px; font-size: 11px; color: var(--ui-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notification-count { flex: none; min-width: 20px; padding: 2px 6px; border-radius: 10px; background: var(--ui-accent); color: #ffffff; font: 600 10px/14px var(--font-mono); text-align: center; }
+.notification-empty { font-size: 12px; color: var(--ui-muted); padding: 2px 0; }
+#shell-dock .history-scroll { flex: 0 1 auto; overflow: visible; padding: 14px 16px 16px; }
+#shell-dock .history-footer { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--ui-border); background: var(--ui-surface); }
+#shell-dock .history-footer .btn { min-height: 32px; padding: 0 10px; font-size: 11px; }
+#shell-dock .turn-briefing { padding: 14px; border: 1px solid var(--ui-border); border-radius: 10px; background: #f8fafc; margin-bottom: 14px; }
+#shell-dock .turn-briefing h1 { font-size: 18px; line-height: 1.5; margin: 6px 0; }
+#shell-dock .turn-briefing p { font-size: 12px; line-height: 1.75; }
+#shell-dock .dispatch-entry { border: 1px solid var(--ui-border); border-radius: 10px; padding: 0; margin: 0 0 8px; background: var(--ui-surface); }
+#shell-dock .dispatch-entry > summary { padding: 10px 12px; }
+#shell-dock .dispatch-entry h2 { font-size: 13px; }
+#shell-dock .dispatch-content { padding: 10px 12px; }
+
+/* Diplomacy inside the dock */
+#shell-dock #window-chat .window-body { padding: 0; overflow: hidden; }
+#shell-dock .messenger-list-heading { padding: 14px 16px 8px; }
+#shell-dock .messenger-list-heading h1 { font-size: 18px; font-weight: 700; }
+#shell-dock .messenger-search { margin: 0 14px 10px; padding: 8px 10px; border-radius: 8px; background: #f5f8fb; }
+#shell-dock .thread-filters { padding: 0 14px 8px; }
+#shell-dock .thread-filters button { min-height: 28px; padding: 4px 10px; border-radius: 8px; }
+#shell-dock .thread-filters button.active { background: #eaf1f8; color: var(--ui-accent); }
+#shell-dock .thread-item { min-height: 66px; padding: 10px 8px; }
+#shell-dock .thread-copy strong { font-size: 12px; }
+#shell-dock .thread-copy small { font-size: 11px; }
+#shell-dock .contact-avatar { width: 36px; height: 36px; border-radius: 9px; }
+#shell-dock .inbox-footer { padding: 8px 16px; border-top: 1px solid var(--ui-border); }
+#shell-dock .conversation-toolbar { min-height: 54px; padding: 4px 6px; background: #f8fafc; }
+#shell-dock .conversation-toolbar .thread-header strong { font-size: 13px; }
+#shell-dock .chat-stream-box { padding: 14px 12px; gap: 10px; }
+#shell-dock .telegram-body { font-size: 12px; line-height: 1.75; border-radius: 4px 12px 12px 12px; }
+#shell-dock .telegram.player .telegram-body { border-radius: 12px 4px 12px 12px; background: #eef3f8; }
+#shell-dock .message-form { padding: 10px 12px; background: #f8fafc; border-top: 1px solid var(--ui-border); }
+#shell-dock .chat-input { min-height: 52px; border-radius: 8px; font-size: 12px; }
+#shell-dock #btn-send-command { background: var(--ui-accent); border-color: var(--ui-accent); color: #ffffff; min-height: 34px; height: 34px; font-size: 11px; }
+#shell-dock #btn-send-command:hover { background: var(--ui-accent-hover); }
+
+/* War and plan panels */
+#shell-dock .war-panel-body, #shell-dock .plan-panel-body, #shell-dock .province-panel-body, #shell-dock #window-warlords-body { padding: 16px; overflow-y: auto; }
+#shell-dock .war-panel-body h3, #shell-dock .plan-panel-body h3, #shell-dock #window-warlords-body h3 { font-size: 15px; font-weight: 700; color: var(--ui-text); margin-bottom: 8px; }
+#shell-dock .war-panel-body .review-item { margin-bottom: 8px; }
+#shell-dock .war-panel-body .form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+#shell-dock .war-panel-body .form-row label { flex: 1 1 150px; }
+#shell-dock .war-panel-body .formation-row { margin-bottom: 8px; }
+#shell-dock .war-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+#shell-dock .war-actions .btn { min-height: 32px; font-size: 11px; }
+.plan-card { padding: 14px; border: 1px solid var(--ui-border); border-radius: 12px; background: #f8fafc; margin-bottom: 16px; }
+.plan-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.plan-card-head h2 { margin-top: 2px; font-size: 18px; font-weight: 700; color: var(--ui-text); }
+.plan-card-head .btn { min-height: 34px; font-size: 11px; flex: none; }
+#window-plan .plan-metrics { grid-template-columns: 1fr 1fr; gap: 8px; }
+#window-plan .focus-stat { padding: 10px; border-color: var(--ui-border); border-radius: 9px; background: var(--ui-surface); }
+#window-plan .focus-stat strong { font-size: 14px; }
+#window-plan .research-grid { grid-template-columns: 1fr; gap: 10px; }
+#window-plan .research-branch { padding: 10px; border-color: var(--ui-border); border-radius: 9px; background: #f8fafc; }
+#window-plan .research-item { padding: 10px; border-color: var(--ui-border); border-radius: 9px; background: var(--ui-surface); }
+#window-plan .focus-effects { font-size: 11px; line-height: 1.6; }
+
+/* Province inspector uses the same dock, never a second floating card */
+#shell-dock .province-panel-body { padding: 0; overflow: hidden; }
+#shell-dock .state-inspector-card { position: static; display: none; width: 100%; max-width: none; height: 100%; border: 0; border-radius: 0; background: var(--ui-surface); box-shadow: none; overflow: hidden; }
+#shell-dock .state-inspector-card.open { display: flex; }
+#shell-dock .insp-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 16px; background: var(--ui-surface); border-bottom: 1px solid var(--ui-border); }
+#shell-dock .insp-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; }
+#shell-dock .insp-title-row strong { font-size: 16px; font-weight: 700; color: var(--ui-text); }
+#shell-dock .insp-head .badge { display: inline-flex; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 600; }
+#shell-dock .insp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+#shell-dock .insp-actions-row { display: flex; flex-wrap: wrap; gap: 6px; }
+#shell-dock .insp-actions-row .btn { min-height: 34px; padding: 0 10px; font-size: 11px; }
+#shell-dock .insp-info-line { display: flex; gap: 8px; font-size: 12px; line-height: 1.6; }
+#shell-dock .insp-info-label { flex: 0 0 72px; color: var(--ui-muted); }
+#shell-dock .insp-owner-detail, #shell-dock .insp-region-detail { display: flex; flex-direction: column; gap: 5px; padding: 12px; border: 1px solid var(--ui-border); border-radius: 10px; background: #f8fafc; }
+#shell-dock .insp-status-note, #shell-dock .insp-admin-note { padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 9px; background: #f8fafc; font-size: 11.5px; }
+#shell-dock .formation-card { border-color: var(--ui-border); background: var(--ui-surface); }
+
+/* Single modal: while open, no dock/nav/tool chrome remains visible */
+body.dialog-open #shell-dock, body.dialog-open .shell-nav, body.dialog-open .map-toolbar { visibility: hidden; pointer-events: none; }
+.game-dialog { border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface); color: var(--ui-text); box-shadow: 0 24px 80px rgba(22, 48, 71, 0.24); }
+.game-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+.game-dialog:not([open]) { display: none !important; }
+.game-dialog > .modal-window { display: flex; flex-direction: column; min-height: 0; max-height: 88dvh; overflow: hidden; }
+.game-dialog > .modal-window > .modal-body, .game-dialog > .modal-body { flex: 1; min-height: 0; overflow-y: auto; }
+.game-dialog::backdrop { background: rgba(22, 48, 71, 0.30); }
+.game-dialog .modal-head { padding: 14px 20px; background: var(--ui-surface); border-bottom: 1px solid var(--ui-border); }
+.game-dialog .modal-head strong { font-size: 18px; font-weight: 700; color: var(--ui-text); }
+.game-dialog .modal-body { padding: 18px 20px; font-size: 14px; line-height: 1.6; color: var(--ui-text); }
+.game-dialog .modal-body p { color: #35506b; }
+.game-dialog .modal-body h3 { font-size: 16px; font-weight: 700; }
+.game-dialog .modal-foot { padding: 12px 20px; border-top: 1px solid var(--ui-border); background: #f8fafc; flex: none; }
+.game-dialog .btn:focus-visible, #shell-dock .window-controls button:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(31, 78, 134, 0.42); }
+#modal-ai-settings { width: min(640px, calc(100vw - 28px)); }
+.settings-body { gap: 12px; }
+.settings-section-label { margin-top: 8px; font: 600 11px var(--font-mono); letter-spacing: 0.08em; color: var(--ui-muted); }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ui-border); }
+.settings-row label { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: 13px; font-weight: 600; color: var(--ui-text); }
+.settings-row label small { font-size: 11px; font-weight: 500; color: var(--ui-muted); }
+.settings-row .form-select { width: min(180px, 45%); }
+.settings-action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.settings-action { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-surface); color: var(--ui-text); font-family: var(--font-sans); font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.settings-action:hover { background: #f5f8fb; }
+.settings-action small { font-size: 11px; font-weight: 500; color: var(--ui-muted); }
+.settings-key-note { padding: 9px 11px; border-left: 3px solid var(--ui-accent); background: #f5f8fb; color: #35506b; font-size: 11px; line-height: 1.6; }
+.settings-feedback { padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: #f8fafc; color: #35506b; font-size: 12px; }
+.settings-feedback.error { border-color: #e3b6b8; color: var(--ui-danger); }
+.settings-feedback.success { border-color: #cfe7da; color: var(--ui-ok); }
+
+/* Dialog-content readability */
+.game-dialog .credits-meta { grid-template-columns: 80px 1fr; font-size: 12px; }
+.game-dialog .credits-item { border-color: var(--ui-border); border-radius: 9px; background: #f8fafc; }
+.game-dialog .review-item, .game-dialog .pledge-card, .game-dialog .peace-demand, .game-dialog .economy-card { border-color: var(--ui-border); border-radius: 9px; background: #f8fafc; }
+.game-dialog .peace-score { border-color: var(--ui-border); border-radius: 9px; background: #f2f6fa; }
+.game-dialog .peace-score strong { font-size: 24px; color: var(--ui-text); }
+.game-dialog .peace-demand.selected { border-color: var(--ui-ok); background: #f1faf5; }
+.game-dialog .peace-cost { background: #eaf1f8; color: var(--ui-accent); }
+.game-dialog .help-content { font-size: 13px; line-height: 1.8; }
+
+/* Lobby stays a separate screen and hides the campaign chrome */
+body.in-lobby .orbis-topbar, body.in-lobby .shell-nav, body.in-lobby #shell-dock, body.in-lobby .map-toolbar { display: none !important; }
+body.in-lobby .game-toast { display: none; }
+
+/* Small screens: keep one panel and one nav without overflow */
+@media (max-width: 1200px) {
+  .topbar-left { gap: 12px; }
+  .topbar-gauges { gap: 10px; }
+  .nav-tab { padding: 0 10px; }
+}
+@media (max-width: 900px) {
+  #shell-dock { left: 10px; right: 10px; width: auto; bottom: 70px; }
+  body.dock-open .map-toolbar { right: 12px; }
+  .topbar-gauges { display: none; }
+  .shell-nav { max-width: calc(100% - 20px); }
+  .nav-tab { flex: 1; padding: 0 6px; }
+}
+@media (min-width: 1600px) {
+  #shell-dock { width: 420px; }
+  body.dock-open .map-toolbar { right: 432px; }
+}
+@media (max-width: 640px) {
+  .orbis-topbar { padding: 0 10px; }
+  #topbar-player-name { max-width: 120px; }
+  .topbar-date { display: none; }
+  .nav-tab span { display: none; }
+  .nav-tab { flex: 1; }
+  .map-toolbar { left: 8px; right: 8px; top: 8px; justify-content: center; }
+  body.dock-open .map-toolbar { left: 8px; right: 8px; }
+}
 </style>
   <script src="orbis_states.js?v=1932.17" defer onerror="window.__ORBIS_STATES_FAILED=true"></script>
   <script src="orbis_map_meta.js?v=1932.17" defer></script>
@@ -2454,150 +2805,79 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   </div>
 
   <!-- ========================================================================
-       2. MAIN APPLICATION SHELL (Orbis Clean Modern Design)
+       2. MAIN APPLICATION SHELL (one bar, one dock, one nav)
        ======================================================================== -->
   <div class="os-shell">
 
     <header class="orbis-topbar">
       <div class="topbar-left">
-        <button class="nation-plaque" id="btn-open-lobby" title="キャンペーンメニュー">
-          <span id="topbar-player-flag"></span>
-          <div>
-            <div class="topbar-suzerain" id="topbar-player-suzerain" hidden>
+        <button class="nation-plaque" id="btn-open-lobby" title="国家情報">
+          <span id="topbar-player-flag" class="topbar-flag"></span>
+          <span class="topbar-nation">
+            <span class="topbar-suzerain" id="topbar-player-suzerain" hidden>
               <span id="topbar-suzerain-flag"></span>
               <span id="topbar-suzerain-label"></span>
-            </div>
-            <div style="display:flex; align-items:center; gap:6px;">
-              <strong id="topbar-player-name" style="font-size:13.5px; color:var(--text-primary);">大日本帝国</strong>
-              <span class="header-brand">ORBIS</span>
-            </div>
-            <div id="topbar-player-leader" class="sr-only">犬養毅 内閣総理大臣</div>
-          </div>
+            </span>
+            <strong id="topbar-player-name">大日本帝国</strong>
+            <span id="topbar-player-leader" class="sr-only">犬養毅 内閣総理大臣</span>
+          </span>
+        </button>
+        <button type="button" class="topbar-date" id="btn-open-history" title="履歴と直前の半月の取消">
+          <span class="clock-date" id="hud-date">1932年3月</span>
+          <span id="hud-turn">前半</span>
         </button>
         <div class="topbar-gauges" aria-label="国家ステータス">
-          <div class="gauge-pill" title="軍事力 — 上限なしで伸びる戦力指数"><span class="gauge-icon" style="color:#c23b3b" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.8 13 3.6v4.2c0 3.1-2.1 5.4-5 6.4-2.9-1-5-3.3-5-6.4V3.6Z"/></svg></span><span class="gauge-label">軍事</span><strong id="hud-mil">84</strong></div>
-          <div class="gauge-pill" title="経済力 — 上限なしで伸びる産業指数"><span class="gauge-icon" style="color:#a0762d" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.8 12.2 6 8l2.6 2.6L14 4.6M10 4.6h4v4"/></svg></span><span class="gauge-label">経済</span><strong id="hud-eco">70</strong></div>
-          <div class="gauge-pill" title="国内安定"><span class="gauge-icon" style="color:#1f7a4d" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 2 14 5H2ZM2.6 5v8M5.5 5v8M8 5v8M10.5 5v8M13.4 5v8M1.4 13h13.2"/></svg></span><span class="gauge-label">安定</span><strong id="hud-stb">64%</strong></div>
-          <div class="gauge-pill" title="国際緊張"><span class="gauge-icon" style="color:#1f7a4d" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.5 8h3l1.8-4.6L9.7 12.6 11.5 8h3"/></svg></span><span class="gauge-label">緊張</span><strong id="hud-tension">42%</strong></div>
+          <div class="gauge-pill" title="軍事力 — 上限なしで伸びる戦力指数"><span class="gauge-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.8 13 3.6v4.2c0 3.1-2.1 5.4-5 6.4-2.9-1-5-3.3-5-6.4V3.6Z"/></svg></span><span class="gauge-label">軍事</span><strong id="hud-mil">84</strong></div>
+          <div class="gauge-pill" title="経済力 — 上限なしで伸びる産業指数"><span class="gauge-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.8 12.2 6 8l2.6 2.6L14 4.6M10 4.6h4v4"/></svg></span><span class="gauge-label">経済</span><strong id="hud-eco">70</strong></div>
+          <div class="gauge-pill" title="国内安定"><span class="gauge-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 2 14 5H2ZM2.6 5v8M5.5 5v8M8 5v8M10.5 5v8M13.4 5v8M1.4 13h13.2"/></svg></span><span class="gauge-label">安定</span><strong id="hud-stb">64%</strong></div>
+          <div class="gauge-pill" title="国際緊張"><span class="gauge-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.5 8h3l1.8-4.6L9.7 12.6 11.5 8h3"/></svg></span><span class="gauge-label">緊張</span><strong id="hud-tension">42%</strong></div>
         </div>
       </div>
-
-      <div class="header-date"><span class="clock-date" id="hud-date">1932年3月</span><span id="hud-turn">第 1 半月</span><button class="btn btn-ghost header-undo" id="btn-undo-turn" data-undo-turn title="直前の半月を取り消す" hidden>取消</button></div>
       <div class="topbar-right">
-        <button class="btn btn-ghost" id="btn-open-menu" data-panel-open="menu" aria-controls="window-menu" aria-expanded="false" title="メニュー">設定</button>
-        <button class="btn btn-primary" id="btn-advance-month" title="今月の交渉を確認して、AIによる月次裁定へ">ターンを終える <span aria-hidden="true">→</span></button>
+        <button type="button" class="icon-button topbar-bell" id="btn-open-notifications" aria-label="通知" title="通知">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>
+          <span class="notification-badge" id="notification-badge" hidden>0</span>
+        </button>
+        <button type="button" class="icon-button" id="btn-open-menu" data-open-settings aria-label="設定" title="設定">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>
+        </button>
+        <button class="btn btn-primary topbar-end-turn" id="btn-advance-month" title="今月の交渉を確認して、月次裁定へ">ターンを終える</button>
       </div>
     </header>
     <div class="request-status" id="request-status" role="status" aria-live="polite" hidden></div>
     <div class="game-error" id="game-error" role="alert" hidden></div>
 
     <div class="os-workspace desktop-workspace" id="game-workspace">
-
-      <!-- LEFT PANEL: 3 Streamlined Tabs (Domestic, World Nations, Flashpoints) -->
-      <aside class="virtual-window orbis-left-panel" id="window-state" role="dialog" aria-modal="false" aria-labelledby="window-state-title" data-window="state" hidden>
-        <div class="window-titlebar" data-window-drag="state" tabindex="0" title="ドラッグで移動 · Alt＋矢印キーでも移動">
-          <span class="window-title" id="window-state-title">内政・国家</span>
-          <div class="window-controls"><button data-window-minimize="state" aria-label="国家と勢力を折りたたむ" aria-controls="window-state-body" aria-expanded="true">−</button><button data-window-close="state" aria-label="国家と勢力を閉じる">×</button></div>
-        </div>
-        <div class="window-body" id="window-state-body">
-        <div class="left-tabs-nav">
-          <button class="left-tab-btn active" data-left-tab="domestic">国内・目標</button>
-          <button class="left-tab-btn" data-left-tab="nations">各国との関係</button>
-          <button class="left-tab-btn" data-left-tab="events">約束・条約</button>
-        </div>
-
-        <!-- Tab 1: Domestic Situation & 4 Interest Groups -->
-        <div class="left-tab-pane active" id="left-tab-domestic">
-          <div id="domestic-overview-box"></div>
-          <div>
-            <div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:6px; letter-spacing:0.04em;">
-              国内利益集団 · 支持と影響力
-            </div>
-            <div id="interest-groups-list" style="display:flex; flex-direction:column; gap:8px;"></div>
-          </div>
-          <div>
-            <div style="font-size:11px; font-weight:700; color:var(--text-muted); margin:12px 0 6px; letter-spacing:0.04em;">
-              宗主国・従属国
-            </div>
-            <div id="dependency-panel" style="display:flex; flex-direction:column; gap:6px;"></div>
-          </div>
-        </div>
-
-        <!-- Tab 2: World Nations List & Quick Diplomacy -->
-        <div class="left-tab-pane" id="left-tab-nations">
-          <div style="font-size:11.5px; color:var(--text-secondary);">
-            外務省・大使館へ連絡。関係値は月末の裁定で変わる。
-          </div>
-          <div id="world-nations-list" style="display:flex; flex-direction:column; gap:6px;"></div>
-        </div>
-
-        <!-- Tab 3: 1932 Historical Flashpoints & Events -->
-        <div class="left-tab-pane" id="left-tab-events">
-          <div id="historical-events-list" style="display:flex; flex-direction:column; gap:10px;"></div>
-        </div>
-        </div>
-        <div class="window-resize-handle" data-window-resize="state" role="separator" tabindex="0" aria-label="国家と勢力のサイズを変更" title="ドラッグ、または矢印キーでサイズ変更"></div>
-      </aside>
-
-      <section class="virtual-window warlords-window" id="window-warlords" role="dialog" aria-modal="false" aria-labelledby="window-warlords-title" data-window="warlords" hidden>
-        <div class="window-titlebar" data-window-drag="warlords" tabindex="0" title="ドラッグで移動 · Alt＋矢印キーでも移動">
-          <span class="window-title" id="window-warlords-title">軍閥会議</span>
-          <div class="window-controls"><button data-window-minimize="warlords" aria-label="軍閥会議を折りたたむ" aria-controls="window-warlords-body" aria-expanded="true">−</button><button data-window-close="warlords" aria-label="軍閥会議を閉じる">×</button></div>
-        </div>
-        <div class="window-body" id="window-warlords-body"><div id="warlord-panel-content"></div></div>
-        <div class="window-resize-handle" data-window-resize="warlords" role="separator" tabindex="0" aria-label="軍閥会議のサイズを変更" title="ドラッグ、または矢印キーでサイズ変更"></div>
-      </section>
-
-      <section class="virtual-window history-panel" id="window-history" role="dialog" aria-modal="false" aria-labelledby="window-history-title" data-window="history" hidden>
-        <div class="window-titlebar" data-window-drag="history" tabindex="0" title="ドラッグで移動 · Alt＋矢印キーでも移動">
-          <span class="window-title" id="window-history-title">諜報・情勢</span>
-          <div class="window-controls"><button data-window-minimize="history" aria-label="歴史タイムラインを折りたたむ" aria-controls="window-history-body" aria-expanded="true">−</button><button data-window-close="history" aria-label="歴史タイムラインを閉じる">×</button></div>
-        </div>
-        <div class="window-body" id="window-history-body">
-        <div class="history-scroll" id="history-scroll"><section class="turn-briefing" id="turn-briefing"></section><div id="history-stream"></div></div>
-        <div class="history-footer"><div id="mandate-progress"></div><button class="btn" data-situation-briefing>顧問ブリーフィング</button><button class="btn" id="btn-turn-review">今月の交渉記録</button></div>
-        </div>
-        <div class="window-resize-handle" data-window-resize="history" role="separator" tabindex="0" aria-label="歴史タイムラインのサイズを変更" title="ドラッグ、または矢印キーでサイズ変更"></div>
-      </section>
-
-      <!-- CENTER MAP STAGE: Clear Vibrant Ocean Blue, 3D Globe & 2D Projection -->
       <main class="os-map-stage" aria-label="世界地図">
-        <!-- Map Filter & Projection Bar -->
-        <div class="map-filter-bar">
-          <div class="filter-group-box">
-            <button class="filter-btn active" data-map-mode="country">領土</button>
-            <button class="filter-btn" data-map-mode="faction">勢力</button>
-            <button class="filter-btn" data-map-mode="relation">関係</button>
-            <button class="filter-btn" data-map-mode="terrain">地形</button>
+        <div class="map-toolbar" role="group" aria-label="地図の表示">
+          <div class="map-tool-group" role="group" aria-label="地図レイヤー">
+            <button class="map-tool active" data-map-mode="country">領土</button>
+            <button class="map-tool" data-map-mode="faction">勢力</button>
+            <button class="map-tool" data-map-mode="relation">関係</button>
+            <button class="map-tool" data-map-mode="terrain">地形</button>
           </div>
-
-          <div class="map-legend-pill" id="map-legend-box"></div>
-
-          <div style="display:flex; gap:6px; align-items:center;">
-            <div class="filter-group-box">
-              <button class="filter-btn" data-projection="globe" id="btn-proj-globe" title="球体地球儀">球体</button>
-              <button class="filter-btn active" data-projection="flat" id="btn-proj-flat" title="世界全図">平面</button>
-            </div>
+          <span class="map-tool-divider" aria-hidden="true"></span>
+          <div class="map-tool-group" role="group" aria-label="投影">
+            <button class="map-tool" data-projection="globe" id="btn-proj-globe" title="球体地球儀">球体</button>
+            <button class="map-tool active" data-projection="flat" id="btn-proj-flat" title="平面世界図">平面</button>
+          </div>
+          <span class="map-tool-divider" aria-hidden="true"></span>
+          <div class="map-tool-group map-zoom-group" role="group" aria-label="ズーム">
+            <button class="map-tool map-tool-icon" id="btn-zoom-out" title="縮小" aria-label="縮小">−</button>
+            <button class="map-tool map-tool-icon" id="btn-zoom-reset" title="リセット" aria-label="ズームをリセット"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v5h5"/></svg></button>
+            <button class="map-tool map-tool-icon" id="btn-zoom-in" title="拡大" aria-label="拡大">＋</button>
           </div>
         </div>
-        <div class="map-zoom-controls">
-          <button class="filter-btn" id="btn-zoom-in" title="拡大">＋</button>
-          <button class="filter-btn" id="btn-zoom-out" title="縮小">－</button>
-          <button class="filter-btn" id="btn-zoom-reset" title="正面リセット">リセット</button>
-        </div>
 
-        <!-- SVG Map Viewport -->
         <div class="svg-viewport" id="map-viewport">
           <svg id="orbis-world-svg" class="orbis-svg-map" viewBox="0 60 2000 1158" preserveAspectRatio="xMidYMid meet">
             <defs>
-              <!-- Radiant, Clear 3D Globe Ocean Gradient (No More Black Ocean!) -->
               <radialGradient id="globe-ocean-grad" cx="42%" cy="36%" r="68%">
                 <stop offset="0%" stop-color="#8fc0e8"/>
                 <stop offset="45%" stop-color="#6ba6d6"/>
                 <stop offset="85%" stop-color="#5c97c9"/>
                 <stop offset="100%" stop-color="#528abd"/>
               </radialGradient>
-              <!-- Atmospheric Cyan Radiance Glow -->
               <radialGradient id="globe-atmo-grad" cx="50%" cy="50%" r="50%">
                 <stop offset="84%" stop-color="#38bdf8" stop-opacity="0"/>
                 <stop offset="94%" stop-color="#38bdf8" stop-opacity="0.25"/>
@@ -2608,7 +2888,6 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
               </marker>
             </defs>
             <g id="map-root-group">
-              <!-- Background rect (switches between cosmic space in 3D and rich ocean blue in 2D) -->
               <rect id="map-background-rect" x="-1000" y="-500" width="4000" height="2000" fill="#dfe9f3"/>
               <g id="globe-backdrop-layer"></g>
               <g id="sea-zones-layer"></g>
@@ -2623,145 +2902,203 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           </svg>
           <div id="orbis-cursor-tooltip" class="orbis-tooltip"></div>
         </div>
-
-        <!-- Clean Region Inspector Overlay (Shows on State Click) -->
-        <div class="state-inspector-card" id="state-inspector">
-          <div class="insp-head">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span id="insp-flag"></span>
-              <strong id="insp-state-name" style="font-size:14px; color:var(--text-primary);">関東</strong>
-              <span class="badge badge-brass" id="insp-owner-badge">大日本帝国</span>
-              <span class="badge badge-cyan" id="insp-terrain-badge">都市</span>
-            </div>
-            <button class="btn btn-ghost" id="btn-toggle-inspector" style="height:24px; padding:0 6px; font-size:11px;">閉じる</button>
-          </div>
-          <div class="insp-body">
-            <div id="insp-desc-text" style="font-size:12px; color:var(--text-secondary);"></div>
-            <div class="insp-owner-detail" id="insp-owner-detail"></div>
-            <div class="insp-region-detail" id="insp-region-detail"></div>
-            <div class="insp-status-note" id="insp-status-note" hidden></div>
-            <div class="insp-admin-note" id="insp-admin-note" hidden></div>
-            <div class="insp-actions-row">
-              <button class="btn btn-cyan" id="btn-insp-action-policy">施策を相談</button>
-              <button class="btn" id="btn-insp-action-diplo">統治国と外交交渉</button>
-              <button class="btn" id="btn-insp-action-defense">防備・部隊展開</button>
-              <button class="btn" id="btn-insp-action-war">戦争・和平</button>
-            </div>
-            <div class="insp-admin-row" id="insp-admin-row" hidden>
-              <button class="btn btn-ghost" id="btn-insp-dependent-create">従属政権を創設</button>
-            </div>
-            <div class="insp-formations" id="insp-formations" hidden></div>
-          </div>
-        </div>
-        <div class="map-caption" aria-hidden="true"><span>WORLD ATLAS / 1932</span><small>地域を選んで情報と外交へ</small></div>
-        <button class="map-dispatch-notice" id="map-dispatch-notice" data-open-inbox hidden><span class="dispatch-notice-dot"></span><span id="map-dispatch-label">新着メッセージ</span><span aria-hidden="true">↗</span></button>
       </main>
 
-      <!-- RIGHT PANEL: ORBIS SIMULATION CHAT (Conversational AI Geopolitics) -->
-      <aside class="virtual-window orbis-chat-panel" id="window-chat" role="dialog" aria-modal="false" aria-labelledby="window-chat-title" data-window="chat" hidden>
-        <div class="window-titlebar" data-window-drag="chat" tabindex="0" title="ドラッグで移動 · Alt＋矢印キーでも移動">
-          <span class="window-title" id="window-chat-title">外交・国内回線</span>
-          <div class="window-controls"><button data-window-minimize="chat" aria-label="外交・国内回線を折りたたむ" aria-controls="window-chat-body" aria-expanded="true">−</button><button data-window-close="chat" aria-label="外交・国内回線を閉じる">×</button></div>
-        </div>
-        <div class="window-body chat-app" id="window-chat-body">
-        <section class="chat-list-view" id="chat-list-view" aria-label="メッセージ一覧">
-          <div class="messenger-list-heading"><h1>メッセージ <b id="unread-count" class="unread-count">0</b></h1><button class="btn btn-ghost" id="btn-open-directory" aria-label="新しいトークを始める">＋ 新規</button></div>
-          <label class="messenger-search"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="thread-search" type="search" placeholder="相手・組織・メッセージを検索" aria-label="メッセージ一覧を検索" autocomplete="off"></label>
-          <div class="thread-filters" role="group" aria-label="メッセージの絞り込み"><button class="active" data-thread-filter="all" aria-pressed="true">すべて</button><button data-thread-filter="unread" aria-pressed="false">未読</button><button data-thread-filter="domestic" aria-pressed="false">国内</button><button data-thread-filter="foreign" aria-pressed="false">外交</button></div>
-          <nav class="thread-list" id="thread-list" aria-label="交渉スレッド"></nav>
-          <div class="inbox-footer"><span id="hud-actions">交渉枠 6 / 6</span><button class="text-button" data-panel-open="history">今月の情勢 ↗</button></div>
+      <aside id="shell-dock" aria-label="情報パネル" hidden>
+        <aside class="virtual-window dock-panel" id="window-state" role="region" aria-labelledby="window-state-title" data-window="state" hidden>
+          <div class="window-titlebar">
+            <span class="window-title" id="window-state-title">内政</span>
+            <div class="window-controls"><button data-window-close="state" aria-label="内政パネルを閉じる">×</button></div>
+          </div>
+          <div class="window-body" id="window-state-body">
+            <div class="left-tabs-nav" role="tablist" aria-label="内政の項目">
+              <button class="left-tab-btn active" data-left-tab="domestic" role="tab" aria-selected="true">概況</button>
+              <button class="left-tab-btn" data-left-tab="actions" role="tab" aria-selected="false">行動</button>
+              <button class="left-tab-btn" data-left-tab="nations" role="tab" aria-selected="false">関係</button>
+              <button class="left-tab-btn" data-left-tab="events" role="tab" aria-selected="false">約束</button>
+            </div>
+            <div class="left-tab-pane active" id="left-tab-domestic">
+              <div id="domestic-overview-box"></div>
+              <section class="dock-section">
+                <h2 class="dock-section-title">国内の支持</h2>
+                <div id="interest-groups-list"></div>
+              </section>
+              <section class="dock-section">
+                <h2 class="dock-section-title">宗主国・従属国</h2>
+                <div id="dependency-panel"></div>
+              </section>
+            </div>
+            <div class="left-tab-pane" id="left-tab-actions">
+              <div class="actions-content">
+                <p class="eyebrow" id="national-action-status"></p>
+                <div class="order-queue" id="national-action-queue" aria-live="polite"></div>
+                <form id="standing-policy-form">
+                  <label for="standing-policy-input">常設方針</label>
+                  <textarea class="form-input" id="standing-policy-input" rows="3" maxlength="800" placeholder="例：対中は穏健に、軍備は漸進する。" aria-describedby="standing-policy-hint"></textarea>
+                  <p class="muted small" id="standing-policy-hint">ターンをまたいで残り、毎月の裁定と電報の文脈に参照されます。提出時にAPIは呼びません。</p>
+                  <p class="muted small" id="standing-policy-status"></p>
+                  <div class="actions-buttons"><button class="btn" type="submit" id="btn-save-policy">方針を保存</button><button class="btn btn-ghost" type="button" id="btn-clear-policy">解除</button></div>
+                </form>
+                <div class="action-cat-row" role="tablist" aria-label="行動カテゴリ">
+                  <button type="button" class="action-cat active" data-action-cat="domestic" role="tab" aria-selected="true">内政</button>
+                  <button type="button" class="action-cat" data-action-cat="diplomacy" role="tab" aria-selected="false">外交</button>
+                  <button type="button" class="action-cat" data-action-cat="intel" role="tab" aria-selected="false">諜報</button>
+                  <button type="button" class="action-cat" data-action-cat="military" role="tab" aria-selected="false">軍事</button>
+                </div>
+                <div class="action-suggestions" id="action-suggestions"></div>
+                <form id="national-action-form">
+                  <label for="national-action-input">今月、国として実行すること</label>
+                  <textarea class="form-input" id="national-action-input" rows="5" maxlength="2400" placeholder="例：財政4を上限に、東北で農村救済の公共事業を始める。" aria-describedby="national-action-hint"></textarea>
+                  <p class="muted small" id="national-action-hint">交渉枠とは別に月1件。費用と成果は月末に確定します。</p>
+                  <div class="actions-buttons"><button class="btn btn-primary" type="submit" id="btn-submit-action">行動を提出</button><button class="btn" type="button" id="btn-withdraw-action" hidden>撤回</button></div>
+                </form>
+                <div class="compact-disclosure" id="national-action-submitted"></div>
+                <section class="dock-section">
+                  <h2 class="dock-section-title">これまでの行動</h2>
+                  <div id="national-action-history"></div>
+                </section>
+              </div>
+            </div>
+            <div class="left-tab-pane" id="left-tab-nations">
+              <p class="muted small">外務省・大使館へ連絡。関係値は月末の裁定で変わる。</p>
+              <div id="world-nations-list"></div>
+            </div>
+            <div class="left-tab-pane" id="left-tab-events">
+              <div id="historical-events-list"></div>
+            </div>
+          </div>
+        </aside>
+
+        <aside class="virtual-window dock-panel" id="window-chat" role="region" aria-labelledby="window-chat-title" data-window="chat" hidden>
+          <div class="window-titlebar">
+            <span class="window-title" id="window-chat-title">外交</span>
+            <div class="window-controls"><button data-window-close="chat" aria-label="外交パネルを閉じる">×</button></div>
+          </div>
+          <div class="window-body chat-app" id="window-chat-body">
+            <section class="chat-list-view" id="chat-list-view" aria-label="メッセージ一覧">
+              <div class="messenger-list-heading"><h1>メッセージ</h1><button class="btn btn-ghost" id="btn-open-directory" aria-label="新しいトークを始める">＋ 新規</button></div>
+              <label class="messenger-search"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="thread-search" type="search" placeholder="相手・組織・メッセージを検索" aria-label="メッセージ一覧を検索" autocomplete="off"></label>
+              <div class="thread-filters" role="group" aria-label="メッセージの絞り込み"><button class="active" data-thread-filter="all" aria-pressed="true">すべて</button><button data-thread-filter="unread" aria-pressed="false">未読</button><button data-thread-filter="domestic" aria-pressed="false">国内</button><button data-thread-filter="foreign" aria-pressed="false">外交</button></div>
+              <nav class="thread-list" id="thread-list" aria-label="交渉スレッド"></nav>
+              <div class="inbox-footer"><span id="hud-actions">交渉枠 6 / 6</span><button class="text-button" data-panel-open="history">今月の情勢</button></div>
+            </section>
+            <section class="chat-conversation-view" id="chat-conversation-view" aria-label="選択中の相手との会話" hidden>
+              <div class="conversation-toolbar"><button class="conversation-back" id="btn-chat-back" aria-label="メッセージ一覧に戻る"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button><div class="thread-header" id="thread-header"></div><button class="contact-info-button" data-toggle-actor-info aria-label="相手の情報を表示" aria-controls="actor-info" aria-expanded="false">i</button></div>
+              <div class="chat-contact-info" id="actor-info" hidden></div>
+              <div class="chat-stream-box" id="chat-stream-box" role="log" aria-label="交渉の会話" aria-live="polite"></div>
+              <div class="quick-chips-bar" id="quick-chips-bar" aria-label="AIからの返信案"></div>
+              <form class="message-form" id="message-form">
+                <div class="composer-meta"><label for="message-visibility">送信形式</label><select id="message-visibility"><option value="private">非公開電報</option><option value="official">公式声明 · 全勢力に公開</option></select><span id="composer-cost">送信 1交渉枠</span></div>
+                <label class="sr-only" for="chat-input-field">選択中の相手への返答</label>
+                <textarea id="chat-input-field" class="chat-input" rows="2" maxlength="2400" placeholder="メッセージを入力…"></textarea>
+                <div class="composer-foot"><span id="composer-hint">Enterで改行 · Ctrl / ⌘＋Enterで送信</span><button type="submit" class="btn btn-primary" id="btn-send-command"><span id="btn-send-label">電報を送る</span></button></div>
+              </form>
+            </section>
+          </div>
+        </aside>
+
+        <section class="virtual-window dock-panel" id="window-war" role="region" aria-labelledby="window-war-title" data-window="war" hidden>
+          <div class="window-titlebar">
+            <span class="window-title" id="window-war-title">軍事</span>
+            <div class="window-controls"><button data-window-close="war" aria-label="軍事パネルを閉じる">×</button></div>
+          </div>
+          <div class="window-body war-panel-body" id="war-panel-body"></div>
         </section>
-        <section class="chat-conversation-view" id="chat-conversation-view" aria-label="選択中の相手との会話" hidden>
-        <div class="conversation-toolbar"><button class="conversation-back" id="btn-chat-back" aria-label="メッセージ一覧に戻る"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button><div class="thread-header" id="thread-header"></div><button class="contact-info-button" data-toggle-actor-info aria-label="相手の情報を表示" aria-controls="actor-info" aria-expanded="false">i</button></div>
-        <div class="chat-contact-info" id="actor-info" hidden></div>
-        <div class="chat-stream-box" id="chat-stream-box" role="log" aria-label="交渉の会話" aria-live="polite"></div>
-        <div class="quick-chips-bar" id="quick-chips-bar" aria-label="AIからの返信案"></div>
-        <form class="message-form" id="message-form">
-          <div class="composer-meta"><label for="message-visibility">送信形式</label><select id="message-visibility"><option value="private">非公開電報</option><option value="official">公式声明 · 全勢力に公開</option></select><span id="composer-cost">送信 1交渉枠</span></div>
-          <label class="sr-only" for="chat-input-field">選択中の相手への返答</label>
-          <textarea id="chat-input-field" class="chat-input" rows="2" maxlength="2400" placeholder="メッセージを入力…"></textarea>
-          <div class="composer-foot"><span id="composer-hint">Enterで改行 · Ctrl / ⌘＋Enterで送信</span><button type="submit" class="btn btn-primary" id="btn-send-command"><span id="btn-send-label">電報を送る</span><span aria-hidden="true">↗</span></button></div>
-        </form>
+
+        <section class="virtual-window dock-panel" id="window-plan" role="region" aria-labelledby="window-plan-title" data-window="plan" hidden>
+          <div class="window-titlebar">
+            <span class="window-title" id="window-plan-title">計画</span>
+            <div class="window-controls"><button data-window-close="plan" aria-label="計画パネルを閉じる">×</button></div>
+          </div>
+          <div class="window-body plan-panel-body">
+            <div id="plan-focus-summary"></div>
+            <section class="dock-section">
+              <h2 class="dock-section-title">研究</h2>
+              <div id="research-panel-body"></div>
+            </section>
+          </div>
         </section>
-        </div>
-        <div class="window-resize-handle" data-window-resize="chat" role="separator" tabindex="0" aria-label="外交・国内回線のサイズを変更" title="ドラッグ、または矢印キーでサイズ変更"></div>
+
+        <section class="virtual-window dock-panel" id="window-history" role="region" aria-labelledby="window-history-title" data-window="history" hidden>
+          <div class="window-titlebar">
+            <span class="window-title" id="window-history-title">通知・情勢</span>
+            <div class="window-controls"><button data-window-close="history" aria-label="通知パネルを閉じる">×</button></div>
+          </div>
+          <div class="window-body" id="window-history-body">
+            <div class="notification-list" id="notification-list"></div>
+            <div class="history-scroll" id="history-scroll"><section class="turn-briefing" id="turn-briefing"></section><div id="history-stream"></div></div>
+            <div class="history-footer"><div id="mandate-progress"></div><button class="btn" data-situation-briefing>顧問ブリーフィング</button><button class="btn" id="btn-turn-review">今月の交渉記録</button><button class="btn" id="btn-undo-turn" data-undo-turn hidden>直前の半月を取り消す</button></div>
+          </div>
+        </section>
+
+        <section class="virtual-window dock-panel" id="window-province" role="region" aria-labelledby="window-province-title" data-window="province" hidden>
+          <div class="window-titlebar">
+            <span class="window-title" id="window-province-title">州情報</span>
+            <div class="window-controls"><button data-window-close="province" aria-label="州情報パネルを閉じる">×</button></div>
+          </div>
+          <div class="window-body province-panel-body">
+            <div class="state-inspector-card" id="state-inspector">
+              <div class="insp-head">
+                <div class="insp-title-row">
+                  <span id="insp-flag"></span>
+                  <strong id="insp-state-name">関東</strong>
+                  <span class="badge badge-brass" id="insp-owner-badge">大日本帝国</span>
+                  <span class="badge badge-cyan" id="insp-terrain-badge">都市</span>
+                </div>
+                <button class="btn btn-ghost" id="btn-toggle-inspector">地図に戻る</button>
+              </div>
+              <div class="insp-body">
+                <div id="insp-desc-text"></div>
+                <div class="insp-owner-detail" id="insp-owner-detail"></div>
+                <div class="insp-region-detail" id="insp-region-detail"></div>
+                <div class="insp-status-note" id="insp-status-note" hidden></div>
+                <div class="insp-admin-note" id="insp-admin-note" hidden></div>
+                <div class="insp-actions-row">
+                  <button class="btn btn-primary" id="btn-insp-action-policy">施策を相談</button>
+                  <button class="btn" id="btn-insp-action-diplo">統治国と外交交渉</button>
+                  <button class="btn" id="btn-insp-action-defense">防備・部隊展開</button>
+                  <button class="btn" id="btn-insp-action-war">戦争・和平</button>
+                </div>
+                <div class="insp-admin-row" id="insp-admin-row" hidden>
+                  <button class="btn btn-ghost" id="btn-insp-dependent-create">従属政権を創設</button>
+                </div>
+                <div class="insp-formations" id="insp-formations" hidden></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="virtual-window dock-panel" id="window-warlords" role="region" aria-labelledby="window-warlords-title" data-window="warlords" hidden>
+          <div class="window-titlebar">
+            <span class="window-title" id="window-warlords-title">軍閥会議</span>
+            <div class="window-controls"><button data-window-close="warlords" aria-label="軍閥会議を閉じる">×</button></div>
+          </div>
+          <div class="window-body" id="window-warlords-body"><div id="warlord-panel-content"></div></div>
+        </section>
       </aside>
 
-      <section class="virtual-window menu-window" id="window-menu" role="dialog" aria-modal="false" aria-labelledby="window-menu-title" data-window="menu" hidden>
-        <div class="window-titlebar" data-window-drag="menu" tabindex="0" title="ドラッグで移動 · Alt＋矢印キーでも移動"><span class="window-title" id="window-menu-title">メニュー</span><div class="window-controls"><button data-window-minimize="menu" aria-label="メニューを折りたたむ" aria-controls="window-menu-body" aria-expanded="true">−</button><button data-window-close="menu" aria-label="メニューを閉じる">×</button></div></div>
-        <div class="window-body menu-content" id="window-menu-body">
-          <button class="menu-row" id="btn-open-ai-settings"><span class="menu-row-icon" id="ai-status-dot"></span><span>AI接続設定<small id="ai-provider-label">AIを設定</small></span><span aria-hidden="true">›</span></button>
-          <div class="menu-row" style="cursor:default;">
-            <span class="menu-row-icon" aria-hidden="true">学</span>
-            <span>会話レベル<small id="knowledge-level-label">一般</small></span>
-            <select id="select-knowledge-level" class="form-select" style="max-width:130px;" aria-label="会話レベル">
-              <option value="doctor">博士</option>
-              <option value="professional">専門職</option>
-              <option value="general" selected>一般</option>
-              <option value="student">学生</option>
-            </select>
-          </div>
-          <button class="menu-row" id="btn-export-save"><span class="menu-row-icon" aria-hidden="true">↓</span><span>セーブを書き出す<small>APIキーを含まないJSON</small></span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-menu-import"><span class="menu-row-icon" aria-hidden="true">↑</span><span>セーブを読み込む</span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-help"><span class="menu-row-icon" aria-hidden="true">?</span><span>遊び方</span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-open-onboarding" data-open-onboarding><span class="menu-row-icon" aria-hidden="true">導</span><span>導入案内<small>最初の半月の進め方</small></span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-undo-turn-menu" data-undo-turn><span class="menu-row-icon" aria-hidden="true">戻</span><span>直前の半月を取り消す<small id="undo-turn-status">取り消せる直前の半月はありません</small></span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-open-war-panel"><span class="menu-row-icon" aria-hidden="true">⚔</span><span>戦争・和平・紛争</span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-open-economy-panel" data-open-economy><span class="menu-row-icon" aria-hidden="true">工</span><span>動員・生産<small>兵力・装備・補給</small></span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-open-focus-panel" data-open-focus><span class="menu-row-icon" aria-hidden="true">策</span><span>国策<small>政治力で方針を進める</small></span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-open-research-panel" data-open-research><span class="menu-row-icon" aria-hidden="true">研</span><span>研究<small>産業・装備・教義・電子</small></span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-menu-lobby"><span class="menu-row-icon" aria-hidden="true">↗</span><span>キャンペーンメニュー</span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-open-about"><span class="menu-row-icon" aria-hidden="true">i</span><span>このソフトについて<small id="about-version-menu">バージョン</small></span><span aria-hidden="true">›</span></button>
-          <button class="menu-row" id="btn-open-credits"><span class="menu-row-icon" aria-hidden="true">©</span><span>クレジット／ライセンス<small>素材・データ・ソフトウェア</small></span><span aria-hidden="true">›</span></button>
-          <div class="menu-save-status" id="save-status">自動保存済み</div>
-        </div>
-        <div class="window-resize-handle" data-window-resize="menu" role="separator" tabindex="0" aria-label="メニューのサイズを変更" title="ドラッグ、または矢印キーでサイズ変更"></div>
-      </section>
-
-      <section class="virtual-window actions-window" id="window-actions" role="dialog" aria-modal="false" aria-labelledby="window-actions-title" data-window="actions" hidden>
-        <div class="window-titlebar" data-window-drag="actions" tabindex="0" title="ドラッグで移動 · Alt＋矢印キーでも移動"><span class="window-title" id="window-actions-title">国家の行動</span><div class="window-controls"><button data-window-minimize="actions" aria-label="行動を折りたたむ" aria-controls="window-actions-body" aria-expanded="true">−</button><button data-window-close="actions" aria-label="行動を閉じる">×</button></div></div>
-        <div class="window-body" id="window-actions-body">
-          <div class="actions-content">
-            <p class="eyebrow" id="national-action-status"></p>
-            <div class="order-queue" id="national-action-queue" aria-live="polite"></div>
-            <form id="standing-policy-form">
-              <label for="standing-policy-input">常設方針</label>
-              <textarea class="form-input" id="standing-policy-input" rows="3" maxlength="800" placeholder="例：対中は穏健に、軍備は漸進する。" aria-describedby="standing-policy-hint"></textarea>
-              <p class="muted small" id="standing-policy-hint">ターンをまたいで残り、毎月の裁定と電報の文脈に参照されます。提出時にAPIは呼びません。</p>
-              <p class="muted small" id="standing-policy-status"></p>
-              <div class="actions-buttons"><button class="btn" type="submit" id="btn-save-policy">方針を保存</button><button class="btn btn-ghost" type="button" id="btn-clear-policy">解除</button></div>
-            </form>
-            <div class="action-cat-row" role="tablist" aria-label="行動カテゴリ">
-              <button type="button" class="action-cat active" data-action-cat="domestic" role="tab" aria-selected="true">内政</button>
-              <button type="button" class="action-cat" data-action-cat="diplomacy" role="tab" aria-selected="false">外交</button>
-              <button type="button" class="action-cat" data-action-cat="intel" role="tab" aria-selected="false">諜報</button>
-              <button type="button" class="action-cat" data-action-cat="military" role="tab" aria-selected="false">軍事</button>
-            </div>
-            <div class="action-suggestions" id="action-suggestions"></div>
-            <form id="national-action-form">
-              <label for="national-action-input">今月、国として実行すること</label>
-              <textarea class="form-input" id="national-action-input" rows="5" maxlength="2400" placeholder="例：財政4を上限に、東北で農村救済の公共事業を始める。" aria-describedby="national-action-hint"></textarea>
-              <p class="muted small" id="national-action-hint">交渉枠とは別に月1件。費用と成果は月末に確定します。</p>
-              <div class="actions-buttons"><button class="btn btn-primary" type="submit" id="btn-submit-action">行動を提出</button><button class="btn" type="button" id="btn-withdraw-action" hidden>撤回</button></div>
-            </form>
-            <div class="compact-disclosure" id="national-action-submitted"></div>
-            <h2>これまでの行動</h2><div id="national-action-history"></div>
-          </div>
-        </div>
-        <div class="window-resize-handle" data-window-resize="actions" role="separator" tabindex="0" aria-label="行動ウィンドウのサイズを変更"></div>
-      </section>
-
-      <nav class="desktop-dock" aria-label="国家のカテゴリ">
-        <button class="dock-button" id="dock-warlords" data-panel-open="warlords" aria-controls="window-warlords" aria-expanded="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l4 3V9l4 3V4l4 8V9l4 3v8Z"/></svg><span>軍閥</span><i class="dock-open-dot" aria-hidden="true"></i></button>
-        <button class="dock-button" id="dock-state" data-panel-open="state" aria-controls="window-state" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-6 9 6H3ZM5 11v8m7-8v8m7-8v8M3 21h18"/></svg><span>内政</span><i class="dock-open-dot" aria-hidden="true"></i></button>
-        <button class="dock-button" id="dock-chat" data-panel-open="chat" aria-controls="window-chat" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11a8 8 0 0 1-8 8H7l-5 3 1-7a8 8 0 0 1-1-4 9 9 0 0 1 19 0Z"/><path d="M7 10h10M7 14h6"/></svg><span>外交</span><b class="dock-badge" id="dock-chat-badge" hidden>0</b><i class="dock-open-dot" aria-hidden="true"></i></button>
-        <button class="dock-button" id="dock-intel" data-panel-open="history" aria-controls="window-history" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9h-9Z"/><path d="M12 3v9h9"/></svg><span>諜報</span><b class="dock-badge" id="dock-history-badge" hidden>1</b><i class="dock-open-dot" aria-hidden="true"></i></button>
-        <button class="dock-button" id="dock-war" data-open-war aria-label="戦争・和平・紛争"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 6-6m-3-1 4-4 4 4-4 4M14 4l6 6m-2-8 4 4-4 4"/></svg><span>軍事</span></button>
+      <nav class="shell-nav" aria-label="画面の切り替え">
+        <button class="nav-tab active" id="dock-map" data-tab="map" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>
+          <span>地図</span>
+        </button>
+        <button class="nav-tab" id="dock-state" data-tab="domestic" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-6 9 6H3ZM5 11v8m7-8v8m7-8v8M3 21h18"/></svg>
+          <span>内政</span>
+        </button>
+        <button class="nav-tab" id="dock-chat" data-tab="diplomacy" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11a8 8 0 0 1-8 8H7l-5 3 1-7a8 8 0 0 1-1-4 9 9 0 0 1 19 0Z"/><path d="M7 10h10M7 14h6"/></svg>
+          <span>外交</span>
+        </button>
+        <button class="nav-tab" id="dock-war" data-tab="military" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 6-6m-3-1 4-4 4 4-4 4M14 4l6 6m-2-8 4 4-4 4"/></svg>
+          <span>軍事</span>
+        </button>
+        <button class="nav-tab" id="dock-plan" data-tab="plan" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4ZM13 4h7v7h-7ZM4 13h7v7H4ZM13 13h7v7h-7Z"/></svg>
+          <span>計画</span>
+        </button>
       </nav>
-      <div class="dock-fab-group" aria-label="自国と行動">
-        <button class="dock-fab" id="dock-homeland" title="自国の首都へ移動"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8v10H3Z"/><path d="M9 21v-7h6v7"/></svg><span>自国</span></button>
-        <button class="dock-fab primary" id="dock-actions" data-panel-open="actions" aria-controls="window-actions" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h13v16H4V7m4 5 3 3 7-8"/></svg><span>行動</span><b class="dock-badge" id="dock-actions-badge" aria-hidden="true" hidden>1</b></button>
-      </div>
     </div>
   </div>
 
@@ -2774,7 +3111,10 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         <strong id="ai-settings-title">設定</strong>
         <button class="btn btn-ghost" data-close-dialog="modal-ai-settings" aria-label="設定を閉じる">閉じる</button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body settings-body">
+        <div class="settings-section-label">サウンド</div>
+        <label class="checkbox-label"><input type="checkbox" id="toggle-audio-muted"> 効果音をミュートする</label>
+        <p class="settings-key-note">ターン終了・宣戦・和平・国策完了の短い効果音。設定はこの端末に保存し、APIキーとは別に管理する。</p>
         <div class="settings-section-label">AI接続</div>
         <p class="muted">GMと登場人物は同じモデルを使い、別々の人格・記憶で応答する。APIキーは自分のものを使う。</p>
         <div id="ai-modal-alert-banner" class="settings-feedback" role="status">APIキーは指定先のLLMへ直接送信。セーブデータには含めない。</div>
@@ -2786,7 +3126,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
         </div>
         <div>
           <label for="input-api-key">APIキー</label>
-          <input type="password" id="input-api-key" class="form-input" placeholder="選んだプロバイダーのキー" autocomplete="off" spellcheck="false">
+          <input type="password" id="input-api-key" class="form-input" placeholder="保存済みのキーを使用中。変更する場合だけ入力" autocomplete="off" spellcheck="false">
         </div>
         <div>
           <label for="select-model-preset">モデル</label>
@@ -2797,10 +3137,35 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
           <input type="text" id="input-custom-model" class="form-input" placeholder="上の候補以外を使う場合" spellcheck="false">
         </div>
         <label class="checkbox-label"><input type="checkbox" id="remember-api-key">この端末にAPIキーを保存</label>
-        <p class="settings-key-note">保存を選んだときだけ、キーはこの端末の localStorage に残る。保存しない場合は再起動後に残らず、セーブJSON・配布物・ログには含めない。</p>
-        <div class="settings-section-label">サウンド</div>
-        <label class="checkbox-label"><input type="checkbox" id="toggle-audio-muted"> 効果音をミュートする</label>
-        <p class="settings-key-note">ターン終了・宣戦・和平・国策完了の短い効果音。設定はこの端末に保存し、APIキーとは別に管理する。</p>
+        <p class="settings-key-note">保存を選んだときだけ、キーはこの端末の localStorage に残る。保存しない場合は再起動後に残らず、セーブJSON・配布物・ログには含めない。設定画面には保存済みのキーを表示しない。</p>
+        <div class="settings-section-label">ゲーム</div>
+        <div class="settings-row">
+          <label for="select-knowledge-level">会話レベル<small id="knowledge-level-label">一般</small></label>
+          <select id="select-knowledge-level" class="form-select">
+            <option value="doctor">博士</option>
+            <option value="professional">専門職</option>
+            <option value="general" selected>一般</option>
+            <option value="student">学生</option>
+          </select>
+        </div>
+        <div class="settings-action-grid">
+          <button class="settings-action" id="btn-open-onboarding" data-close-dialog="modal-ai-settings" data-open-onboarding>導入案内<small>最初の半月の進め方</small></button>
+          <button class="settings-action" id="btn-help">遊び方<small>操作とルール</small></button>
+          <button class="settings-action" data-close-dialog="modal-ai-settings" data-undo-turn>直前の半月を取り消す<small id="undo-turn-status">取り消せる直前の半月はありません</small></button>
+          <button class="settings-action" id="btn-menu-lobby">キャンペーンメニュー<small>国選択へ戻る</small></button>
+        </div>
+        <div class="settings-section-label">画面を開く</div>
+        <div class="settings-action-grid">
+          <button class="settings-action" id="btn-open-war-panel" data-close-dialog="modal-ai-settings" data-open-war>軍事<small>戦争・和平・紛争</small></button>
+          <button class="settings-action" id="btn-open-economy-panel" data-close-dialog="modal-ai-settings" data-open-economy>内政<small>動員・生産・補給</small></button>
+          <button class="settings-action" id="btn-open-focus-panel" data-close-dialog="modal-ai-settings" data-open-focus>国策<small>計画タブの国策グラフ</small></button>
+          <button class="settings-action" id="btn-open-research-panel" data-close-dialog="modal-ai-settings" data-open-research>研究<small>計画タブの研究一覧</small></button>
+        </div>
+        <div class="settings-section-label">セーブ</div>
+        <div class="settings-action-grid">
+          <button class="settings-action" id="btn-export-save">セーブを書き出す<small>APIキーを含まないJSON</small></button>
+          <button class="settings-action" id="btn-menu-import">セーブを読み込む<small>JSONファイルを選択</small></button>
+        </div>
         <div class="settings-section-label">このソフト</div>
         <div class="about-actions">
           <button class="btn" type="button" id="btn-settings-about">このソフトについて</button>
@@ -2824,7 +3189,7 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
       <div class="modal-body about-content">
         <div class="about-hero"><span class="about-brand" id="about-brand">ORBIS//1932</span><span class="about-version" id="about-version"></span></div>
         <p class="about-description" id="about-description">一通の電報が、歴史を変える。1932年3月の世界を舞台に、国家の内政・外交・軍事を進める日本語の歴史シミュレーション。</p>
-        <dl class="credits-meta"><dt>版</dt><dd id="about-milestone">M8c バランスとモック通しプレイ QA</dd><dt>公開日</dt><dd id="about-released">2026-11-14</dd><dt>動作</dt><dd>オフライン起動可。AI対話のみ、利用者が指定したAPIへ接続する。</dd></dl>
+        <dl class="credits-meta"><dt>版</dt><dd id="about-milestone">M9 UIの再編成</dd><dt>公開日</dt><dd id="about-released">2026-11-15</dd><dt>動作</dt><dd>オフライン起動可。AI対話のみ、利用者が指定したAPIへ接続する。</dd></dl>
         <div class="about-actions">
           <button class="btn" type="button" id="btn-about-credits">クレジット／ライセンス</button>
           <button class="btn" type="button" id="btn-about-settings">設定を開く</button>
@@ -2844,11 +3209,9 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   </dialog>
   <dialog class="game-dialog wide-dialog" id="actor-directory" aria-labelledby="directory-title"><div class="modal-head"><strong id="directory-title">交渉先を選ぶ</strong><button class="btn btn-ghost" data-close-dialog="actor-directory">閉じる</button></div><div class="modal-body"><label class="sr-only" for="actor-search">国名・組織・人物を検索</label><input class="form-input" id="actor-search" type="search" placeholder="国名・組織・人物を検索"><div class="directory-filters" id="directory-filters"><button class="filter-btn active" data-actor-kind="all">すべて</button><button class="filter-btn" data-actor-kind="domestic">国内</button><button class="filter-btn" data-actor-kind="ministry">外務省</button><button class="filter-btn" data-actor-kind="embassy">大使館</button><button class="filter-btn" data-actor-kind="client">従属国・自治領</button><button class="filter-btn" data-actor-kind="foreign_group">国外の利益団体</button></div><div id="actor-directory-list"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="turn-review" aria-labelledby="review-title"><div class="modal-head"><strong id="review-title">今月の交渉記録</strong><button class="btn btn-ghost" data-close-dialog="turn-review">閉じる</button></div><div class="modal-body" id="turn-review-body"></div><div class="modal-foot"><span class="muted small">未返信の要請も、情勢に影響する。</span><button class="btn btn-primary" id="btn-confirm-end-turn">AIに月次裁定を依頼</button></div></dialog>
-  <dialog class="game-dialog wide-dialog" id="modal-war-panel" aria-labelledby="war-panel-title"><div class="modal-head"><strong id="war-panel-title">戦争・和平・紛争</strong><button class="btn btn-ghost" data-close-dialog="modal-war-panel">閉じる</button></div><div class="modal-body" id="war-panel-body"></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-peace" aria-labelledby="peace-title"><div class="modal-head"><strong id="peace-title">和平会議</strong><button class="btn btn-ghost" data-close-dialog="modal-peace">閉じる</button></div><div class="modal-body" id="peace-panel-body"></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-economy" aria-labelledby="economy-title"><div class="modal-head"><strong id="economy-title">動員・生産</strong><button class="btn btn-ghost" data-close-dialog="modal-economy">閉じる</button></div><div class="modal-body" id="economy-panel-body"></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-focus" aria-labelledby="focus-title"><div class="modal-head"><strong id="focus-title">国策</strong><button class="btn btn-ghost" data-close-dialog="modal-focus">閉じる</button></div><div class="modal-body" id="focus-panel-body"></div></dialog>
-  <dialog class="game-dialog wide-dialog" id="modal-research" aria-labelledby="research-title"><div class="modal-head"><strong id="research-title">研究</strong><button class="btn btn-ghost" data-close-dialog="modal-research">閉じる</button></div><div class="modal-body" id="research-panel-body"></div></dialog>
   <dialog class="game-dialog" id="modal-country-card" aria-labelledby="country-card-title"><div class="modal-window"><div class="modal-head"><strong id="country-card-title">国家情報</strong><button class="btn btn-ghost" data-close-dialog="modal-country-card" aria-label="国家情報を閉じる">閉じる</button></div><div class="modal-body" id="country-card-body"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-briefing" aria-labelledby="briefing-title"><div class="modal-window"><div class="modal-head"><strong id="briefing-title">情勢分析</strong><button class="btn btn-ghost" data-close-dialog="modal-briefing">閉じる</button></div><div class="modal-body" id="briefing-body"></div></div></dialog>
   <dialog class="game-dialog wide-dialog" id="modal-adviser-briefing" aria-labelledby="adviser-briefing-title"><div class="modal-window"><div class="modal-head"><strong id="adviser-briefing-title">顧問の状況ブリーフィング</strong><button class="btn btn-ghost" data-close-dialog="modal-adviser-briefing">閉じる</button></div><div class="modal-body" id="adviser-briefing-body"></div></div></dialog>
@@ -2862,18 +3225,18 @@ body.in-lobby .dock-fab-group { transform: translateX(140%); opacity: 0; pointer
   <dialog class="game-dialog" id="game-help" aria-labelledby="help-title">
     <div class="modal-head"><strong id="help-title">一か月の動かし方</strong><button class="btn btn-ghost" data-close-dialog="game-help">閉じる</button></div>
     <div class="modal-body help-content">
-      <p>下部タブバーから「国家」「歴史」「トーク」「行動」を開く。「地図」でウィンドウをすべて閉じ、世界地図に戻る。</p>
-      <p>「行動」では建設・配備・救済策などを月1件提出。交渉とは別枠で、結果は月末に確定する。自国領の紛争を6か月収拾できない場合も任期終了。</p>
-      <p>ウィンドウは見出しをドラッグして移動し、枠の端や右下の取っ手をつかんでサイズを変更（ダブルクリックで折りたたみ）。「−」でも折りたたみ、「×」で閉じる。タブを押すと再表示する。</p>
-      <ol><li><b>メッセージを読む。</b>「トーク」の一覧から相手を選ぶ。検索と未読・国内・外交の絞り込みも使える。左上の矢印で一覧に戻る。</li><li><b>交渉する。</b>返信案は下書き。条件を編集し、自由文で送る。相手にも守るべき利益がある。</li><li><b>月末に裁定する。</b>「ターンを終える」で全交渉と未回答をGMが評価。結果は「歴史」で確認する。</li></ol>
+      <p>下部の5つのタブ「地図」「内政」「外交」「軍事」「計画」で画面を切り替える。本文は右の一つのパネルにまとまり、「地図」でパネルを閉じて地図を広く使える。</p>
+      <p>「内政」の「行動」では建設・配備・救済策などを月1件提出。交渉とは別枠で、結果は月末に確定する。自国領の紛争を6か月収拾できない場合も任期終了。</p>
+      <p>州をクリックすると、同じ右パネルに州情報が出る。部隊・外交・戦争の入口もこのパネルの中にある。</p>
+      <ol><li><b>メッセージを読む。</b>「外交」の一覧から相手を選ぶ。検索と未読・国内・外交の絞り込みも使える。左上の矢印で一覧に戻る。</li><li><b>交渉する。</b>返信案は下書き。条件を編集し、自由文で送る。相手にも守るべき利益がある。</li><li><b>月末に裁定する。</b>「ターンを終える」で全交渉と未回答をGMが評価。結果はベルの通知と「内政」の記録で確認する。</li></ol>
       <p>非公開電報は相手とGMだけが読む。公式声明は他の勢力にも伝わる。矛盾した密約には代償がある。</p>
       <p>財政には収入と維持費がある。増強や救済には支出が伴う。目標・支持率・条約の期限は「国家」で確認する。</p>
       <p>州パネルの「従属政権を創設」で、自国領から植民地・保護国・軍閥を動的に作れる。植民地は宗主国と同じ色、保護国は別の色で表示される。植民地が宗主国と陸続きの場合、国境線を太く表示する。宗主国側は自治度60未満の従属国を威信12で併合できる。領土を失った国は請求権を保持し、州パネルに表示される。</p>
       <p>中華民国のプレイヤーには「軍閥」タブが表示される。軍閥は自治・中立・独立の3状態に分かれ、自治は宗主国色、中立・独立は専用色で表示される。軍閥タブで複数を選んで招集すると、翌ターンに参加可否が決まり、参加した軍閥との会議チャットを開ける。</p>
       <p>安定度か経済が8以下、財政が0、緊張度が95以上のいずれかが2か月続くと任期終了。</p>
-      <p>会話の言葉づかいと説明量は「会話レベル」で選ぶ。博士は専門用語と因果分析、専門職は実務向け、一般は言い換え付き、学生は基礎から順に説明する。開始時に選択し、メニューからいつでも変更できる。ゲームの規則と難易度は変わらない。</p>
-      <p>会話と下書きは自動保存。ウィンドウを閉じても消えない。セーブの書き出しとAI設定は「メニュー」から。</p>
-      <p>開始直後の「導入案内」は、情勢を読む、電報か国家の命令を出す、ターンを終える、の3段階を説明する。閉じてもメニューから見直せる。直前の半月は、ターン完了後に上部の「取消」またはメニューから一度だけ取り消せる。</p>
+      <p>会話の言葉づかいと説明量は「会話レベル」で選ぶ。博士は専門用語と因果分析、専門職は実務向け、一般は言い換え付き、学生は基礎から順に説明する。開始時に選択し、設定からいつでも変更できる。ゲームの規則と難易度は変わらない。</p>
+      <p>会話と下書きは自動保存。パネルを閉じても消えない。セーブの書き出しとAI設定は設定画面から。</p>
+      <p>開始直後の「導入案内」は、情勢を読む、電報か国家の命令を出す、ターンを終える、の3段階を説明する。閉じても設定から見直せる。直前の半月は、ターン完了後に日付または通知パネルから一度だけ取り消せる。</p>
     </div>
   </dialog>
   <dialog class="game-dialog" id="modal-onboarding" aria-labelledby="onboarding-title">
@@ -5724,8 +6087,10 @@ function getCountryMainlandCenter(countryId) {
   if (countryMainlandCenterCache.has(countryId)) {
     return countryMainlandCenterCache.get(countryId);
   }
-  const cap = window.ORBIS_MAP_META?.capitals?.[countryId];
-  const homeRule = window.ORBIS_MAP_META?.homeTerritoryRules?.[countryId];
+  const meta = window.ORBIS_MAP_META || {};
+  const cap = meta.capitals?.[countryId];
+  const homeRule = meta.homeTerritoryRules?.[countryId];
+  const homeRegionId = meta.countryAnchors?.[countryId]?.homeRegionId || '';
   const cStates = (state.states || []).filter(s => s.country === countryId && !s.isSea && !s.isSeaZone);
   if (!cStates.length) {
     const fallback = cap ? { lon: cap[0], lat: cap[1] } : { lon: 0, lat: 0 };
@@ -5733,68 +6098,27 @@ function getCountryMainlandCenter(countryId) {
     return fallback;
   }
 
-  let mainlandStates = [];
-  if (homeRule) {
-    mainlandStates = cStates.filter(s => s.lon >= homeRule.minLon && s.lon <= homeRule.maxLon && s.lat >= homeRule.minLat && s.lat <= homeRule.maxLat);
-  }
-  if (!mainlandStates.length) {
-    let capState = cStates[0];
-    let minD = Infinity;
-    const targetLon = cap ? cap[0] : cStates[0].lon;
-    const targetLat = cap ? cap[1] : cStates[0].lat;
-    for (const s of cStates) {
-      const d = Math.hypot(s.lon - targetLon, s.lat - targetLat);
-      if (d < minD) { minD = d; capState = s; }
-    }
-    const queue = [capState];
-    const visited = new Set([capState.id]);
-    mainlandStates = [capState];
-    while (queue.length) {
-      const curr = queue.shift();
-      for (const s of cStates) {
-        if (visited.has(s.id)) continue;
-        const d = Math.hypot(s.lon - curr.lon, s.lat - curr.lat);
-        if (d < 18) {
-          visited.add(s.id);
-          queue.push(s);
-          mainlandStates.push(s);
-        }
-      }
-    }
-  }
-
-  let westmost = Infinity, eastmost = -Infinity, southmost = Infinity, northmost = -Infinity;
-  for (const s of mainlandStates) {
-    if (s.rings && s.rings.length) {
-      for (const ring of s.rings) {
-        for (const p of ring) {
-          if (homeRule && (p[0] < homeRule.minLon || p[0] > homeRule.maxLon || p[1] < homeRule.minLat || p[1] > homeRule.maxLat)) continue;
-          if (p[0] < westmost) westmost = p[0];
-          if (p[0] > eastmost) eastmost = p[0];
-          if (p[1] < southmost) southmost = p[1];
-          if (p[1] > northmost) northmost = p[1];
-        }
-      }
-    } else {
-      if (s.lon < westmost) westmost = s.lon;
-      if (s.lon > eastmost) eastmost = s.lon;
-      if (s.lat < southmost) southmost = s.lat;
-      if (s.lat > northmost) northmost = s.lat;
-    }
-  }
-
-  if (westmost === Infinity) {
-    const center = cap ? { lon: cap[0], lat: cap[1] } : { lon: cStates[0].lon, lat: cStates[0].lat };
+  const anchor = globalThis.ORBIS_MAP_LABELS?.mainlandAnchor({
+    states: state.states || [],
+    countryId,
+    homeRule,
+    capital: cap,
+    homeRegionId
+  });
+  if (anchor) {
+    const center = {
+      lon: anchor.lon,
+      lat: anchor.lat,
+      anchorStateId: anchor.stateId,
+      anchorMethod: anchor.method,
+      anchorArea: anchor.area,
+      mainlandStateIds: new Set(anchor.stateIds || [])
+    };
     countryMainlandCenterCache.set(countryId, center);
     return center;
   }
 
-  const center = {
-    lon: (westmost + eastmost) / 2,
-    lat: (southmost + northmost) / 2,
-    westmost, eastmost, southmost, northmost,
-    mainlandStateIds: new Set(mainlandStates.map(s => s.id))
-  };
+  const center = cap ? { lon: cap[0], lat: cap[1] } : { lon: cStates[0].lon, lat: cStates[0].lat };
   countryMainlandCenterCache.set(countryId, center);
   return center;
 }
@@ -6150,6 +6474,12 @@ globalThis.ORBIS_MAP_LABELS = (() => {
   const SPATIAL_CELL = 96;
   // これ以上の地理的広がりを持つ国は、ズームや衝突判定で国名を落とさない。
   const LARGE_COUNTRY_SPAN = 140;
+  // 既定（世界）ズームでは主要国と、塊として本当に大きい国だけを出す。
+  // 中国軍閥・バルト・スイス規模・南米の中小国はここに入れない。
+  const WORLD_ZOOM_MAX = 2;
+  const WORLD_ZOOM_LARGE_COUNTRIES = Object.freeze([
+    'canada', 'brazil', 'argentina', 'australia', 'india', 'col_belgium_congo'
+  ]);
   const COUNTRY_LABEL_OFFSETS = Object.freeze([
     [0, 0], [0, -15], [0, 15], [-24, 0], [24, 0], [-24, -15], [24, -15], [-24, 15], [24, 15],
     [0, -30], [0, 30], [-48, 0], [48, 0], [-48, -30], [48, -30], [-48, 30], [48, 30],
@@ -6172,11 +6502,15 @@ globalThis.ORBIS_MAP_LABELS = (() => {
     }
     return units * font;
   }
-  function countryLabelVisible({ span, zoom, isMajor = false, isLarge = false, isLobby = false, selected = false }) {
+  function isProminentWorldCountry(countryId, isMajor = false) {
+    return Boolean(isMajor) || WORLD_ZOOM_LARGE_COUNTRIES.includes(countryId);
+  }
+  function countryLabelVisible({ country = '', span, zoom, isMajor = false, isLarge = false, selected = false }) {
     if (selected) return true;
-    if (isLobby) return true;
+    const level = Math.max(0.5, Number(zoom) || 1);
+    if (level < WORLD_ZOOM_MAX) return isProminentWorldCountry(country, isMajor);
     if (isMajor || isLarge) return true;
-    const screenSpan = Math.max(0, Number(span) || 0) * Math.max(0.5, Number(zoom) || 1);
+    const screenSpan = Math.max(0, Number(span) || 0) * level;
     return screenSpan >= 60;
   }
   function pointInViewport(point, viewport) {
@@ -6228,10 +6562,11 @@ globalThis.ORBIS_MAP_LABELS = (() => {
     return { visible: false, x: 0, y: 0, ll: desired.ll || null, forced: false };
   }
   function cityLabelVisible({ tier, zoom }) {
+    // 都市名は十分に拡大したときだけ。欧州比較カメラ（scale 3.2）では出さない。
     const level = Math.max(0, Number(zoom) || 1);
-    if (level < 1.05) return false;
-    if (tier === 2 && level < 1.45) return false;
-    if (tier === 3 && level < 2.15) return false;
+    if (level < 5) return false;
+    if (tier === 2 && level < 6.2) return false;
+    if (tier === 3 && level < 7.5) return false;
     return true;
   }
   const BADGE_OFFSETS = Object.freeze([
@@ -6245,7 +6580,196 @@ globalThis.ORBIS_MAP_LABELS = (() => {
     }
     return { x, y, hidden: true, dx: 0, dy: 0 };
   }
-  return Object.freeze({ SPATIAL_CELL, LARGE_COUNTRY_SPAN, COUNTRY_LABEL_OFFSETS, rectsOverlap, fits, record, textWidth, countryLabelVisible, pointInViewport, resolveCountryLabel, cityLabelVisible, placeBadge, BADGE_OFFSETS });
+
+  // 経度±180をまたぐリングを連続した座標へ開く。チュクチのリングが
+  // 地図全幅の巨大ポリゴンとして扱われ、ソ連の重心がコーカサスへ落ちるのを防ぐ。
+  function unwrapRing(ring) {
+    const points = [];
+    let previous = null;
+    for (const point of ring || []) {
+      let lon = Number(point?.[0]);
+      const lat = Number(point?.[1]);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+      if (previous !== null) {
+        while (lon - previous > 180) lon -= 360;
+        while (lon - previous < -180) lon += 360;
+      }
+      points.push([lon, lat]);
+      previous = lon;
+    }
+    if (points.length > 1) {
+      const first = points[0];
+      const last = points[points.length - 1];
+      if (Math.abs(first[0] - last[0]) < 1e-9 && Math.abs(first[1] - last[1]) < 1e-9) points.pop();
+    }
+    return points;
+  }
+
+  function ringArea(ring) {
+    let sum = 0;
+    for (let index = 0; index < (ring?.length || 0); index++) {
+      const a = ring[index];
+      const b = ring[(index + 1) % ring.length];
+      sum += a[0] * b[1] - b[0] * a[1];
+    }
+    return sum / 2;
+  }
+
+  function ringCentroid(ring) {
+    const area = ringArea(ring);
+    if (!ring?.length || Math.abs(area) < 1e-9) return null;
+    let x = 0;
+    let y = 0;
+    for (let index = 0; index < ring.length; index++) {
+      const a = ring[index];
+      const b = ring[(index + 1) % ring.length];
+      const cross = a[0] * b[1] - b[0] * a[1];
+      x += (a[0] + b[0]) * cross;
+      y += (a[1] + b[1]) * cross;
+    }
+    return { x: x / (6 * area), y: y / (6 * area) };
+  }
+
+  function pointInRing(x, y, ring) {
+    if (!ring || ring.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0];
+      const yi = ring[i][1];
+      const xj = ring[j][0];
+      const yj = ring[j][1];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  function distanceToRing(x, y, ring) {
+    let best = Infinity;
+    for (let index = 0; index < ring.length; index++) {
+      const a = ring[index];
+      const b = ring[(index + 1) % ring.length];
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const lengthSq = dx * dx + dy * dy;
+      const t = lengthSq ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / lengthSq)) : 0;
+      const px = a[0] + t * dx;
+      const py = a[1] + t * dy;
+      best = Math.min(best, Math.hypot(x - px, y - py));
+    }
+    return best;
+  }
+
+  // pole of inaccessibility の近似。重心が内部ならそれを使い、
+  // 凹んだ最大陸地では格子探索で最も縁から遠い内部点を選ぶ。
+  function interiorPoint(ring) {
+    const centroid = ringCentroid(ring);
+    if (centroid && pointInRing(centroid.x, centroid.y, ring)) return { ...centroid, method: 'centroid' };
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const point of ring) {
+      if (point[0] < minX) minX = point[0];
+      if (point[0] > maxX) maxX = point[0];
+      if (point[1] < minY) minY = point[1];
+      if (point[1] > maxY) maxY = point[1];
+    }
+    if (!Number.isFinite(minX)) return centroid ? { ...centroid, method: 'centroid' } : { x: 0, y: 0, method: 'fallback' };
+    let best = null;
+    const scan = (x0, x1, y0, y1, steps) => {
+      const stepX = (x1 - x0) / steps;
+      const stepY = (y1 - y0) / steps;
+      for (let gx = 0; gx < steps; gx++) {
+        for (let gy = 0; gy < steps; gy++) {
+          const x = x0 + stepX * (gx + 0.5);
+          const y = y0 + stepY * (gy + 0.5);
+          if (!pointInRing(x, y, ring)) continue;
+          const distance = distanceToRing(x, y, ring);
+          if (!best || distance > best.distance) best = { x, y, distance, method: 'pole' };
+        }
+      }
+    };
+    scan(minX, maxX, minY, maxY, 20);
+    if (best) {
+      const padX = (maxX - minX) / 20;
+      const padY = (maxY - minY) / 20;
+      scan(best.x - padX, best.x + padX, best.y - padY, best.y + padY, 10);
+    }
+    return best || (centroid ? { ...centroid, method: 'centroid' } : { x: (minX + maxX) / 2, y: (minY + maxY) / 2, method: 'fallback' });
+  }
+
+  function mainlandStatesFor({ states = [], countryId, homeRule = null, capital = null, homeRegionId = '' }) {
+    const countryStates = states.filter(item => item && item.country === countryId && !item.isSea && item.type !== 'sea' && !item.isSeaZone);
+    if (!countryStates.length) return [];
+    if (homeRule) {
+      const inRule = countryStates.filter(item => item.lon >= homeRule.minLon && item.lon <= homeRule.maxLon && item.lat >= homeRule.minLat && item.lat <= homeRule.maxLat);
+      if (inRule.length) return inRule;
+    }
+    let capitalState = homeRegionId ? countryStates.find(item => item.id === homeRegionId) : null;
+    if (!capitalState) {
+      const targetLon = Array.isArray(capital) ? capital[0] : countryStates[0].lon;
+      const targetLat = Array.isArray(capital) ? capital[1] : countryStates[0].lat;
+      let nearest = Infinity;
+      for (const item of countryStates) {
+        const distance = Math.hypot((item.lon || 0) - targetLon, (item.lat || 0) - targetLat);
+        if (distance < nearest) { nearest = distance; capitalState = item; }
+      }
+    }
+    if (!capitalState) return countryStates;
+    const visited = new Set([capitalState.id]);
+    const mainland = [capitalState];
+    const queue = [capitalState];
+    while (queue.length) {
+      const current = queue.shift();
+      for (const item of countryStates) {
+        if (visited.has(item.id)) continue;
+        if (Math.hypot((item.lon || 0) - (current.lon || 0), (item.lat || 0) - (current.lat || 0)) < 18) {
+          visited.add(item.id);
+          mainland.push(item);
+          queue.push(item);
+        }
+      }
+    }
+    return mainland;
+  }
+
+  // 本土の最大陸地リングを選び、その内部点を返す。飛地・海外領土は
+  // mainlandStatesFor の本土判定で除かれる。
+  function mainlandAnchor({ states = [], countryId, homeRule = null, capital = null, homeRegionId = '', includeRing = false }) {
+    const mainland = mainlandStatesFor({ states, countryId, homeRule, capital, homeRegionId });
+    if (!mainland.length) return null;
+    let best = null;
+    for (const item of mainland) {
+      for (const ring of item.rings || []) {
+        let points = unwrapRing(ring);
+        if (homeRule) points = points.filter(point => point[0] >= homeRule.minLon && point[0] <= homeRule.maxLon && point[1] >= homeRule.minLat && point[1] <= homeRule.maxLat);
+        if (points.length < 3) continue;
+        const meanLat = points.reduce((sum, point) => sum + point[1], 0) / points.length;
+        const lonScale = Math.max(0.2, Math.cos((meanLat * Math.PI) / 180));
+        const projected = points.map(point => [point[0] * lonScale, point[1]]);
+        const area = Math.abs(ringArea(projected));
+        if (!best || area > best.area) best = { item, projected, lonScale, area };
+      }
+    }
+    if (!best) {
+      const fallback = mainland[0];
+      return { lon: fallback.lon, lat: fallback.lat, stateId: fallback.id, stateIds: mainland.map(item => item.id), inside: true, method: 'state-anchor', area: 0, ring: null };
+    }
+    const point = interiorPoint(best.projected);
+    const rawLon = point.x / best.lonScale;
+    const lon = ((((rawLon + 540) % 360) + 360) % 360) - 180;
+    const shift = lon - rawLon;
+    const result = {
+      lon,
+      lat: point.y,
+      stateId: best.item.id,
+      stateIds: mainland.map(item => item.id),
+      inside: pointInRing(point.x, point.y, best.projected),
+      method: point.method,
+      area: best.area
+    };
+    if (includeRing) result.ring = best.projected.map(([x, y]) => [x / best.lonScale + shift, y]);
+    return result;
+  }
+
+  return Object.freeze({ SPATIAL_CELL, LARGE_COUNTRY_SPAN, WORLD_ZOOM_MAX, WORLD_ZOOM_LARGE_COUNTRIES, COUNTRY_LABEL_OFFSETS, rectsOverlap, fits, record, textWidth, countryLabelVisible, isProminentWorldCountry, pointInViewport, resolveCountryLabel, cityLabelVisible, placeBadge, BADGE_OFFSETS, unwrapRing, ringArea, pointInRing, mainlandStatesFor, mainlandAnchor });
 })();
 
 function currentMapViewportBounds() {
@@ -6269,6 +6793,35 @@ function currentMapViewportBounds() {
     };
   }
   return { minX: x, maxX: x + width, minY: y, maxY: y + height, width, height };
+}
+
+// バー・ドック・ナビ・地図ツールの占有域をラベル座標へ変換し、国名を重ねない。
+function mapUiReservedRects() {
+  const svg = document.getElementById('orbis-world-svg');
+  // 平面図ではラベルが map-root-group の拡大縮小を受けるため、
+  // SVG ルートではなくラベル層自身の CTM で画面座標を戻す。
+  const coordinateRoot = document.getElementById('labels-layer') || svg;
+  const matrix = coordinateRoot?.getScreenCTM?.();
+  if (!svg || !matrix || typeof matrix.inverse !== 'function') return [];
+  const inverse = matrix.inverse();
+  const selectors = ['.orbis-topbar', '#shell-dock', '.shell-nav', '.map-toolbar'];
+  const rects = [];
+  for (const selector of selectors) {
+    const element = document.querySelector(selector);
+    if (!element || element.hidden) continue;
+    const style = getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) continue;
+    const topLeft = new DOMPoint(rect.left, rect.top).matrixTransform(inverse);
+    const bottomRight = new DOMPoint(rect.right, rect.bottom).matrixTransform(inverse);
+    const x = (topLeft.x + bottomRight.x) / 2;
+    const y = (topLeft.y + bottomRight.y) / 2;
+    const hw = Math.abs(bottomRight.x - topLeft.x) / 2;
+    const hh = Math.abs(bottomRight.y - topLeft.y) / 2;
+    if (Number.isFinite(x) && Number.isFinite(y) && hw > 0 && hh > 0) rects.push({ x, y, hw: hw + 6, hh: hh + 6 });
+  }
+  return rects;
 }
 
 function projectedStateBounds(region) {
@@ -6337,9 +6890,10 @@ function updateMapVisuals() {
     }
 
     if (isSea) {
-      const seaFill = 'rgba(56, 189, 248, 0.08)';
+      // 平面図では海を一色に保ち、海域の矩形が浮かないようにする。
+      const seaFill = isGlobe ? 'rgba(56, 189, 248, 0.08)' : '#cfe3f4';
       if (el.getAttribute('fill') !== seaFill) el.setAttribute('fill', seaFill);
-      const seaStroke = 'rgba(56, 189, 248, 0.2)';
+      const seaStroke = isGlobe ? 'rgba(56, 189, 248, 0.2)' : 'none';
       if (el.getAttribute('stroke') !== seaStroke) {
         el.setAttribute('stroke', seaStroke);
         el.setAttribute('stroke-width', (0.6 * strokeScale).toFixed(2));
@@ -6426,6 +6980,8 @@ function updateMapVisuals() {
         }
       };
       mapLabelScreenRects = [];
+      const reservedRects = mapUiReservedRects();
+      for (const rect of reservedRects) recordPlaced(rect.x, rect.y, rect.hw, rect.hh);
       const spanByCountry = new Map();
       state.states.forEach(s => {
         if (s.isSea || s.type === 'sea' || s.isSeaZone || !state.nations[s.country]) return;
@@ -6449,10 +7005,13 @@ function updateMapVisuals() {
           ll: centerInfo ? [centerInfo.lon, centerInfo.lat] : null
         };
         const candidates = [];
+        const mainlandIds = centerInfo?.mainlandStateIds;
+        const capitalRegionId = window.ORBIS_MAP_META?.countryAnchors?.[country]?.homeRegionId || '';
         const countryStates = (statesByCountryMap && statesByCountryMap.get(country)) || state.states.filter(s => s.country === country);
         for (let i = 0; i < countryStates.length; i++) {
           const s = countryStates[i];
           if (s.isSea || s.type === 'sea' || s.isSeaZone) continue;
+          if (mainlandIds && mainlandIds.size && !mainlandIds.has(s.id)) continue;
           const spt = getProjectedStatePoint(s);
           if (!spt || !spt.visible) continue;
           if (!ORBIS_MAP_LABELS.pointInViewport(spt, viewportBounds)) continue;
@@ -6462,7 +7021,7 @@ function updateMapVisuals() {
             lon: s.lon,
             lat: s.lat,
             ll: [s.lon, s.lat],
-            vp: Number(s.vp) || 0,
+            vp: s.id === capitalRegionId ? 10000 : (Number(s.vp) || 0),
             stateId: s.id
           });
         }
@@ -6476,17 +7035,18 @@ function updateMapVisuals() {
         return ((state.nations[b.country].isMajor ? 1 : 0) - (state.nations[a.country].isMajor ? 1 : 0)) || (b.span - a.span);
       });
 
+      const isWorldZoom = zoomFactor < ORBIS_MAP_LABELS.WORLD_ZOOM_MAX;
       for (const g of entries) {
         const label = state.nations[g.country]?.labelOverride || COUNTRY_LABEL_NAMES[g.country] || (state.nations[g.country].name || g.country).split(/[（(・]/)[0];
         const isSelectedNation = isLobby && (g.country === state.lobbyNationId);
         const isMajor = Boolean(state.nations[g.country]?.isMajor);
-        const isLarge = g.span >= ORBIS_MAP_LABELS.LARGE_COUNTRY_SPAN;
-        const mustShow = isMajor || isLarge || isSelectedNation || isLobby;
+        const isLarge = !isWorldZoom && g.span >= ORBIS_MAP_LABELS.LARGE_COUNTRY_SPAN;
+        const mustShow = isMajor || isSelectedNation || isLarge;
         const hasVisibleTerritory = ORBIS_MAP_LABELS.pointInViewport(g.desired, viewportBounds) || g.candidates.length > 0;
         if (!hasVisibleTerritory) continue;
         if (!mustShow && countryOp < 0.03) continue;
-        if (!ORBIS_MAP_LABELS.countryLabelVisible({ span: g.span, zoom: zoomFactor, isMajor, isLarge, isLobby, selected: isSelectedNation })) continue;
-        const font = (isSelectedNation ? Math.min(20, Math.max(13, 0.24 * g.span)) : Math.min(16, Math.max(10.5, 0.2 * g.span))) * invZoom;
+        if (!ORBIS_MAP_LABELS.countryLabelVisible({ country: g.country, span: g.span, zoom: zoomFactor, isMajor, isLarge, selected: isSelectedNation })) continue;
+        const font = (isSelectedNation ? Math.min(18, Math.max(13, 0.22 * g.span)) : Math.min(15.5, Math.max(12, 0.17 * g.span))) * invZoom;
         const hw = ORBIS_MAP_LABELS.textWidth(label, font);
         const hh = font * 0.66;
         const placement = ORBIS_MAP_LABELS.resolveCountryLabel({
@@ -6499,6 +7059,8 @@ function updateMapVisuals() {
           mustShow
         });
         if (!placement.visible) continue;
+        const labelRect = { x: placement.x, y: placement.y, hw, hh };
+        if (reservedRects.some(rect => ORBIS_MAP_LABELS.rectsOverlap(labelRect, rect, 1))) continue;
         recordPlaced(placement.x, placement.y, hw, hh);
         mapLabelScreenRects.push({
           x: isGlobe ? placement.x : placement.x * zoomFactor,
@@ -6527,7 +7089,7 @@ function updateMapVisuals() {
           if (!ORBIS_MAP_LABELS.cityLabelVisible({ tier: c.tier, zoom: zoomFactor })) continue;
           const pt = projectLonLatPoint(c.lon, c.lat);
           if (!pt || !pt.visible) continue;
-          const font = (c.tier === 1 ? 13.5 : 11.8) * invZoom;
+          const font = (c.tier === 1 ? 12 : 11) * invZoom;
           const hw = ORBIS_MAP_LABELS.textWidth(c.name, font);
           const hh = font * 0.65;
           if (!fits(pt.x, pt.y, hw, hh)) continue;
@@ -6564,6 +7126,7 @@ function updateMapVisuals() {
         node.setAttribute('data-label-key', key);
         node.setAttribute('class', `map-label ${d.cls}`);
         node.style.fontSize = `${d.font.toFixed(1)}px`;
+        node.style.strokeWidth = `${(d.cls.includes('city') ? 1.5 : 2.1) * invZoom}px`;
         node.style.opacity = d.op.toFixed(2);
         node.setAttribute('x', d.x.toFixed(1));
         node.setAttribute('y', d.y.toFixed(1));
@@ -7119,6 +7682,7 @@ function handleStateSelect(stateId) {
 
   Orbis.closeInfoPanels?.();
   renderStateInspector(s);
+  Orbis.openPanel?.('province');
   updateMapVisuals();
 }
 

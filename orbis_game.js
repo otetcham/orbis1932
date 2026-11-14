@@ -8,10 +8,13 @@ const Orbis = (() => {
   const DESKTOP_KEY = 'orbis_desktop_v1';
   const PANELS = {
     warlords: { label: '軍閥会議', width: 430, height: 470, minWidth: 320, minHeight: 300 },
-    state: { label: '内政・国家', width: 410, height: 470, minWidth: 300, minHeight: 300 },
-    history: { label: '諜報・情勢', width: 460, height: 470, minWidth: 320, minHeight: 280 },
-    chat: { label: '外交・国内回線', width: 430, height: 500, minWidth: 320, minHeight: 340 },
-    actions: { label: '国家の行動', width: 420, height: 480, minWidth: 300, minHeight: 300 },
+    state: { label: '内政', width: 360, height: 620, minWidth: 320, minHeight: 300 },
+    history: { label: '通知・情勢', width: 360, height: 620, minWidth: 320, minHeight: 280 },
+    chat: { label: '外交', width: 360, height: 620, minWidth: 320, minHeight: 340 },
+    war: { label: '軍事', width: 360, height: 620, minWidth: 320, minHeight: 300 },
+    plan: { label: '計画', width: 360, height: 620, minWidth: 320, minHeight: 300 },
+    province: { label: '州情報', width: 360, height: 620, minWidth: 320, minHeight: 300 },
+    actions: { label: '国家の行動', width: 360, height: 620, minWidth: 300, minHeight: 300 },
     menu: { label: 'メニュー', width: 320, height: 380, minWidth: 280, minHeight: 290 }
   };
   const RULES = {
@@ -1585,15 +1588,15 @@ const Orbis = (() => {
   const ONBOARDING_STEPS = [
     {
       title: '情勢を読む',
-      body: 'まずは「歴史」の今月の情勢と電報を読みます。地図では自国の位置と、紛争・戦争の赤枠を確認できます。'
+      body: '「内政」の概況と、ベルの通知・外交の電報を読みます。地図では自国の位置と、紛争・戦争の赤枠を確認できます。'
     },
     {
       title: '電報または国家の命令を出す',
-      body: '「外交」で相手を選んで電報を送るか、「行動」で今半月の国家命令を提出します。交渉枠は半月ごとに回復します。'
+      body: '「外交」で相手を選んで電報を送るか、「内政」の「行動」で今半月の国家命令を提出します。交渉枠は半月ごとに回復します。'
     },
     {
       title: 'ターンを終える',
-      body: '準備ができたら右上の「ターンを終える」を押します。裁定が終わると次の半月へ進み、直前の半月は「取消」で一度だけ戻せます。'
+      body: '準備ができたら右上の「ターンを終える」を押します。裁定が終わると次の半月へ進み、直前の半月は日付または通知パネルから一度だけ戻せます。'
     }
   ];
   const RECRUIT_MANPOWER_COST = 30;
@@ -2217,6 +2220,7 @@ const Orbis = (() => {
     saveCampaign();
     render();
     if ($('modal-focus')?.open) openFocusPanel();
+    if (runtime.windows.plan?.open) renderPlanPanel();
     return { ok: true, focus: copy(focus) };
   }
 
@@ -2261,7 +2265,7 @@ const Orbis = (() => {
     state.current = { id: item.id, progress: 0 };
     saveCampaign();
     render();
-    if ($('modal-research')?.open) openResearchPanel();
+    if (runtime.windows.plan?.open) renderPlanPanel();
     return { ok: true, research: copy(item) };
   }
 
@@ -2305,7 +2309,31 @@ const Orbis = (() => {
     return setFocusGraphView({ x: focusGraphViewState.x + (Number(dx) || 0), y: focusGraphViewState.y + (Number(dy) || 0) });
   }
 
+  function fitFocusGraphView() {
+    if (typeof document === 'undefined') return focusGraphView();
+    const viewport = $('focus-graph-viewport');
+    const graph = $('focus-graph');
+    if (!viewport || !graph) return focusGraphView();
+    const width = graph.offsetWidth || Number.parseFloat(graph.style.width) || 0;
+    const height = graph.offsetHeight || Number.parseFloat(graph.style.height) || 0;
+    if (!width || !height) return focusGraphView();
+    const next = globalThis.ORBIS_FOCUS_GRAPH.fitScale({
+      viewportWidth: Math.max(1, viewport.clientWidth - 2),
+      viewportHeight: Math.max(1, viewport.clientHeight - 2),
+      width,
+      height
+    });
+    focusGraphViewState.scale = next;
+    focusGraphViewState.x = 0;
+    focusGraphViewState.y = 0;
+    applyFocusGraphTransform();
+    return focusGraphView();
+  }
+
   function resetFocusGraphView() {
+    if (typeof document !== 'undefined' && $('focus-graph-viewport') && $('focus-graph')) {
+      return fitFocusGraphView();
+    }
     focusGraphViewState.scale = 1;
     focusGraphViewState.x = 0;
     focusGraphViewState.y = 0;
@@ -2447,12 +2475,11 @@ const Orbis = (() => {
             : `<button class="btn btn-primary" data-focus-select="${escapeHtml(focus.id)}" ${summary.current ? 'disabled' : ''}>${summary.current ? '別の国策を進行中' : 'この国策を選ぶ'}</button>`;
       const pathClass = `path-${focus.path || 'common'}`;
       const exclusive = focus.exclusive ? '<span class="focus-exclusive-badge">排他</span>' : '';
-      const lock = focus.status === 'locked' ? `<p class="focus-lock">${escapeHtml(focus.reason)}</p>` : `<p class="focus-desc">${escapeHtml(focus.desc)}</p>`;
+      const lock = focus.status === 'locked' ? `<p class="focus-lock">${escapeHtml(focus.reason)}</p>` : '';
       return `<article class="focus-card focus-node is-${focus.status} ${pathClass}" data-focus-node="${escapeHtml(focus.id)}" data-focus-detail-id="${escapeHtml(focus.id)}" tabindex="0" style="left:${position.x}px;top:${position.y}px;width:${cardWidth}px;height:${cardHeight}px" title="${escapeHtml(`${focus.name} / ${focus.pathLabel} / ${focus.eraLabel} / ${focus.desc} / ${focus.effectText}`)}">
         <div class="focus-card-head"><strong>${escapeHtml(focus.name)}</strong><span class="focus-badge ${badgeClass}">${statusLabel}</span></div>
         <p class="focus-node-meta">${escapeHtml(focus.pathLabel)}${exclusive} · ${escapeHtml(focus.eraLabel)} · 第${focus.tier}段階</p>
         ${lock}
-        <p class="focus-effects">${escapeHtml(focus.effectText)}</p>
         <div class="focus-node-foot"><span class="focus-meta">費用 ${focus.cost}</span>${button}</div>
       </article>`;
     }).join('');
@@ -2486,12 +2513,13 @@ const Orbis = (() => {
     focusGraphViewState.y = 0;
     openDialog('modal-focus');
     bindFocusGraph(summary);
+    fitFocusGraphView();
   }
 
-  function openResearchPanel() {
+  function renderResearchPanel() {
     if (!campaign) return;
     const summary = researchSummary();
-    if (!summary) return;
+    if (!summary || !$('research-panel-body')) return;
     const current = summary.current
       ? `<div class="focus-stat"><span>進行中</span><strong>${escapeHtml(summary.current.name)}</strong><small>${summary.current.progress} / ${summary.current.cost} · 毎半月 +${summary.progressGain}</small><div class="focus-progress" style="margin-top:6px"><span style="width:${Math.min(100, Math.round(summary.current.progress / summary.current.cost * 100))}%"></span></div></div>`
       : '<div class="focus-stat"><span>進行中</span><strong>未選択</strong><small>下の系統から研究対象を選ぶ</small></div>';
@@ -2514,7 +2542,7 @@ const Orbis = (() => {
       }).join('');
       return `<section class="research-branch"><h3>${escapeHtml(branch.label)}</h3><p class="small muted">${escapeHtml(branch.desc)}</p>${items}</section>`;
     }).join('');
-    html('research-panel-body', `<section class="focus-summary">
+    html('research-panel-body', `<section class="focus-summary plan-metrics">
       <div class="focus-stat"><span>研究速度</span><strong>+${summary.speed}%</strong><small>国策・電子研究の補正</small></div>
       ${current}
       <div class="focus-stat"><span>完了済み</span><strong>${summary.completed.length}</strong><small>同時研究は1件</small></div>
@@ -2522,7 +2550,39 @@ const Orbis = (() => {
     </section>
     <p class="small muted">陸軍教義は攻勢と消耗、産業は装備生産、装備は補充と戦力、電子は研究速度と補給に効く。研究速度が上がると実際の進行が速くなる。</p>
     <div class="research-grid">${branches}</div>`);
-    openDialog('modal-research');
+  }
+
+  function renderPlanPanel() {
+    if (!campaign) return;
+    const summary = focusSummary();
+    if (summary && $('plan-focus-summary')) {
+      const current = summary.current
+        ? `<div class="focus-stat"><span>進行中</span><strong>${escapeHtml(summary.current.name)}</strong><small>${summary.current.progress} / ${summary.current.cost} · 毎半月 最大 ${summary.allocation}</small><div class="focus-progress" style="margin-top:6px"><span style="width:${Math.min(100, Math.round(summary.current.progress / summary.current.cost * 100))}%"></span></div></div>`
+        : '<div class="focus-stat"><span>進行中</span><strong>未選択</strong><small>国策グラフから次の方針を選ぶ</small></div>';
+      html('plan-focus-summary', `<section class="plan-card">
+        <div class="plan-card-head"><div><span class="eyebrow">国家計画</span><h2>${escapeHtml(summary.treeLabel)}</h2></div><button class="btn btn-primary" data-open-focus>国策グラフを開く</button></div>
+        <div class="focus-summary plan-metrics">
+          <div class="focus-stat"><span>政治力</span><strong>${summary.politicalPower} / ${summary.maxPoliticalPower}</strong><small>毎半月 +${summary.gain}</small></div>
+          ${current}
+          <div class="focus-stat"><span>完了済み</span><strong>${summary.completed.length} / ${summary.focuses.length}</strong><small>排他分岐あり</small></div>
+        </div>
+        <p class="small muted">国策はグラフで前提を確認して選ぶ。パン・ズームと効果の全文はグラフ画面で読める。</p>
+      </section>`);
+    }
+    renderResearchPanel();
+  }
+
+  function openPlanPanel() {
+    if (!campaign) return false;
+    openPanel('plan');
+    return true;
+  }
+
+  function openResearchPanel() {
+    if (!campaign) return false;
+    openPanel('plan');
+    requestAnimationFrame(() => $('research-panel-body')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    return true;
   }
 
   function mobilizationGrowth(entry) {
@@ -2891,7 +2951,7 @@ const Orbis = (() => {
       const selected = state.states?.find(item => item.id === state.selectedStateId);
       if (selected) globalThis.renderStateInspector(selected);
     }
-    if ($('modal-war-panel')?.open) openWarPanel();
+    if (runtime.windows.war?.open) openWarPanel();
     return { ok: true, formation: copy(formation) };
   }
 
@@ -4922,7 +4982,7 @@ const Orbis = (() => {
         <div class="economy-card"><span>空軍力</span><strong>${summary.air}</strong><small>航空優勢と補給妨害に影響</small></div>
       </div>
       <ul class="sea-control-list">${rows}</ul>
-      <p class="small muted">海軍力は支配陸州の海軍施設（nic）、空軍力は航空施設（air）から簡易集計する。敵が制海する海を隔てた部隊は補給が悪化し、敵航空優勢は前線の補給と攻勢を妨害する。陸続きの補給は従来どおり。</p>
+      <p class="small muted">海軍力は支配陸州の軍港、空軍力は飛行場から簡易集計する。敵が制海する海を隔てた部隊は補給が悪化し、敵航空優勢は前線の補給と攻勢を妨害する。陸続きの補給は従来どおり。</p>
       <ul class="sea-control-list sea-impact-list">${impactRows}</ul>
     </section>`;
   }
@@ -4994,7 +5054,7 @@ const Orbis = (() => {
     const playerFormations = (campaign.formations || []).filter(item => item.nationId === campaign.playerNationId);
     const formationRows = playerFormations.map(formationCommandHtml).join('') || '<p class="empty-state">命令できる部隊はありません。</p>';
     html('war-panel-body', `<section><h3>国際戦争</h3>${warRows}</section>${maritimeSectionHtml()}<section style="margin-top:14px"><h3>内戦・反乱</h3>${civilRows}</section><section style="margin-top:14px"><h3>史実の弧・記録（${arcLog.length}）</h3><p class="small muted">史実寄りの駆動は、宣戦・隣接占領・政治移管・独立・内戦の既存ルールを通じて地図を動かします。</p>${arcRows}</section><section style="margin-top:14px"><h3>戦線（${fronts.length}）</h3><p class="small muted">地図上の赤枠・斜線が占領と戦闘地域です。</p></section><section style="margin-top:14px"><h3>部隊・戦線（${playerFormations.length}）</h3><p class="small muted">防御は現在地で待機、攻勢は目標方向の隣接する敵領へ1ターンに1州ずつ進みます。攻勢は戦争中の相手にだけ指示できます。</p>${formationRows}</section><div class="form-row" style="margin-top:12px"><label>宣戦<select id="war-target-select" class="form-select">${Object.keys(campaign.nations).filter(id => id !== campaign.playerNationId).map(id => `<option value="${id}">${escapeHtml(shortName(id))}</option>`).join('')}</select></label><button class="btn btn-primary" id="btn-declare-war-submit">宣戦布告</button></div>`);
-    openDialog('modal-war-panel');
+    openPanel('war');
   }
 
   function openEconomyPanel() {
@@ -5053,7 +5113,7 @@ const Orbis = (() => {
     const info = onboardingInfo();
     const steps = ONBOARDING_STEPS.map((step, index) => `<li class="${index === info.step ? 'current' : index < info.step ? 'done' : ''}"><strong>${escapeHtml(step.title)}</strong><span>${escapeHtml(step.body)}</span></li>`).join('');
     const nextLabel = info.step >= info.total - 1 ? '案内を完了' : '次へ';
-    html('onboarding-body', `<p class="eyebrow">${escapeHtml(dateOf(campaign))} · 最初の半月</p><div class="onboarding-lead"><strong>${escapeHtml(info.title)}</strong><p>${escapeHtml(info.body)}</p></div><ol class="onboarding-steps">${steps}</ol><p class="small muted">閉じても、メニューの「導入案内」からいつでも見直せます。完了後は自動で表示しません。</p><div class="onboarding-actions">${info.step > 0 ? '<button class="btn btn-ghost" data-onboarding-prev>戻る</button>' : ''}<button class="btn btn-primary" data-onboarding-next>${escapeHtml(nextLabel)}</button><button class="btn btn-ghost" data-onboarding-complete>案内を完了</button></div>`);
+    html('onboarding-body', `<p class="eyebrow">${escapeHtml(dateOf(campaign))} · 最初の半月</p><ol class="onboarding-steps">${steps}</ol><p class="small muted">閉じても、設定の「導入案内」からいつでも見直せます。完了後は自動で表示しません。</p><div class="onboarding-actions">${info.step > 0 ? '<button class="btn btn-ghost" data-onboarding-prev>戻る</button>' : ''}<button class="btn btn-primary" data-onboarding-next>${escapeHtml(nextLabel)}</button></div>`);
   }
 
   function openOnboarding() {
@@ -5100,7 +5160,7 @@ const Orbis = (() => {
     saveCampaign();
     closeDialog('modal-onboarding');
     renderOnboarding();
-    toast('導入案内を完了しました。メニューからいつでも見直せます。');
+    toast('導入案内を完了しました。設定からいつでも見直せます。');
     return true;
   }
 
@@ -6908,54 +6968,83 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if (channel.unread) { channel.unread = 0; saveCampaign(); renderThreads(); }
   }
 
+  function dockTabForPanel(id) {
+    if (id === 'state' || id === 'actions') return 'domestic';
+    if (id === 'chat') return 'diplomacy';
+    if (id === 'war') return 'military';
+    if (id === 'plan') return 'plan';
+    return '';
+  }
+
   function renderDock() {
     const anyOpen = Object.values(runtime.windows).some(panel => panel.open);
-    $('dock-map')?.classList.toggle('active', !anyOpen);
-    $('dock-map')?.setAttribute('aria-pressed', String(!anyOpen));
-    for (const [id, panel] of Object.entries(runtime.windows)) {
-      const dockId = id === 'history' ? 'intel' : id;
-      const button = $(`dock-${dockId}`);
+    const activeTab = runtime.frontPanel ? dockTabForPanel(runtime.frontPanel) : 'map';
+    const tabs = [['map', 'dock-map'], ['domestic', 'dock-state'], ['diplomacy', 'dock-chat'], ['military', 'dock-war'], ['plan', 'dock-plan']];
+    for (const [tab, id] of tabs) {
+      const button = $(id);
       if (!button) continue;
-      button.classList.toggle('active', panel.open && !panel.collapsed && runtime.frontPanel === id);
-      button.classList.toggle('is-open', panel.open);
-      button.classList.toggle('is-collapsed', panel.open && panel.collapsed);
-      button.setAttribute('aria-expanded', String(panel.open && !panel.collapsed));
-      button.title = `${PANELS[id].label}${panel.open && panel.collapsed ? ' · 折りたたみ中' : ''}`;
+      const active = tab === 'map' ? !anyOpen : activeTab === tab;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
     }
-    if ($('dock-warlords')) $('dock-warlords').hidden = !campaign || campaign.playerNationId !== 'china';
     const unread = campaign ? Object.values(campaign.threads).reduce((sum, channel) => sum + channel.unread, 0) : 0;
-    text('dock-chat-badge', unread > 99 ? '99+' : unread);
-    if ($('dock-chat-badge')) $('dock-chat-badge').hidden = unread === 0;
     const historyUnread = campaign ? Math.max(0, campaign.articles.length - runtime.historySeen) : 0;
-    text('dock-history-badge', historyUnread > 9 ? '9+' : historyUnread);
-    if ($('dock-history-badge')) $('dock-history-badge').hidden = historyUnread === 0;
-    if ($('dock-actions-badge')) $('dock-actions-badge').hidden = !campaign || campaign.phase !== 'playing' || Boolean(campaign.nationalAction);
-    const playbackActive = Boolean(globalThis.ORBIS_PLAYBACK?._state?.running || document.body?.classList?.contains('turn-playback-active'));
-    if ($('map-dispatch-notice')) $('map-dispatch-notice').hidden = playbackActive || unread === 0 || runtime.windows.chat.open && !runtime.windows.chat.collapsed;
-    text('map-dispatch-label', `${unread}件の新着メッセージ`);
+    const notifications = unread + historyUnread;
+    text('notification-badge', notifications > 99 ? '99+' : String(notifications));
+    if ($('notification-badge')) $('notification-badge').hidden = notifications === 0;
+    if ($('btn-open-notifications')) $('btn-open-notifications').setAttribute('aria-label', notifications ? `通知 ${notifications}件` : '通知');
+    text('unread-count', unread);
+    if ($('unread-count')) $('unread-count').hidden = unread === 0;
+    if ($('shell-dock')) $('shell-dock').hidden = !anyOpen;
+    document.body?.classList?.toggle('dock-open', anyOpen);
   }
 
   function renderWindows() {
-    const bounds = desktopBounds();
+    const anyOpen = Object.values(runtime.windows).some(panel => panel.open);
+    if ($('shell-dock')) $('shell-dock').hidden = !anyOpen;
     for (const [id, layout] of Object.entries(runtime.windows)) {
       const element = $(`window-${id}`);
       if (!element) continue;
       element.hidden = !layout.open;
-      element.dataset.collapsed = String(layout.collapsed);
+      element.dataset.collapsed = 'false';
       element.dataset.front = String(runtime.frontPanel === id);
-      element.style.zIndex = String(30 + runtime.windowOrder.indexOf(id));
       const body = $(`window-${id}-body`);
-      if (body) { body.inert = layout.collapsed; body.setAttribute('aria-hidden', String(layout.collapsed)); }
-      const collapse = element.querySelector('[data-window-minimize]');
-      if (collapse) {
-        collapse.textContent = layout.collapsed ? '+' : '−';
-        collapse.setAttribute('aria-expanded', String(!layout.collapsed));
-        collapse.setAttribute('aria-label', `${PANELS[id].label}を${layout.collapsed ? '展開する' : '折りたたむ'}`);
+      if (body) { body.inert = false; body.setAttribute('aria-hidden', 'false'); }
+      if (element.closest('#shell-dock')) {
+        element.style.removeProperty('left');
+        element.style.removeProperty('top');
+        element.style.removeProperty('width');
+        element.style.removeProperty('height');
+        element.style.removeProperty('z-index');
+        continue;
       }
+      const bounds = desktopBounds();
+      element.style.zIndex = String(30 + runtime.windowOrder.indexOf(id));
       const rect = panelRect(id, bounds);
       Object.assign(element.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` });
     }
     renderDock();
+    if (typeof globalThis.scheduleMapVisuals === 'function') globalThis.scheduleMapVisuals();
+  }
+
+  function showDomesticTab(tab) {
+    const target = ['domestic', 'actions', 'nations', 'events'].includes(tab) ? tab : 'domestic';
+    for (const button of document.querySelectorAll('[data-left-tab]')) {
+      const active = button.dataset.leftTab === target;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+    }
+    for (const pane of document.querySelectorAll('.left-tab-pane')) pane.classList.toggle('active', pane.id === `left-tab-${target}`);
+  }
+
+  function openTab(tab) {
+    if (!campaign) return false;
+    if (tab === 'map') { showMap(); return true; }
+    if (tab === 'domestic') { showDomesticTab('domestic'); openPanel('state'); return true; }
+    if (tab === 'diplomacy') { openPanel('chat'); return true; }
+    if (tab === 'military') { openWarPanel(); return true; }
+    if (tab === 'plan') { openPanel('plan'); return true; }
+    return false;
   }
 
   function raisePanel(id) {
@@ -6973,46 +7062,54 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if ($('national-action-input')) $('national-action-input').value = campaign.actionDraft;
       saveCampaign();
     }
-    openPanel('actions');
+    openPanel('state');
+    showDomesticTab('actions');
+    renderActions();
     render();
     return true;
   }
 
   function openPanel(id) {
-    if (!campaign || !runtime.windows[id]) return;
+    if (!campaign) return;
+    // 旧「国家の行動」は内政ドックの行動タブへ統合した。
+    if (id === 'actions') { showDomesticTab('actions'); id = 'state'; }
+    if (!runtime.windows[id]) return;
     const panel = runtime.windows[id];
     if (!panel.open && id === 'chat') runtime.chatView = 'list';
-    // 左の吹き出しウィンドウに集約するため、情報系パネルは同時に1つだけ開く。
-    if (['warlords', 'state', 'chat', 'history', 'actions'].includes(id)) {
-      for (const otherId of ['warlords', 'state', 'chat', 'history', 'actions']) {
-        if (otherId !== id) runtime.windows[otherId].open = false;
-      }
+    // パネルは常に一つだけ。州情報・通知も同じドックを置き換える。
+    for (const [otherId, other] of Object.entries(runtime.windows)) {
+      if (otherId !== id) other.open = false;
     }
     panel.open = true;
     panel.collapsed = false;
-    if (id === 'history') runtime.historySeen = campaign.articles.length;
-    raisePanel(id);
+    if (id === 'history') {
+      runtime.historySeen = campaign.articles.length;
+      renderHistory();
+      renderNotificationList();
+    }
     if (id === 'chat') { renderThreads(); renderChatRoute(); renderConversation(true); }
     if (id === 'actions') renderActions();
+    if (id === 'state') { renderDomestic(); renderActions(); }
+    if (id === 'plan') renderPlanPanel();
     if (id === 'warlords') {
       renderWarlords();
       const body = $('window-warlords-body');
       if (body && campaign?.warlordConference?.status === 'ready') body.scrollTop = body.scrollHeight;
     }
+    raisePanel(id);
     renderWindows();
-    $(`window-${id}`)?.querySelector('[data-window-drag]')?.focus({ preventScroll: true });
   }
 
   function closePanel(id) {
     const panel = runtime.windows[id];
     if (!panel) return;
     const focused = $(`window-${id}`)?.contains(document.activeElement);
-    if (id === 'chat' || id === 'actions') { rememberDraft(); saveCampaign(); }
+    if (id === 'chat' || id === 'actions' || id === 'state') { rememberDraft(); saveCampaign(); }
     panel.open = false;
-    if (runtime.frontPanel === id) runtime.frontPanel = [...runtime.windowOrder].reverse().find(key => runtime.windows[key].open) || null;
+    if (runtime.frontPanel === id) runtime.frontPanel = null;
     renderWindows();
     markConversationRead();
-    if (focused) $(`dock-${id}`)?.focus();
+    if (focused) $('#dock-map')?.focus();
   }
 
   function toggleCollapsed(id) {
@@ -7025,9 +7122,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   }
 
   function closeInfoPanels() {
-    for (const id of ['state', 'chat', 'history', 'actions']) {
-      if (runtime.windows[id]) runtime.windows[id].open = false;
-    }
+    for (const panel of Object.values(runtime.windows)) panel.open = false;
     runtime.frontPanel = null;
     renderWindows();
   }
@@ -7184,7 +7279,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if (!campaign) return;
     const nation = state.nations[campaign.playerNationId];
     html('topbar-player-flag', getCountryFlagSvg(nation.id));
-    text('topbar-player-name', nation.name);
+    const fullName = String(nation.labelOverride || nation.name || nation.id);
+    const shortName = fullName.split(/[（(]/)[0].trim() || fullName;
+    text('topbar-player-name', shortName);
     text('topbar-player-leader', nation.leader);
     const dependency = dependencyInfo(campaign.playerNationId);
     const suzerain = $('topbar-player-suzerain');
@@ -7208,8 +7305,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       const pill = $('hud-tension').closest('.gauge-pill');
       if (pill) pill.style.color = tensionColor;
     }
-    text('hud-date', dateOf(campaign));
-    text('hud-turn', hudTurnLabel(campaign));
+    const dateLabel = dateOf(campaign);
+    const halfMatch = dateLabel.match(/^(.+?)（(.+)）$/);
+    text('hud-date', halfMatch ? halfMatch[1] : dateLabel);
+    text('hud-turn', halfMatch ? halfMatch[2] : '');
     text('hud-actions', `交渉枠 ${RULES[campaign.difficulty].actions - campaign.usedActions} / ${RULES[campaign.difficulty].actions}`);
     $('btn-open-lobby')?.setAttribute('title', underSuzerain
       ? `${nation.name} · ${nation.leader}（${dependency.overlordName}の${dependency.kindLabel}）`
@@ -7227,7 +7326,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const researchInfo = researchSummary();
     const focusLine = focusInfo?.current ? `${escapeHtml(focusInfo.current.name)} ${focusInfo.current.progress}/${focusInfo.current.cost}` : '未選択';
     const researchLine = researchInfo?.current ? `${escapeHtml(researchInfo.current.name)} ${researchInfo.current.progress}/${researchInfo.current.cost}` : '未選択';
-    html('domestic-overview-box', `<div class="nation-overview"><div class="mini-metrics"><div><span class="muted small">財政余力</span><strong>${campaign.treasury}<small class="small muted"> / 100</small></strong><span class="small">経常収支 ${signed(budget.net)}${budget.admin ? ` · 自治政府 +${budget.admin}` : ''}${budget.tribute ? ` · 貢納 -${budget.tribute}` : ''}</span></div><div><span class="muted small">国家威信</span><strong>${campaign.prestige}<small class="small muted"> / 100</small></strong><span class="small">履行 ${campaign.cumulative.fulfilled} · 違反 ${campaign.cumulative.broken}</span></div><div><span class="muted small">政治力</span><strong>${focusInfo?.politicalPower ?? 0}<small class="small muted"> / ${focusInfo?.maxPoliticalPower ?? FOCUS_PP_MAX}</small></strong><span class="small">国策 ${focusLine} · 研究 ${researchLine}</span></div></div><details class="compact-disclosure"><summary>国家目標 · ${escapeHtml(goal.name)} <span class="muted">${goal.conditions.filter(condition => condition.met).length}/${goal.conditions.length}</span></summary><div class="goal-box">${goal.conditions.map(condition => `<div>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</div>`).join('')}</div><p class="small">任期末までに全条件を満たす。</p></details>${ownClient ? `<p class="small" style="margin-top:9px">${escapeHtml(shortName(ownClient.sponsorId))}の影響下 · 自治 ${ownClient.autonomy} / 忠誠 ${ownClient.loyalty}</p>` : ''}<div class="form-row" style="margin-top:6px"><button class="text-button" data-situation-briefing>顧問ブリーフィング ↗</button><button class="text-button" data-open-focus>国策 ↗</button><button class="text-button" data-open-research>研究 ↗</button><button class="text-button" data-open-economy>動員・生産 ↗</button></div></div>`);
+    html('domestic-overview-box', `<div class="nation-overview"><div class="mini-metrics"><div><span class="muted small">財政余力</span><strong>${campaign.treasury}<small class="small muted"> / 100</small></strong><span class="small">経常収支 ${signed(budget.net)}${budget.admin ? ` · 自治政府 +${budget.admin}` : ''}${budget.tribute ? ` · 貢納 -${budget.tribute}` : ''}</span></div><div><span class="muted small">国家威信</span><strong>${campaign.prestige}<small class="small muted"> / 100</small></strong><span class="small">履行 ${campaign.cumulative.fulfilled} · 違反 ${campaign.cumulative.broken}</span></div><div><span class="muted small">政治力</span><strong>${focusInfo?.politicalPower ?? 0}<small class="small muted"> / ${focusInfo?.maxPoliticalPower ?? FOCUS_PP_MAX}</small></strong><span class="small">国策 ${focusLine} · 研究 ${researchLine}</span></div></div><details class="compact-disclosure"><summary>国家目標 · ${escapeHtml(goal.name)} <span class="muted">${goal.conditions.filter(condition => condition.met).length}/${goal.conditions.length}</span></summary><div class="goal-box">${goal.conditions.map(condition => `<div>${condition.met ? '✓' : '—'} ${escapeHtml(condition.label)}</div>`).join('')}</div><p class="small">任期末までに全条件を満たす。</p></details>${ownClient ? `<p class="small" style="margin-top:9px">${escapeHtml(shortName(ownClient.sponsorId))}の影響下 · 自治 ${ownClient.autonomy} / 忠誠 ${ownClient.loyalty}</p>` : ''}<div class="form-row" style="margin-top:6px"><button class="text-button" data-situation-briefing>顧問ブリーフィング ↗</button><button class="text-button" data-open-focus>国策 ↗</button><button class="text-button" data-open-research>研究 ↗</button><button class="text-button" data-open-economy>動員・生産 ↗</button>${campaign.playerNationId === 'china' ? '<button class="text-button" data-panel-open="warlords">軍閥会議 ↗</button>' : ''}</div></div>`);
     const dependencyCards = [];
     const ownDependency = dependencyInfo(campaign.playerNationId);
     if (ownDependency && !ownDependency.independent && !ownDependency.annexed && !ownDependency.dissolved) {
@@ -7352,6 +7451,29 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       ? `<details class="compact-disclosure history-summaries"><summary>ターン要約（古い記録 ${summaries.length}件）</summary><ul>${summaries.map(item => `<li><span class="muted small">${escapeHtml(item.date)}</span> · ${escapeHtml(item.headline)}${item.memo ? `<br><span class="small muted">${escapeHtml(item.memo)}</span>` : ''}</li>`).join('')}</ul></details>`
       : '';
     html('history-stream', articleHtml + summaryHtml);
+    renderNotificationList();
+  }
+
+  function renderNotificationList() {
+    const host = $('notification-list');
+    if (!host || !campaign) return;
+    const unreadThreads = Object.entries(campaign.threads)
+      .filter(([id, channel]) => actors[id] && channel.unread > 0)
+      .sort((a, b) => b[1].unread - a[1].unread || (b[1].messages.at(-1)?.turn || 0) - (a[1].messages.at(-1)?.turn || 0));
+    const rows = unreadThreads.map(([id, channel]) => {
+      const actor = actors[id];
+      const latest = channel.messages.at(-1);
+      return `<button class="notification-row" data-open-actor="${escapeHtml(id)}">
+        <span class="notification-row-main"><strong>${escapeHtml(actor.name)}</strong><small>${escapeHtml(String(latest?.text || '新しい電報').slice(0, 90))}</small></span>
+        <span class="notification-count">${channel.unread}</span>
+      </button>`;
+    }).join('');
+    const pending = campaign.phase === 'playing' && !campaign.nationalAction;
+    html('notification-list', `<section class="notification-group">
+      <div class="notification-head"><h2>未読の電報</h2><span>${unreadThreads.length}件</span></div>
+      ${rows || '<p class="notification-empty">未読の電報はありません。</p>'}
+    </section>
+    ${pending ? `<section class="notification-group"><div class="notification-head"><h2>今月の命令</h2><span>未提出</span></div><button class="notification-row" data-open-actions><span class="notification-row-main"><strong>国家の行動をまだ提出していません</strong><small>内政の「行動」から、今月の方針を書けます。</small></span><span aria-hidden="true">›</span></button></section>` : ''}`);
   }
 
   function renderThreads() {
@@ -8052,7 +8174,10 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     if ($('select-ai-provider')) $('select-ai-provider').value = config.provider;
     fillModelOptions(config.provider, config.model);
     if ($('input-api-endpoint')) $('input-api-endpoint').value = config.endpoint;
-    if ($('input-api-key')) $('input-api-key').value = config.apiKey;
+    if ($('input-api-key')) {
+      $('input-api-key').value = '';
+      $('input-api-key').placeholder = config.apiKey ? '保存済みのキーを使用中。変更する場合だけ入力' : '選んだプロバイダーのキー';
+    }
     if ($('remember-api-key')) $('remember-api-key').checked = config.remember;
     if ($('toggle-audio-muted')) $('toggle-audio-muted').checked = Boolean(globalThis.ORBIS_AUDIO?.isMuted?.());
     settingsFeedback('APIキーは指定先のLLMへ直接送信。セーブデータには含めません。');
@@ -8068,7 +8193,15 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
   }
 
   function configFromForm() {
-    return { provider: $('select-ai-provider')?.value, endpoint: $('input-api-endpoint')?.value.trim(), apiKey: $('input-api-key')?.value.trim(), model: $('input-custom-model')?.value.trim() || $('select-model-preset')?.value, remember: $('remember-api-key')?.checked };
+    const provider = $('select-ai-provider')?.value;
+    const typedKey = $('input-api-key')?.value.trim() || '';
+    return {
+      provider,
+      endpoint: $('input-api-endpoint')?.value.trim(),
+      apiKey: typedKey || (provider === config.provider ? config.apiKey : ''),
+      model: $('input-custom-model')?.value.trim() || $('select-model-preset')?.value,
+      remember: $('remember-api-key')?.checked
+    };
   }
 
   function saveAISettings() {
@@ -8822,7 +8955,11 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     const on = (id, event, handler) => $(id)?.addEventListener(event, handler);
     on('btn-start-campaign', 'click', () => start());
     on('btn-resume-campaign', 'click', resume);
-    on('btn-open-lobby', 'click', openLobby);
+    on('btn-open-lobby', 'click', () => {
+      if (!campaign) { openLobby(); return; }
+      showDomesticTab('domestic');
+      openPanel('state');
+    });
     on('btn-advance-month', 'click', showReview);
     on('btn-turn-review', 'click', showReview);
     on('btn-confirm-end-turn', 'click', finishTurn);
@@ -8836,8 +8973,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     on('btn-test-ai', 'click', () => testConnection());
     on('btn-lobby-about', 'click', openAbout);
     on('btn-lobby-credits', 'click', openCredits);
-    on('btn-open-about', 'click', openAbout);
-    on('btn-open-credits', 'click', openCredits);
+    on('btn-open-about', 'click', () => { closeDialog('modal-ai-settings'); openAbout(); });
+    on('btn-open-credits', 'click', () => { closeDialog('modal-ai-settings'); openCredits(); });
     on('btn-settings-about', 'click', () => { closeDialog('modal-ai-settings'); openAbout(); });
     on('btn-settings-credits', 'click', () => { closeDialog('modal-ai-settings'); openCredits(); });
     on('btn-about-credits', 'click', () => { closeDialog('modal-about'); openCredits(); });
@@ -8849,9 +8986,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     on('btn-ending-lobby', 'click', openLobby);
     on('btn-lobby-import', 'click', () => $('import-save-file')?.click());
     on('btn-menu-import', 'click', () => $('import-save-file')?.click());
-    on('btn-menu-lobby', 'click', openLobby);
+    on('btn-menu-lobby', 'click', () => { closeDialog('modal-ai-settings'); openLobby(); });
     on('import-save-file', 'change', async event => { await importSave(event.target.files?.[0]); event.target.value = ''; });
-    on('btn-help', 'click', () => openDialog('game-help'));
+    on('btn-help', 'click', () => { closeDialog('modal-ai-settings'); openDialog('game-help'); });
     on('message-form', 'submit', event => { event.preventDefault(); send(); });
     on('national-action-form', 'submit', event => { event.preventDefault(); submitAction(); });
     on('standing-policy-form', 'submit', event => { event.preventDefault(); setStandingPolicy(); });
@@ -8859,6 +8996,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     on('btn-withdraw-action', 'click', withdrawAction);
     on('national-action-input', 'input', () => { if (campaign) campaign.actionDraft = $('national-action-input').value.slice(0, 2400); });
     on('btn-chat-back', 'click', showChatList);
+    on('btn-open-notifications', 'click', () => openPanel('history'));
+    on('btn-open-history', 'click', () => openPanel('history'));
     let threadSearchTimer;
     on('thread-search', 'input', () => { clearTimeout(threadSearchTimer); threadSearchTimer = setTimeout(() => render(['threads']), 150); });
     let draftTimer;
@@ -8928,7 +9067,9 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         else renderWarlords();
       }
       if (data.draftChoice !== undefined) draftChoice(Number(data.draftChoice));
+      if (data.tab) openTab(data.tab);
       if (data.panelOpen) openPanel(data.panelOpen);
+      if (button.hasAttribute('data-open-actions')) openActions();
       if (data.windowClose) closePanel(data.windowClose);
       if (data.windowMinimize) toggleCollapsed(data.windowMinimize);
       if (data.threadFilter) { runtime.threadFilter = data.threadFilter; renderThreads(); }
@@ -8998,7 +9139,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       }
       if (data.peaceWar) {
         proposePeace(data.peaceWar, { returnStateIds: data.peaceReturn ? Object.keys(campaign.occupations || {}) : [] });
-        if ($('modal-war-panel')?.open) openWarPanel();
+        if (runtime.windows.war?.open) openWarPanel();
       }
       if (data.peaceConference) openPeaceConference(data.peaceConference);
       if (data.peaceDemand) {
@@ -9012,7 +9153,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         if (!result.ok) toast(result.error);
         else {
           closeDialog('modal-peace');
-          if ($('modal-war-panel')?.open) openWarPanel();
+          if (runtime.windows.war?.open) openWarPanel();
         }
       }
       if (data.civilConference) openCivilPeaceConference(data.civilConference);
@@ -9021,7 +9162,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
         if (!result.ok) toast(result.error);
         else {
           closeDialog('modal-peace');
-          if ($('modal-war-panel')?.open) openWarPanel();
+          if (runtime.windows.war?.open) openWarPanel();
         }
       }
       if (data.civilPeace) negotiateCivilWar(data.civilPeace, 'amnesty');
@@ -9036,7 +9177,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       }
       if (button.hasAttribute('data-open-inbox')) showChatList();
     });
-    on('btn-toggle-inspector', 'click', () => $('state-inspector')?.classList.remove('open'));
+    on('btn-toggle-inspector', 'click', () => closePanel('province'));
     window.addEventListener('beforeunload', () => { rememberDraft(); saveCampaign(); saveDesktopLayout(); });
   }
 
@@ -9074,7 +9215,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       turnsThroughCalendarMonth: (year, month, half = 'second') => core.halfTurnsThrough(year, month, half),
     };
   };
-  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, setStandingPolicy, clearStandingPolicy, finishTurn, retryBriefing, openSettings, openAbout, openCredits, versionInfo, creditsInfo, settingsInfo, reloadSettings, testAIConnection: testConnection, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, openPanel, setKnowledgeLevel, knowledgeProfiles: KNOWLEDGE_PROFILES, dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
+  return Object.freeze({ boot, start, resume, send, submitAction, withdrawAction, setStandingPolicy, clearStandingPolicy, finishTurn, retryBriefing, openSettings, openAbout, openCredits, versionInfo, creditsInfo, settingsInfo, reloadSettings, testAIConnection: testConnection, openActor, openForeign, openCountryCard, countryCardData, situationBriefing, openDialog, openActions, focusHomeland, closeInfoPanels, openPanel, openTab, openPlanPanel, openNotifications: () => openPanel('history'), setKnowledgeLevel, knowledgeProfiles: KNOWLEDGE_PROFILES, dependencyInfo: nationId => dependencyInfo(nationId || campaign?.playerNationId), increaseAutonomy, declareIndependence, annexDependency,
 colorNation, nationMeta: nationId => nationMeta(nationId), audioState: () => globalThis.ORBIS_AUDIO?.state?.() || null, playSound,
 dependentsFor: nationId => Object.values(campaign?.clients || {}).filter(client => client.sponsorId === (nationId || campaign?.playerNationId) && !client.dissolved),
 createDependent: (sponsorId, vassalId, type, name) => createDependent(sponsorId, vassalId, type, name, campaign),
@@ -9083,5 +9224,5 @@ transferDependent: (vassalId, newSponsorId) => transferDependent(vassalId, newSp
 grantAutonomy: (vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) => grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign),
 actorRoster: () => Object.keys(actors),
 createDependentCommand, createDependentRegionCommand, integrateDependentCommand, transferDependentCommand, grantAutonomyCommand,
-warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, onboardingInfo, openOnboarding, maybeShowOnboarding, advanceOnboarding, previousOnboarding, completeOnboarding, dismissOnboarding, undoInfo, undoLastTurn, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, focusDetail, focusGraphView, setFocusGraphView, zoomFocusGraph, panFocusGraph, resetFocusGraphView, showFocusDetail, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, worldArcStatus, worldArcList, worldArcLog, forceWorldArc, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, onboardingInfo, openOnboarding, maybeShowOnboarding, advanceOnboarding, previousOnboarding, completeOnboarding, dismissOnboarding, undoInfo, undoLastTurn, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, focusDetail, focusGraphView, setFocusGraphView, zoomFocusGraph, panFocusGraph, resetFocusGraphView, fitFocusGraphView, showFocusDetail, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, worldArcStatus, worldArcList, worldArcLog, forceWorldArc, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();
