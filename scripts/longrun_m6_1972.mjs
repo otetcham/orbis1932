@@ -113,6 +113,54 @@ function topOwners(counts, limit = 3) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit).map(([nationId, landStates]) => ({ nationId, landStates }));
 }
 
+function ownerMap(snapshot, landRegions) {
+  return new Map(landRegions.map(region => [region.id, snapshot.territories[region.id] || region.country]));
+}
+
+function changedTerritoryCount(snapshot, landRegions, startOwners) {
+  if (!startOwners) return 0;
+  let changed = 0;
+  for (const region of landRegions) {
+    const before = startOwners.get(region.id);
+    const after = snapshot.territories[region.id] || region.country;
+    if (before !== after) changed++;
+  }
+  return changed;
+}
+
+function worldArcReport(snapshot) {
+  const log = Array.isArray(snapshot.worldArcs?.log) ? snapshot.worldArcs.log : [];
+  const fired = log.filter(entry => entry.status === 'fired').map(entry => ({
+    id: entry.id,
+    label: entry.label,
+    date: entry.date,
+    half: entry.half,
+    summary: entry.summary,
+    warId: entry.warId || null
+  }));
+  const states = {};
+  for (const [id, state] of Object.entries(snapshot.worldArcs?.states || {})) {
+    states[id] = {
+      status: state.status,
+      firedHalf: state.firedHalf ?? null,
+      dueHalf: state.dueHalf ?? null,
+      blockReason: state.blockReason || '',
+      result: state.result?.summary || ''
+    };
+  }
+  return { fired, states, total: fired.length };
+}
+
+function warStats(snapshot) {
+  const wars = Object.values(snapshot.wars || {});
+  return {
+    activeWars: wars.filter(war => war.status === 'active').length,
+    totalWars: wars.length,
+    activeWarList: wars.filter(war => war.status === 'active').map(war => ({ attacker: war.attacker, defender: war.defender, reason: war.reason, goals: war.goals?.attacker?.length || 0 })),
+    resolvedWars: wars.filter(war => war.status !== 'active').length
+  };
+}
+
 function checkInvariants(snapshot, label) {
   const failures = [];
   const finiteNonNegative = (value, name) => {
@@ -142,6 +190,7 @@ export async function runLongRun(options = {}) {
   const totalHalves = Math.max(1, Number(options.totalHalves) || DEFAULT_TOTAL);
   const nations = Array.isArray(options.nations) && options.nations.length ? options.nations : DEFAULT_NATIONS;
   const reportPath = options.reportPath || DEFAULT_REPORT;
+  const requireArcs = options.requireArcs ?? totalHalves >= 120;
   const log = options.log || console.log;
   const { server, endpoint } = await startMockServer();
   const startedAt = Date.now();
@@ -163,10 +212,13 @@ export async function runLongRun(options = {}) {
       let previous = null;
       let intervalPeak = { nationId: null, landStates: 0 };
       let peakOwner = { nationId: null, landStates: 0 };
+      let startOwners = null;
+      let lastArcReport = { fired: [], states: {}, total: 0 };
       const ownerHistory = [];
       try {
         const started = await api.start({ nationId, difficulty: 'story', mandate: 'recovery', maxTurns: 0, replace: true });
         if (!started) throw new Error('start failed');
+        startOwners = ownerMap(api.snapshot(), landRegions);
         for (let index = 0; index < totalHalves; index++) {
           let snapshot = api.snapshot();
           if (snapshot.phase === 'milestone') {
@@ -226,11 +278,20 @@ export async function runLongRun(options = {}) {
 
           if (completed % 120 === 0 || index === totalHalves - 1) {
             const saveBytes = Buffer.byteLength(storage.get(SAVE_KEY) || '', 'utf8');
+            const arcReport = worldArcReport(snapshot);
+            lastArcReport = arcReport;
+            const wars = warStats(snapshot);
             intervals.push({
               half: completed,
               date: dateLabel(Math.max(0, completed - 1)),
               topOwners: currentTop,
               intervalPeak: { ...intervalPeak },
+              activeWars: wars.activeWars,
+              totalWars: wars.totalWars,
+              activeWarList: wars.activeWarList,
+              territoryChanges: changedTerritoryCount(snapshot, landRegions, startOwners),
+              worldArcs: arcReport.fired,
+              worldArcStates: arcReport.states,
               saveBytes,
               elapsedMs: Date.now() - runStarted,
               avgTurnMs: Math.round((Date.now() - runStarted) / Math.max(1, completed))
@@ -243,6 +304,10 @@ export async function runLongRun(options = {}) {
       }
       const finalSnapshot = api.snapshot();
       const finalOwners = finalSnapshot ? ownerCounts(finalSnapshot, landRegions, baseOwner) : { counts: new Map() };
+      const finalArcs = finalSnapshot ? worldArcReport(finalSnapshot) : lastArcReport;
+      const finalWars = finalSnapshot ? warStats(finalSnapshot) : { activeWars: 0, totalWars: 0, activeWarList: [] };
+      if (finalSnapshot) lastArcReport = finalArcs;
+      const finalTerritoryChanges = finalSnapshot ? changedTerritoryCount(finalSnapshot, landRegions, startOwners) : 0;
       const run = {
         nationId,
         targetHalves: totalHalves,
@@ -256,16 +321,27 @@ export async function runLongRun(options = {}) {
         avgTurnMs: Math.round((Date.now() - runStarted) / Math.max(1, completed)),
         finalSaveBytes: Buffer.byteLength(storage.get(SAVE_KEY) || '', 'utf8'),
         finalTopOwners: topOwners(finalOwners.counts, 5),
+        activeWars: finalWars.activeWars,
+        totalWars: finalWars.totalWars,
+        activeWarList: finalWars.activeWarList,
+        territoryChanges: finalTerritoryChanges,
+        worldArcs: finalArcs.fired,
+        worldArcStates: finalArcs.states,
         peakOwner,
         intervals,
         anomalies,
         invariantFailures
       };
       runs.push(run);
-      log(`[${nationId}] ${completed}/${totalHalves} 半月 ${run.lastCompletedDate} 完了 平均 ${run.avgTurnMs}ms 最終セーブ ${run.finalSaveBytes} bytes 最大保有 ${run.peakOwner.nationId || '-'} ${run.peakOwner.landStates}州`);
+      if (requireArcs && (finalArcs.total < 2 || finalTerritoryChanges === 0)) {
+        failures.push(`${nationId}: 史実の弧 ${finalArcs.total}件、領土変更 ${finalTerritoryChanges}州。受動プレイで世界が動いていない。`);
+      }
+      log(`[${nationId}] ${completed}/${totalHalves} 半月 ${run.lastCompletedDate} 完了 平均 ${run.avgTurnMs}ms 最終セーブ ${run.finalSaveBytes} bytes 最大保有 ${run.peakOwner.nationId || '-'} ${run.peakOwner.landStates}州 戦争 ${run.totalWars}件 領土変更 ${run.territoryChanges}州 主要弧 ${run.worldArcs.length}件`);
       for (const interval of intervals) {
         const top = interval.topOwners.map(item => `${item.nationId} ${item.landStates}州`).join(' / ');
-        log(`  ${interval.half}半月 ${interval.date} 上位: ${top} 間隔最大: ${interval.intervalPeak.nationId || '-'} ${interval.intervalPeak.landStates}州 セーブ ${interval.saveBytes} bytes 平均 ${interval.avgTurnMs}ms`);
+        const arcIds = interval.worldArcs.map(entry => entry.id).join(',') || '-';
+        log(`  ${interval.half}半月 ${interval.date} 上位: ${top} 戦争 進行${interval.activeWars}/累計${interval.totalWars} 領土変更 ${interval.territoryChanges}州 弧 ${arcIds} セーブ ${interval.saveBytes} bytes 平均 ${interval.avgTurnMs}ms`);
+        for (const entry of interval.worldArcs) log(`    弧 ${entry.id} ${entry.date}: ${entry.summary}`);
       }
       if (run.anomalies.length) for (const anomaly of run.anomalies) log(`  異常: ${JSON.stringify(anomaly)}`);
       if (run.invariantFailures.length) for (const failure of run.invariantFailures.slice(0, 8)) log(`  在庫異常: ${failure}`);
@@ -297,7 +373,11 @@ export async function runLongRun(options = {}) {
       finalSaveBytes: run.finalSaveBytes,
       maxLandStates: run.peakOwner.landStates,
       maxLandOwner: run.peakOwner.nationId,
-      intervalMaxLandStates: run.intervals.map(interval => ({ half: interval.half, nationId: interval.intervalPeak.nationId, landStates: interval.intervalPeak.landStates }))
+      totalWars: run.totalWars,
+      activeWars: run.activeWars,
+      territoryChanges: run.territoryChanges,
+      worldArcs: run.worldArcs.map(entry => ({ id: entry.id, date: entry.date, summary: entry.summary })),
+      intervalMaxLandStates: run.intervals.map(interval => ({ half: interval.half, nationId: interval.intervalPeak.nationId, landStates: interval.intervalPeak.landStates, territoryChanges: interval.territoryChanges }))
     }))
   };
   await mkdir(path.dirname(reportPath), { recursive: true });

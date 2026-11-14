@@ -230,6 +230,394 @@ const Orbis = (() => {
     warlord: { autonomy: 70, loyalty: 40, legitimacy: 30 }
   };
 
+  // 1932–1972 の主な史実の弧。完全な固定日付ではなく、窓の中でシード付き乱数により発火時期を散らす。
+  // run は既存の宣戦・部隊前進・領土移管・従属・独立・内戦のAPIだけを使う。
+  const WORLD_ARCS = [
+    {
+      id: 'germany_rearmament', label: 'ドイツ再軍備', major: true,
+      from: [1933, 1], to: [1935, 6], keywords: ['ドイツ', '再軍備'],
+      run(game, notes) {
+        const nation = game.nations.germany;
+        if (!nation) return null;
+        nation.mil = clamp(nation.mil + 10, 0, 100);
+        nation.eco = clamp(nation.eco + 3, 0, 100);
+        game.tension = clamp((game.tension || 0) + 6, 0, 100);
+        const mobilized = arcReinforceNation(game, 'germany', 2, ['germany_silesia', 'germany_pomerania', 'germany_east_prussia'], '再軍備');
+        for (const id of ['france', 'uk', 'italy', 'russia']) setArcRelation(game, 'germany', id, -6);
+        notes.push(`ドイツが再軍備を宣言し、欧州の緊張が高まった（動員${mobilized}個師団）。`);
+        return { headline: 'ドイツ、再軍備を宣言', body: `ヴェルサイユ条約の軍備制限を破棄し、徴兵制と軍拡へ踏み出した。フランス・英国との関係が冷え、欧州の緊張が高まる。東方国境へ${mobilized}個師団が動員された。`, summary: `ドイツ軍事+10、国際緊張+6、動員${mobilized}個師団`, location: 'ドイツ', stateId: 'germany_de_be' };
+      }
+    },
+    {
+      id: 'germany_anschluss', label: '独墺併合（アンシュルス）', major: true,
+      from: [1938, 2], to: [1938, 6], keywords: ['オーストリア', '独墺', 'アンシュルス'],
+      playerCanBlock: ['austria', 'germany', 'uk', 'france', 'italy'],
+      requires: game => Boolean(game.nations.germany && game.nations.austria && !game.nations.austria.dissolved),
+      run(game, notes) {
+        const count = arcAnnexNation(game, 'austria', 'germany', 'アンシュルス');
+        if (!count) return null;
+        game.tension = clamp((game.tension || 0) + 8, 0, 100);
+        setArcRelation(game, 'germany', 'uk', -8);
+        setArcRelation(game, 'germany', 'france', -8);
+        notes.push(`ドイツがオーストリアを併合し、${count}州を領土へ編入。`);
+        return { headline: 'ドイツ、オーストリアを併合', body: `ドイツ軍がオーストリアへ進駐し、${count}州がドイツの統治下に入った。英国とフランスは抗議したが、実効的な対抗措置を取れなかった。`, summary: `オーストリア${count}州をドイツへ移管`, location: 'オーストリア', stateId: 'austria_at_9' };
+      }
+    },
+    {
+      id: 'germany_sudeten', label: 'ズデーテン割譲', major: true,
+      from: [1938, 8], to: [1938, 10], keywords: ['チェコ', 'ズデーテン', 'ミュンヘン'],
+      playerCanBlock: ['czechoslovakia', 'germany', 'uk', 'france'],
+      requires: game => Boolean(game.nations.germany && game.nations.czechoslovakia && !game.nations.czechoslovakia.dissolved),
+      run(game, notes) {
+        const states = ['czechoslovakia_cz_us', 'czechoslovakia_cz_kr', 'czechoslovakia_cz_ol'].filter(id => regionHolder(game, regionById(id)) === 'czechoslovakia');
+        let count = 0;
+        for (const stateId of states) if (arcTransferRegion(game, stateId, 'germany', 'ズデーテン割譲')) count++;
+        if (!count) return null;
+        game.tension = clamp((game.tension || 0) + 7, 0, 100);
+        setArcRelation(game, 'germany', 'czechoslovakia', -30);
+        notes.push(`ミュンヘン会談によりチェコスロバキアの${count}州がドイツへ割譲された。`);
+        return { headline: 'ミュンヘン会談、ズデーテンを割譲', body: `英仏独伊の合意により、チェコスロバキアの国境州${count}州がドイツへ割譲された。プラハは抵抗を断念し、宥和政策が頂点に達した。`, summary: `チェコスロバキア${count}州をドイツへ割譲`, location: 'チェコスロバキア', stateId: 'czechoslovakia_cz_us' };
+      }
+    },
+    {
+      id: 'germany_prague', label: 'チェコスロバキア併合', major: true,
+      from: [1939, 2], to: [1939, 4], keywords: ['チェコ', 'プラハ'],
+      playerCanBlock: ['czechoslovakia', 'germany', 'uk', 'france'],
+      requires: game => Boolean(game.nations.germany && game.nations.czechoslovakia && !game.nations.czechoslovakia.dissolved),
+      run(game, notes) {
+        const count = arcAnnexNation(game, 'czechoslovakia', 'germany', 'チェコスロバキア併合');
+        if (!count) return null;
+        game.tension = clamp((game.tension || 0) + 8, 0, 100);
+        notes.push(`ドイツがチェコスロバキアの残余${count}州を併合。`);
+        return { headline: 'ドイツ、チェコスロバキアを併合', body: `ドイツ軍がプラハへ進駐し、チェコスロバキアの残余${count}州を併合した。英仏の宥和政策は破綻し、ポーランドへの圧力が強まる。`, summary: `チェコスロバキア${count}州をドイツへ併合`, location: 'チェコスロバキア', stateId: 'czechoslovakia_cz_st' };
+      }
+    },
+    {
+      id: 'germany_poland', label: 'ドイツのポーランド侵攻', major: true,
+      from: [1939, 8], to: [1939, 10], keywords: ['ポーランド', 'ドイツ'],
+      playerCanBlock: ['poland', 'germany', 'uk', 'france'],
+      playerSensitive: ['poland', 'germany'],
+      requires: game => Boolean(game.nations.germany && game.nations.poland && !game.nations.poland.dissolved),
+      run(game, notes) {
+        const goals = arcStatesHeldBy(game, 'poland');
+        const defenderGoals = ['germany_east_prussia', 'germany_silesia', 'germany_pomerania', 'germany_de_bb'].filter(id => regionHolder(game, regionById(id)) === 'germany');
+        const warId = arcDeclareNpcWar(game, 'germany', 'poland', {
+          arcId: 'germany_poland', reason: 'ポーランド回廊と東方生存圏をめぐる紛争',
+          goals, defenderGoals, settleAfter: 10, maxHalves: 30, annexAllOnWin: true
+        });
+        if (!warId) return null;
+        game.tension = clamp((game.tension || 0) + 12, 0, 100);
+        setArcRelation(game, 'germany', 'uk', -20);
+        setArcRelation(game, 'germany', 'france', -20);
+        notes.push('ドイツがポーランドへ侵攻し、戦争目標を設定。NPC部隊が国境から前進を開始。');
+        return { headline: 'ドイツ軍、ポーランドへ侵攻', body: 'ドイツ軍がポーランド回廊と東部国境へ攻勢を開始した。占領は隣接州ごとに進み、和平時には戦争目標に沿って領土が再編される。', summary: `ドイツ・ポーランド戦争開始、${goals.length}州を戦争目標に設定`, location: 'ポーランド', stateId: 'poland_pl_mz', warId };
+      }
+    },
+    {
+      id: 'germany_west', label: 'ドイツの西欧侵攻', major: true,
+      from: [1940, 4], to: [1940, 7], keywords: ['フランス', '西欧', 'ベルギー'],
+      playerCanBlock: ['germany', 'france', 'belgium', 'netherlands', 'uk'],
+      playerSensitive: ['germany', 'france', 'belgium', 'netherlands'],
+      requires: game => Boolean(game.nations.germany && game.nations.france && !game.nations.france.dissolved),
+      run(game, notes) {
+        const franceGoals = ['france_fr_01', 'france_fr_80', 'france_fr_61', 'france_fr_46', 'france_fr_89', 'france_fr_21', 'france_fr_45', 'france_fr_19', 'france_fr_44'].filter(id => regionHolder(game, regionById(id)) === 'france');
+        const wars = [];
+        if (game.nations.france && !game.nations.france.dissolved) wars.push(arcDeclareNpcWar(game, 'germany', 'france', { arcId: 'germany_west', reason: '西欧の支配をめぐる攻勢', goals: franceGoals, settleAfter: 14, maxHalves: 40, annexAllOnWin: true }));
+        if (game.nations.belgium && !game.nations.belgium.dissolved) wars.push(arcDeclareNpcWar(game, 'germany', 'belgium', { arcId: 'germany_west', reason: 'ベネルクス通過をめぐる侵攻', goals: arcStatesHeldBy(game, 'belgium').filter(id => !id.includes('congo') && !id.includes('ruanda')), settleAfter: 10, maxHalves: 30, annexAllOnWin: true }));
+        if (game.nations.netherlands && !game.nations.netherlands.dissolved) wars.push(arcDeclareNpcWar(game, 'germany', 'netherlands', { arcId: 'germany_west', reason: '低地諸国への侵攻', goals: arcStatesHeldBy(game, 'netherlands').filter(id => !id.includes('suriname')), settleAfter: 10, maxHalves: 30, annexAllOnWin: true }));
+        const started = wars.filter(Boolean);
+        if (!started.length) return null;
+        game.tension = clamp((game.tension || 0) + 10, 0, 100);
+        notes.push(`ドイツが西欧へ侵攻し、${started.length}戦線が開いた。`);
+        return { headline: 'ドイツ軍、西欧へ侵攻', body: 'ドイツ軍がフランス・ベルギー・オランダへ攻勢を開始した。各国のNPC部隊は国境で防御し、失われた州は和平時に戦争目標に従って処理される。', summary: `西欧${started.length}戦線を開設`, location: 'フランス', stateId: 'france_fr_01', warIds: started };
+      }
+    },
+    {
+      id: 'germany_barbarossa', label: '独ソ戦の開始', major: true,
+      from: [1941, 5], to: [1941, 8], keywords: ['ソ連', '独ソ', 'バルバロッサ'],
+      playerCanBlock: ['germany', 'russia', 'uk'],
+      playerSensitive: ['germany', 'russia'],
+      requires: game => Boolean(game.nations.germany && game.nations.russia && !game.nations.russia.dissolved),
+      run(game, notes) {
+        const goals = ['russia_ru_mow', 'russia_ru_psk', 'russia_ua_12', 'russia_ru_smo', 'russia_ru_ros', 'russia_ru_rya', 'russia_ru_uly', 'russia_ru_sar', 'russia_ru_kl'].filter(id => regionHolder(game, regionById(id)) === 'russia');
+        const warId = arcDeclareNpcWar(game, 'germany', 'russia', { arcId: 'germany_barbarossa', reason: '東方生存圏をめぐる独ソ戦', goals, settleAfter: 110, maxHalves: 120, annexAllOnWin: false });
+        if (!warId) return null;
+        game.tension = clamp((game.tension || 0) + 10, 0, 100);
+        notes.push('ドイツがソ連へ侵攻し、独ソ戦が始まった。');
+        return { headline: 'ドイツ軍、ソ連へ侵攻', body: 'ドイツ軍がソ連領へ攻勢を開始した。広大な戦線では隣接州ごとの前進が続き、冬季と補給が双方の消耗を左右する。', summary: '独ソ戦開始、モスクワ方面など9州を目標に設定', location: 'ソ連', stateId: 'russia_ru_mow', warId };
+      }
+    },
+    {
+      id: 'ww2_end_europe', label: '欧州戦争の終結', major: true,
+      from: [1945, 3], to: [1945, 7], keywords: ['欧州', '終戦'],
+      run(game, notes) {
+        const result = arcEndWarsFor(game, ['germany', 'italy'], 'defender', notes);
+        if (!result.ended) return { headline: '欧州の停戦交渉', body: '大規模な戦線はすでに和平済みで、欧州の政治再編が進んだ。', summary: '新たな終戦処理なし（既に和平済み）', location: '欧州', stateId: 'germany_de_be' };
+        return { headline: '欧州戦争が終結', body: `ドイツ・イタリアを当事者とする${result.ended}戦争が終結し、占領地${result.changed}州の統治が再編された。`, summary: `${result.ended}戦争を終結、${result.changed}州を返還・再編`, location: '欧州', stateId: 'germany_de_be' };
+      }
+    },
+    {
+      id: 'italy_ethiopia', label: 'イタリアのエチオピア戦争', major: true,
+      from: [1935, 9], to: [1936, 1], keywords: ['イタリア', 'エチオピア'],
+      playerCanBlock: ['italy', 'ethiopia', 'uk', 'france'],
+      playerSensitive: ['italy', 'ethiopia'],
+      requires: game => Boolean(game.nations.italy && game.nations.ethiopia && !game.nations.ethiopia.dissolved),
+      run(game, notes) {
+        const goals = arcStatesHeldBy(game, 'ethiopia');
+        const warId = arcDeclareNpcWar(game, 'italy', 'ethiopia', { arcId: 'italy_ethiopia', reason: '東アフリカ植民地の拡大', goals, settleAfter: 6, maxHalves: 16, annexAllOnWin: true });
+        if (!warId) return null;
+        game.tension = clamp((game.tension || 0) + 7, 0, 100);
+        notes.push('イタリアがエチオピアへ侵攻。東アフリカのNPC部隊が前進を開始。');
+        return { headline: 'イタリア、エチオピアへ侵攻', body: 'イタリア軍がエリトリア・ソマリアからエチオピアへ攻勢を開始した。国際連盟の制裁は実効性を欠き、植民地秩序の動揺が強まる。', summary: 'イタリア・エチオピア戦争開始', location: 'エチオピア', stateId: 'ethiopia_et_ti', warId };
+      }
+    },
+    {
+      id: 'spain_civil_war', label: 'スペイン内戦', major: true,
+      from: [1936, 6], to: [1936, 10], keywords: ['スペイン', '内戦'],
+      playerCanBlock: ['spain', 'italy', 'germany'],
+      requires: game => Boolean(game.nations.spain && !game.nations.spain.dissolved),
+      run(game, notes) {
+        const started = arcStartCivilWar(game, 'spain', 'spain_nationalist', '国民軍', { arcId: 'spain_civil_war', holdUntil: arcHalfIndex(1939, 6, 'first') });
+        if (!started) return null;
+        game.tension = clamp((game.tension || 0) + 6, 0, 100);
+        notes.push('スペインで軍部の反乱が始まり、内戦状態に入った。');
+        return { headline: 'スペイン内戦が勃発', body: 'フランコら軍部が共和国政府に対して反乱を起こした。独伊とソ連の支援が入り、戦線は数年単位で動く。', summary: 'スペイン内戦開始（既存の内戦システム）', location: 'スペイン', stateId: 'spain_es_m' };
+      }
+    },
+    {
+      id: 'spain_civil_end', label: 'スペイン内戦の帰結', major: true,
+      from: [1939, 6], to: [1939, 10], keywords: ['スペイン', '内戦'],
+      requires: game => Boolean(game.civilWars.spain && game.civilWars.spain.status === 'active'),
+      run(game, notes) {
+        const result = arcSettleCivilWar(game, 'spain', 'autonomy', notes);
+        if (!result) return null;
+        return { headline: 'スペイン内戦が終結', body: `国民軍が優勢のまま内戦が終結し、${result.affected}州で反乱勢力の支配が残った。`, summary: `スペイン内戦終結、${result.affected}州を国民軍支配として確定`, location: 'スペイン', stateId: 'spain_es_m' };
+      }
+    },
+    {
+      id: 'japan_china_war', label: '日中戦争', major: true,
+      from: [1937, 6], to: [1937, 10], keywords: ['日本', '中国', '日中'],
+      playerCanBlock: ['japan', 'china', 'uk', 'usa', 'russia'],
+      playerSensitive: ['japan', 'china'],
+      requires: game => Boolean(game.nations.japan && game.nations.china && !game.nations.china.dissolved),
+      run(game, notes) {
+        const goals = ['cn_beijing', 'china_cn_sh', 'china_cn_js', 'china_cn_ha', 'china_cn_hb', 'china_cn_ah', 'china_cn_zj', 'china_cn_fj', 'china_cn_he', 'china_cn_sn'].filter(id => regionHolder(game, regionById(id)) === 'china');
+        const warId = arcDeclareNpcWar(game, 'japan', 'china', { arcId: 'japan_china_war', reason: '華北・華中の権益をめぐる全面戦争', goals, settleAfter: 220, maxHalves: 240, annexAllOnWin: true });
+        if (!warId) return null;
+        game.tension = clamp((game.tension || 0) + 9, 0, 100);
+        setArcRelation(game, 'japan', 'usa', -12);
+        setArcRelation(game, 'japan', 'uk', -8);
+        notes.push('日中戦争が勃発し、日本軍のNPC部隊が華北・華中へ攻勢を開始。');
+        return { headline: '日中戦争が勃発', body: '盧溝橋での衝突を機に、日本と中国の全面戦争が始まった。日本軍は華北・華中の要地を目標に隣接州へ前進する。', summary: '日中戦争開始、華北・華中10州を目標に設定', location: '中国', stateId: 'cn_beijing', warId };
+      }
+    },
+    {
+      id: 'pacific_war', label: '太平洋戦争', major: true,
+      from: [1941, 10], to: [1941, 12], keywords: ['太平洋', '日米', '真珠湾'],
+      playerCanBlock: ['japan', 'usa', 'uk'],
+      playerSensitive: ['japan', 'usa'],
+      requires: game => Boolean(game.nations.japan && game.nations.usa && !game.nations.usa.dissolved),
+      run(game, notes) {
+        const goals = ['usa_pacific', 'usa_us_hi', 'usa_us_ak'].filter(id => regionHolder(game, regionById(id)) === 'usa');
+        const warId = arcDeclareNpcWar(game, 'japan', 'usa', { arcId: 'pacific_war', reason: '太平洋の勢力均衡をめぐる開戦', goals, settleAfter: 90, maxHalves: 100, annexAllOnWin: false });
+        if (!warId) return null;
+        game.tension = clamp((game.tension || 0) + 14, 0, 100);
+        setArcRelation(game, 'japan', 'uk', -20);
+        notes.push('日本と米国が太平洋で開戦。海路と島嶼の争奪が世界戦争へ拡大。');
+        return { headline: '太平洋戦争が始まる', body: '日本海軍が米太平洋艦隊へ攻撃を仕掛け、日米が開戦した。陸上戦線は限定的だが、海上補給と島嶼の支配が戦争の帰趨を左右する。', summary: '日米開戦、太平洋の戦線が成立', location: '太平洋', stateId: 'usa_pacific', warId };
+      }
+    },
+    {
+      id: 'ww2_end_pacific', label: '太平洋戦争の終結', major: true,
+      from: [1945, 6], to: [1945, 10], keywords: ['太平洋', '終戦'],
+      run(game, notes) {
+        const result = arcEndWarsFor(game, ['japan'], 'defender', notes);
+        if (!result.ended) return { headline: '太平洋の停戦', body: '太平洋の大規模戦争はすでに和平済みで、戦後秩序の再編が進んだ。', summary: '新たな終戦処理なし（既に和平済み）', location: '太平洋', stateId: 'usa_pacific' };
+        return { headline: '太平洋戦争が終結', body: `日本を当事者とする${result.ended}戦争が終結し、${result.changed}州の統治が再編された。`, summary: `${result.ended}戦争を終結、${result.changed}州を再編`, location: '太平洋', stateId: 'usa_pacific' };
+      }
+    },
+    {
+      id: 'cold_war', label: '冷戦ブロックの形成', major: true,
+      from: [1947, 1], to: [1949, 12], keywords: ['冷戦', '米ソ', '陣営'],
+      requires: game => Boolean(game.nations.usa && game.nations.russia),
+      run(game, notes) {
+        setArcRelation(game, 'usa', 'russia', -70);
+        for (const [a, b] of [['usa', 'uk'], ['usa', 'france'], ['usa', 'japan'], ['russia', 'poland'], ['russia', 'china']]) {
+          if (game.nations[a] && game.nations[b]) setArcRelation(game, a, b, 25);
+        }
+        game.establishedFacts = [...(game.establishedFacts || []), '米ソを中心とする冷戦ブロックが形成された'].slice(-400);
+        notes.push('米ソを中心とする冷戦ブロックが固定化し、各国の外交は陣営選択を迫られた。');
+        return { headline: '冷戦ブロックが形成される', body: '米国とソ連を中心に欧州・アジアの陣営が分かれ、外交関係と援助の向きが固定化した。大規模な新制度ではなく、既存の関係と同盟の組み替えとして扱う。', summary: '米ソ関係を-70へ、主要国を陣営へ引き寄せ', location: 'ワシントン・モスクワ', stateId: 'usa_us_dc' };
+      }
+    },
+    {
+      id: 'india_independence', label: 'インド独立', major: true,
+      from: [1947, 1], to: [1947, 10], keywords: ['インド', '独立'],
+      playerCanBlock: ['uk', 'india'],
+      requires: game => Boolean(game.clients.india && !game.clients.india.independent && !game.clients.india.dissolved),
+      run(game, notes) {
+        const ok = arcGrantIndependence(game, 'india', 'インド連邦', notes);
+        if (!ok) return null;
+        return { headline: 'インドが独立', body: '英国からインド連邦が独立し、南アジアの政治地図が変わった。宗主国との関係は対等な外交へ移行する。', summary: '英領インドを独立国へ', location: 'インド', stateId: 'india_in_wb' };
+      }
+    },
+    {
+      id: 'indochina_independence', label: 'インドシナ独立', major: true,
+      from: [1945, 9], to: [1946, 12], keywords: ['インドシナ', 'ベトナム', '仏印'],
+      playerCanBlock: ['france', 'col_france_indochina'],
+      requires: game => Boolean(game.clients.col_france_indochina && !game.clients.col_france_indochina.independent && !game.clients.col_france_indochina.dissolved),
+      run(game, notes) {
+        const ok = arcGrantIndependence(game, 'col_france_indochina', 'インドシナ連邦', notes);
+        if (!ok) return null;
+        return { headline: 'インドシナが独立', body: 'フランス領インドシナが独立し、ベトナム・ラオス・カンボジアの現地政権が自らの統治を担うことになった。', summary: '仏領インドシナを独立国へ', location: 'インドシナ', stateId: 'france_vietnam' };
+      }
+    },
+    {
+      id: 'indonesia_independence', label: 'インドネシア独立', major: true,
+      from: [1945, 8], to: [1949, 12], keywords: ['インドネシア', '蘭印'],
+      playerCanBlock: ['netherlands', 'dutch_indies'],
+      requires: game => Boolean(game.clients.dutch_indies && !game.clients.dutch_indies.independent && !game.clients.dutch_indies.dissolved),
+      run(game, notes) {
+        const ok = arcGrantIndependence(game, 'dutch_indies', 'インドネシア', notes);
+        if (!ok) return null;
+        return { headline: 'インドネシアが独立', body: '蘭領東インドが独立し、島嶼部の資源と海路をめぐる秩序が再編された。', summary: '蘭領東インドを独立国へ', location: 'インドネシア', stateId: 'dutch_indies_id_jb' };
+      }
+    },
+    {
+      id: 'philippines_independence', label: 'フィリピン独立', major: false,
+      from: [1946, 6], to: [1946, 12], keywords: ['フィリピン', '独立'],
+      playerCanBlock: ['usa', 'philippines'],
+      requires: game => Boolean(game.clients.philippines && !game.clients.philippines.independent && !game.clients.philippines.dissolved),
+      run(game, notes) {
+        const ok = arcGrantIndependence(game, 'philippines', 'フィリピン共和国', notes);
+        if (!ok) return null;
+        return { headline: 'フィリピンが独立', body: '米国の保護下にあったフィリピンが独立し、太平洋の政治地図が変わった。', summary: 'フィリピンを独立国へ', location: 'フィリピン', stateId: 'usa_pacific' };
+      }
+    },
+    {
+      id: 'africa_french', label: '仏領アフリカの独立', major: true,
+      from: [1958, 1], to: [1962, 12], keywords: ['アフリカ', 'フランス', 'アルジェリア'],
+      playerCanBlock: ['france', 'col_france_fwa', 'col_france_algeria'],
+      requires: game => ['col_france_fwa', 'col_france_algeria'].some(id => game.clients[id] && !game.clients[id].independent && !game.clients[id].dissolved),
+      run(game, notes) {
+        let count = 0;
+        if (arcGrantIndependence(game, 'col_france_fwa', '西アフリカ連邦', notes)) count++;
+        if (arcGrantIndependence(game, 'col_france_algeria', 'アルジェリア', notes)) count++;
+        if (!count) return null;
+        return { headline: '仏領アフリカが独立', body: `フランス領西アフリカとアルジェリアなど${count}政権が独立し、アフリカの政治地図が大きく変わった。`, summary: `仏領アフリカ${count}政権を独立`, location: 'アフリカ', stateId: 'france_algeria' };
+      }
+    },
+    {
+      id: 'africa_british', label: '英領アフリカ・マラヤの独立', major: true,
+      from: [1957, 1], to: [1963, 12], keywords: ['アフリカ', '英領', 'マラヤ'],
+      playerCanBlock: ['uk', 'col_uk_africa', 'col_uk_malaya'],
+      requires: game => ['col_uk_africa', 'col_uk_malaya'].some(id => game.clients[id] && !game.clients[id].independent && !game.clients[id].dissolved),
+      run(game, notes) {
+        let count = 0;
+        if (arcGrantIndependence(game, 'col_uk_africa', 'ガーナ・ナイジェリア', notes)) count++;
+        if (arcGrantIndependence(game, 'col_uk_malaya', 'マラヤ連邦', notes)) count++;
+        if (!count) return null;
+        return { headline: '英領アフリカとマラヤが独立', body: `英国の植民地${count}政権が独立し、英連邦内の関係が再編された。`, summary: `英領植民地${count}政権を独立`, location: 'アフリカ・マラヤ', stateId: 'uk_west_africa' };
+      }
+    },
+    {
+      id: 'congo_independence', label: 'コンゴ独立', major: false,
+      from: [1960, 1], to: [1960, 12], keywords: ['コンゴ', 'ベルギー'],
+      playerCanBlock: ['belgium', 'col_belgium_congo'],
+      requires: game => Boolean(game.clients.col_belgium_congo && !game.clients.col_belgium_congo.independent && !game.clients.col_belgium_congo.dissolved),
+      run(game, notes) {
+        const ok = arcGrantIndependence(game, 'col_belgium_congo', 'コンゴ共和国', notes);
+        if (!ok) return null;
+        return { headline: 'コンゴが独立', body: 'ベルギー領コンゴが独立し、中央アフリカの資源と政治をめぐる緊張が高まった。', summary: 'ベルギー領コンゴを独立国へ', location: 'コンゴ', stateId: 'belgium_congo' };
+      }
+    },
+    {
+      id: 'china_civil_war', label: '中国内戦', major: true,
+      from: [1946, 6], to: [1947, 6], keywords: ['中国', '内戦', '共産党'],
+      playerCanBlock: ['china'],
+      playerSensitive: ['china'],
+      requires: game => Boolean(game.nations.china && !game.nations.china.dissolved),
+      run(game, notes) {
+        if (game.civilWars.china?.status === 'active') {
+          game.civilWars.china.arcId = 'china_civil_war';
+          game.civilWars.china.holdUntil = Math.max(game.civilWars.china.holdUntil || 0, arcHalfIndex(1949, 10, 'first'));
+          evolveFaction(game, game.civilWars.china.factionId || 'china_communist', 'china', game.civilWars.china.label || '中国共産党');
+          notes.push('進行中の中国内戦を、史実の弧の中国内戦として扱う。');
+          return { headline: '中国内戦が続く', body: '国民政府と中国共産党の内戦が続いている。既存の内戦ルールに従い、1949年頃に帰結する。', summary: '既存の中国内戦を継続', location: '中国', stateId: 'china_cn_sn' };
+        }
+        const started = arcStartCivilWar(game, 'china', 'china_communist', '中国共産党', { arcId: 'china_civil_war', holdUntil: arcHalfIndex(1949, 10, 'first') });
+        if (!started) return null;
+        game.tension = clamp((game.tension || 0) + 4, 0, 100);
+        notes.push('中国で国共内戦が再開。既存の内戦システムで戦線が動く。');
+        return { headline: '中国内戦が再開', body: '国民政府と中国共産党の内戦が再開した。支配州は既存の内戦ルールに従って半月ごとに移り、1949年頃に帰結する。', summary: '中国内戦開始（既存システム）', location: '中国', stateId: 'china_cn_sn' };
+      }
+    },
+    {
+      id: 'china_civil_end', label: '中国内戦の帰結', major: true,
+      from: [1949, 10], to: [1950, 3], keywords: ['中国', '内戦'],
+      requires: game => Boolean(game.civilWars.china && game.civilWars.china.status === 'active'),
+      run(game, notes) {
+        const factionId = game.civilWars.china?.factionId || 'china_communist';
+        const held = window.ORBIS_STATES_DB.filter(region => isLandRegion(region) && game.territories[region.id] === factionId).length;
+        const result = arcSettleCivilWar(game, 'china', held >= 2 ? 'autonomy' : 'return', notes);
+        if (!result) return null;
+        return { headline: '中国内戦が帰結', body: `内戦が${held >= 2 ? '共産党支配の残存を認めて' : '政府への返還で'}終結し、${result.affected}州の統治が確定した。`, summary: `中国内戦終結、${result.affected}州を${held >= 2 ? '共産党支配として確定' : '政府へ返還'}`, location: '中国', stateId: 'china_cn_sn' };
+      }
+    },
+    {
+      id: 'korea_division', label: '朝鮮の独立・分断', major: true,
+      from: [1945, 8], to: [1948, 12], keywords: ['朝鮮', '韓国', '分断'],
+      playerCanBlock: ['japan', 'col_japan_korea'],
+      requires: game => Boolean(game.clients.col_japan_korea && !game.clients.col_japan_korea.independent && !game.clients.col_japan_korea.dissolved),
+      run(game, notes) {
+        const ok = arcGrantIndependence(game, 'col_japan_korea', '朝鮮', notes);
+        if (!ok) return null;
+        return { headline: '朝鮮が独立', body: '日本の統治下にあった朝鮮が独立し、戦後の東アジア秩序が再編された。南北の政治対立は続く。', summary: '朝鮮総督府を独立国「朝鮮」へ', location: '朝鮮', stateId: 'japan_empire_kor' };
+      }
+    },
+    {
+      id: 'korea_war', label: '朝鮮戦争', major: true,
+      from: [1950, 5], to: [1950, 8], keywords: ['朝鮮', '戦争'],
+      playerCanBlock: ['col_japan_korea'],
+      requires: game => Boolean(game.clients.col_japan_korea?.independent && !game.civilWars.col_japan_korea),
+      run(game, notes) {
+        const started = arcStartCivilWar(game, 'col_japan_korea', 'korea_communist', '朝鮮人民軍', { arcId: 'korea_war', holdUntil: arcHalfIndex(1953, 7, 'first') });
+        if (!started) return null;
+        game.tension = clamp((game.tension || 0) + 8, 0, 100);
+        notes.push('朝鮮半島で内戦が始まり、南北の勢力が衝突。');
+        return { headline: '朝鮮戦争が始まる', body: '朝鮮半島で南北の武力衝突が始まった。単一州の内戦として既存システムに接続し、1953年頃に停戦する。', summary: '朝鮮戦争開始（既存の内戦システム）', location: '朝鮮', stateId: 'japan_empire_kor' };
+      },
+      tick(game, state, notes) {
+        if (state.flipped || game.completedTurns < (state.firedHalf || 0) + 2) return;
+        const war = game.civilWars.col_japan_korea;
+        if (!war || war.status !== 'active') return;
+        const region = regionById('japan_empire_kor');
+        if (region && regionHolder(game, region) === 'col_japan_korea') {
+          game.territories[region.id] = 'korea_communist';
+          game.occupations[region.id] = 'col_japan_korea';
+          game.conflicts[region.id] = { attacker: 'korea_communist', defender: 'col_japan_korea', months: 1, reason: '朝鮮戦争の戦線' };
+          evolveFaction(game, 'korea_communist', 'col_japan_korea', '朝鮮人民軍');
+          state.flipped = true;
+          notes.push('朝鮮人民軍が半島の主要州を掌握。');
+        }
+      }
+    },
+    {
+      id: 'korea_armistice', label: '朝鮮戦争の停戦', major: true,
+      from: [1953, 7], to: [1953, 12], keywords: ['朝鮮', '停戦'],
+      requires: game => Boolean(game.civilWars.col_japan_korea && game.civilWars.col_japan_korea.status === 'active'),
+      run(game, notes) {
+        const result = arcSettleCivilWar(game, 'col_japan_korea', 'autonomy', notes);
+        if (!result) return null;
+        return { headline: '朝鮮戦争が停戦', body: `朝鮮戦争が停戦し、${result.affected}州で分断線が固定された。`, summary: `朝鮮戦争停戦、${result.affected}州を分断状態で確定`, location: '朝鮮', stateId: 'japan_empire_kor' };
+      }
+    }
+  ];
+  // 主要な弧ほど早い時期に発火しやすい重みを持たせる。値は窓内の抽選にだけ使う。
+  for (const arc of WORLD_ARCS) {
+    if (!Number.isFinite(arc.weight)) arc.weight = arc.major ? 3 : 1;
+  }
+
   // 自治政府（地方政権・植民地政庁・軍閥政府）。
   // 宗主国の領土のまま、行政だけを分離して扱う。地図色は宗主国と同一。
   const LOCAL_GOVERNMENT_KINDS = {
@@ -361,7 +749,7 @@ const Orbis = (() => {
       dynamicNations: {},
       nationalAction: null, actionDraft: '', standingPolicy: '', actionHistory: [], adviserBriefings: [], conflicts: {}, wars: {}, civilWars: {}, factions: {}, peaceOffers: {}, peaceConferences: {}, warScores: {}, npcAgreements: [], occupations: {}, claims: {}, formations: [], economy: {}, nationalFocus: {}, research: {},
       maritime: { navy: {}, air: {}, seaControl: {}, turn: -1 },
-      establishedFacts: [], timelineFired: {}, turnPlaybackQueue: [], worldMemory: '', stress: { collapse: 0, bankruptcy: 0, war: 0, civil: 0 },
+      establishedFacts: [], timelineFired: {}, turnPlaybackQueue: [], turnSummaries: [], worldArcs: { seed: null, states: {}, log: [] }, worldMemory: '', stress: { collapse: 0, bankruptcy: 0, war: 0, civil: 0 },
       globalWarHalves: 0, worldWarActive: false, lastResolutionIssues: [],
       cumulative: { treaties: 0, fulfilled: 0, broken: 0 }, ending: null, savedAt: null,
       onboarding: { done: false, step: 0, lastShownTurn: -1 },
@@ -2457,17 +2845,34 @@ const Orbis = (() => {
   function assignNpcFormationOrders(game) {
     if (!Array.isArray(game.formations)) return;
     const enemiesByNation = new Map();
+    const goalsByNation = new Map();
     for (const war of Object.values(game.wars || {})) {
       if (war.status !== 'active') continue;
-      for (const [nationId, enemyId] of [[war.attacker, war.defender], [war.defender, war.attacker]]) {
+      for (const [nationId, enemyId, goals] of [
+        [war.attacker, war.defender, war.goals?.attacker],
+        [war.defender, war.attacker, war.goals?.defender]
+      ]) {
         if (!game.nations?.[nationId] || !game.nations?.[enemyId]) continue;
         if (!enemiesByNation.has(nationId)) enemiesByNation.set(nationId, new Set());
         enemiesByNation.get(nationId).add(enemyId);
+        if (!goalsByNation.has(nationId)) goalsByNation.set(nationId, new Set());
+        for (const stateId of Array.isArray(goals) ? goals : []) goalsByNation.get(nationId).add(stateId);
       }
     }
     if (!enemiesByNation.size) return;
     const adjacency = landAdjacency();
     const assignments = new Map();
+    const goalDistance = (region, goals) => {
+      if (!goals?.size) return 0;
+      let best = Infinity;
+      for (const stateId of goals) {
+        const goal = regionById(stateId);
+        if (!goal) continue;
+        const distance = Math.hypot((region.lon || 0) - (goal.lon || 0), (region.lat || 0) - (goal.lat || 0));
+        if (distance < best) best = distance;
+      }
+      return Number.isFinite(best) ? best : 0;
+    };
     for (const formation of game.formations) {
       if (!formation || formation.nationId === game.playerNationId) continue;
       const enemies = enemiesByNation.get(formation.nationId);
@@ -2476,6 +2881,7 @@ const Orbis = (() => {
         formation.order = { kind: 'defend' };
         continue;
       }
+      const goals = goalsByNation.get(formation.nationId);
       const candidates = [];
       for (const regionId of adjacency.get(formation.regionId) || []) {
         if (regionId === formation.regionId) continue;
@@ -2488,7 +2894,7 @@ const Orbis = (() => {
         const enemy = [holderEnemy, priorEnemy].find(id => id && enemies.has(id));
         if (!enemy) continue;
         if (holder === formation.nationId && prior !== enemy) continue;
-        candidates.push({ region, enemy, reclaim: prior === formation.nationId });
+        candidates.push({ region, enemy, reclaim: prior === formation.nationId, goal: goals?.has(region.id) ? 0 : 1 });
       }
       if (!candidates.length) {
         formation.order = { kind: 'defend' };
@@ -2499,7 +2905,11 @@ const Orbis = (() => {
         const countA = assignments.get(a.region.id) || 0;
         const countB = assignments.get(b.region.id) || 0;
         if (countA !== countB) return countA - countB;
+        if (a.goal !== b.goal) return a.goal - b.goal;
         if (a.reclaim !== b.reclaim) return a.reclaim ? -1 : 1;
+        const goalA = goalDistance(a.region, goals);
+        const goalB = goalDistance(b.region, goals);
+        if (Math.abs(goalA - goalB) > 0.01) return goalA - goalB;
         const distanceA = Math.hypot((a.region.lon || 0) - (origin?.lon || 0), (a.region.lat || 0) - (origin?.lat || 0));
         const distanceB = Math.hypot((b.region.lon || 0) - (origin?.lon || 0), (b.region.lat || 0) - (origin?.lat || 0));
         return distanceA - distanceB || (b.region.vp || 0) - (a.region.vp || 0);
@@ -2512,6 +2922,8 @@ const Orbis = (() => {
 
   function resolveFormationFronts(game, notes = []) {
     if (!Array.isArray(game.formations)) return;
+    // 同じ半月のうちに同じ州を奪い返して支配が振動しないよう、最初の占領を確定させる。
+    const capturedThisTurn = new Set();
     for (const formation of game.formations.slice()) {
       if (!formation || !game.formations.includes(formation)) continue;
       const modifiers = nationalModifiers(game, formation.nationId);
@@ -2549,13 +2961,14 @@ const Orbis = (() => {
         continue;
       }
       const step = pickFormationAdvance(game, formation, target, targetNation);
-      if (!step) continue;
+      if (!step || capturedThisTurn.has(step.id)) continue;
       const defender = formationEnemyAt(game, formation, step);
       if (!defender) continue;
       const sovereign = regionHolder(game, step);
       const originalOwner = game.occupations?.[step.id] || sovereign;
       const liberated = originalOwner === formation.nationId;
       game.territories[step.id] = formation.nationId;
+      capturedThisTurn.add(step.id);
       if (liberated) {
         delete game.occupations[step.id];
         delete game.conflicts[step.id];
@@ -2616,7 +3029,543 @@ const Orbis = (() => {
   }
 
   function regionHolder(game, region) {
+    if (!region || !region.id) return null;
     return game.territories[region.id] || region.country;
+  }
+
+  // ---- 史実の弧（WORLD_ARCS）の共通処理 ----
+
+  function arcHalfIndex(year, month, half = 'first') {
+    try { return Math.max(0, resolveCore().halfTurnsThrough(Number(year), Number(month), half) - 1); }
+    catch { return 0; }
+  }
+
+  function arcById(id) {
+    return WORLD_ARCS.find(arc => arc.id === id) || null;
+  }
+
+  function arcSeedFor(game, salt = '') {
+    const text = `${game?.id || 'orbis'}|${game?.playerNationId || 'japan'}|${salt}`;
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i++) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0) || 1;
+  }
+
+  function ensureWorldArcs(game) {
+    if (!game) return null;
+    if (!game.worldArcs || typeof game.worldArcs !== 'object' || Array.isArray(game.worldArcs)) {
+      game.worldArcs = { seed: arcSeedFor(game, 'world-arcs'), states: {}, log: [] };
+    }
+    if (!game.worldArcs.states || typeof game.worldArcs.states !== 'object' || Array.isArray(game.worldArcs.states)) game.worldArcs.states = {};
+    if (!Array.isArray(game.worldArcs.log)) game.worldArcs.log = [];
+    if (!Number.isInteger(game.worldArcs.seed) || game.worldArcs.seed <= 0) game.worldArcs.seed = arcSeedFor(game, 'world-arcs');
+    return game.worldArcs;
+  }
+
+  function worldArcRandom(game) {
+    const store = ensureWorldArcs(game);
+    let value = store.seed >>> 0;
+    value ^= value << 13; value >>>= 0;
+    value ^= value >>> 17;
+    value ^= value << 5; value >>>= 0;
+    store.seed = value || 1;
+    return store.seed / 4294967296;
+  }
+
+  function ensureWorldArcState(game, arc) {
+    const store = ensureWorldArcs(game);
+    let state = store.states[arc.id];
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      const from = arcHalfIndex(...arc.from);
+      const to = arcHalfIndex(...arc.to, 'second');
+      if ((game.completedTurns || 0) > to + 24) {
+        state = { status: 'prevented', dueHalf: to, firedHalf: null, delayedUntil: null, delayCount: 0, blockReason: '読み込み時に期間経過', result: null };
+      } else {
+        const span = Math.max(0, to - from);
+        const weight = Math.max(1, Number(arc.weight) || 1);
+        const roll = Math.pow(worldArcRandom(game), weight);
+        const dueHalf = Math.max(game.completedTurns || 0, Math.min(to, from + Math.floor(roll * (span + 1))));
+        state = { status: 'pending', dueHalf, firedHalf: null, delayedUntil: null, delayCount: 0, blockReason: '', result: null };
+      }
+      store.states[arc.id] = state;
+    }
+    return state;
+  }
+
+  function pushWorldArcLog(game, arc, status, summary, extra = {}) {
+    const store = ensureWorldArcs(game);
+    store.log.push({
+      id: arc.id,
+      label: arc.label,
+      major: Boolean(arc.major),
+      status,
+      half: game.completedTurns,
+      date: dateOf(game),
+      summary: String(summary || '').slice(0, 500),
+      ...extra
+    });
+    store.log = store.log.slice(-140);
+  }
+
+  function setArcRelation(game, a, b, delta) {
+    if (!game?.relations?.[a] || !game?.relations?.[b] || a === b) return;
+    const value = clamp((game.relations[a][b] ?? 0) + Number(delta || 0), -100, 100);
+    game.relations[a][b] = value;
+    game.relations[b][a] = value;
+  }
+
+  function arcStatesHeldBy(game, nationId) {
+    if (!game?.nations?.[nationId]) return [];
+    return window.ORBIS_STATES_DB
+      .filter(region => isLandRegion(region) && regionHolder(game, region) === nationId)
+      .map(region => region.id);
+  }
+
+  function arcReinforceNation(game, nationId, count, preferredIds = [], label = '動員') {
+    if (!game?.nations?.[nationId] || !Array.isArray(game.formations)) return 0;
+    const limit = Math.max(0, Math.min(4, Math.round(Number(count) || 0)));
+    let added = 0;
+    const place = regionId => {
+      if (added >= limit || game.formations.length >= 800) return;
+      const region = regionById(regionId);
+      if (!region || !isLandRegion(region) || regionHolder(game, region) !== nationId) return;
+      const id = `formation-${nationId}-arc-${game.completedTurns}-${label}-${added + 1}`;
+      if (game.formations.some(formation => formation.id === id)) return;
+      game.formations.push({ id, nationId, type: 'field', regionId, strength: 60, order: null });
+      added++;
+    };
+    for (const regionId of preferredIds) place(regionId);
+    if (added < limit) {
+      for (const regionId of arcStatesHeldBy(game, nationId)) {
+        if (added >= limit) break;
+        place(regionId);
+      }
+    }
+    return added;
+  }
+
+  function arcTransferRegion(game, stateId, toNationId, reason) {
+    const region = regionById(stateId);
+    if (!region || !isLandRegion(region) || !game.nations?.[toNationId]) return false;
+    const prior = regionHolder(game, region);
+    if (!prior || prior === toNationId) return false;
+    const oldOwner = prior;
+    game.territories[stateId] = toNationId;
+    delete game.occupations?.[stateId];
+    delete game.conflicts?.[stateId];
+    addClaim(game, stateId, oldOwner, String(reason || '史実の弧による領土移管').slice(0, 120));
+    game.establishedFacts = [...(game.establishedFacts || []), `${regionLabel(region)}が${shortName(oldOwner)}から${shortName(toNationId)}へ移管（${reason}）`].slice(-400);
+    return true;
+  }
+
+  function arcAnnexNation(game, targetId, annexerId, reason) {
+    if (!game.nations?.[targetId] || !game.nations?.[annexerId] || targetId === annexerId) return 0;
+    const regions = window.ORBIS_STATES_DB.filter(region => isLandRegion(region) && regionHolder(game, region) === targetId);
+    let count = 0;
+    for (const region of regions) if (arcTransferRegion(game, region.id, annexerId, reason)) count++;
+    if (count) {
+      game.nations[targetId].dissolved = true;
+      game.nations[targetId].suzerain = null;
+      const client = game.clients?.[targetId];
+      if (client) { client.dissolved = true; client.integratedInto = annexerId; }
+      game.establishedFacts = [...(game.establishedFacts || []), `${shortName(targetId)}が${shortName(annexerId)}へ併合された（${reason}）`].slice(-400);
+    }
+    return count;
+  }
+
+  function arcGrantIndependence(game, clientId, newName, notes = []) {
+    const client = game?.clients?.[clientId];
+    if (!client || client.dissolved || client.independent || client.annexed) return false;
+    const sponsorId = client.sponsorId;
+    client.independent = true;
+    client.independentAt = game.completedTurns;
+    if (newName) client.name = String(newName).slice(0, 80);
+    const nation = game.nations?.[clientId];
+    if (nation) {
+      nation.suzerain = null;
+      nation.vassalType = null;
+      nation.dissolved = false;
+    }
+    if (newName && game.dynamicNations?.[clientId]) game.dynamicNations[clientId].name = String(newName).slice(0, 80);
+    if (sponsorId && game.relations?.[clientId] && game.relations?.[sponsorId]) {
+      const relation = clamp((game.relations[clientId][sponsorId] ?? 0) - 20, -100, 100);
+      game.relations[clientId][sponsorId] = relation;
+      game.relations[sponsorId][clientId] = relation;
+    }
+    game.tension = clamp((game.tension || 0) + 2, 0, 100);
+    game.establishedFacts = [...(game.establishedFacts || []), `${client.name || shortName(clientId)}が${shortName(sponsorId)}から独立した`].slice(-400);
+    if (notes.length || Array.isArray(notes)) notes.push(`${client.name || shortName(clientId)}が独立を宣言。`);
+    return true;
+  }
+
+  function arcCreateIndependentNation(game, sponsorId, regionId, newId, name, type = 'colony', notes = []) {
+    const region = regionById(regionId);
+    if (!region || regionHolder(game, region) !== sponsorId) return false;
+    if (!game.nations?.[newId]) {
+      const created = createDependentFromRegion(sponsorId, regionId, newId, name, type, game);
+      if (!created.ok) return false;
+    }
+    return arcGrantIndependence(game, newId, name, notes);
+  }
+
+  function evolveFaction(game, factionId, parentNationId, label) {
+    const faction = ensureFaction(game, factionId, parentNationId, label || '反乱軍');
+    faction.label = label || faction.label;
+    return faction;
+  }
+
+  function arcStartCivilWar(game, nationId, factionId, label, options = {}) {
+    if (!game.nations?.[nationId] || game.nations[nationId].dissolved) return false;
+    if (game.civilWars?.[nationId]?.status === 'active') return false;
+    game.civilWars[nationId] = {
+      factionId,
+      label: label || '反乱軍',
+      status: 'active',
+      startedTurn: game.completedTurns,
+      halves: 0,
+      arcId: options.arcId || null,
+      holdUntil: Number.isFinite(options.holdUntil) ? options.holdUntil : null
+    };
+    evolveFaction(game, factionId, nationId, label);
+    game.establishedFacts = [...(game.establishedFacts || []), `${shortName(nationId)}で内戦が開始（${label}）`].slice(-400);
+    return true;
+  }
+
+  function arcSettleCivilWar(game, nationId, mode, notes = []) {
+    const war = game?.civilWars?.[nationId];
+    if (!war || war.status !== 'active') return null;
+    const factionId = war.factionId || `${nationId}_rebels`;
+    let affected = 0;
+    if (mode === 'autonomy') {
+      for (const region of window.ORBIS_STATES_DB) {
+        if (!isLandRegion(region) || game.territories[region.id] !== factionId) continue;
+        delete game.occupations[region.id];
+        delete game.conflicts[region.id];
+        affected++;
+      }
+      evolveFaction(game, factionId, nationId, war.label || '反乱軍').autonomous = true;
+      if (game.nations[nationId]) game.nations[nationId].stb = clamp(game.nations[nationId].stb - 2, 0, 100);
+    } else {
+      for (const region of window.ORBIS_STATES_DB) {
+        if (!isLandRegion(region) || game.territories[region.id] !== factionId) continue;
+        game.territories[region.id] = nationId;
+        delete game.occupations[region.id];
+        delete game.conflicts[region.id];
+        affected++;
+      }
+      if (game.nations[nationId]) game.nations[nationId].stb = clamp(game.nations[nationId].stb + 6, 0, 100);
+    }
+    war.status = 'resolved';
+    war.resolvedTurn = game.completedTurns;
+    war.settlement = mode === 'autonomy' ? 'autonomy' : 'return';
+    const label = war.label || '反乱軍';
+    notes.push(`${shortName(nationId)}内戦：${mode === 'autonomy' ? `${label}の支配州残留を認めて` : '支配州を政府へ返還して'}終結（${affected}州）。`);
+    game.establishedFacts = [...(game.establishedFacts || []), `${shortName(nationId)}内戦が${mode === 'autonomy' ? '自治残留' : '政府返還'}で終結`].slice(-400);
+    return { affected, mode, factionId };
+  }
+
+  function arcDeclareNpcWar(game, attackerId, defenderId, options = {}) {
+    if (!game.nations?.[attackerId] || !game.nations?.[defenderId]) return null;
+    if (attackerId === defenderId || game.nations[attackerId].dissolved || game.nations[defenderId].dissolved) return null;
+    const validLand = id => {
+      const region = regionById(id);
+      return Boolean(region && isLandRegion(region));
+    };
+    const goals = [...new Set((options.goals || []).filter(validLand))].slice(0, 80);
+    const defenderGoals = [...new Set((options.defenderGoals || []).filter(validLand))].slice(0, 80);
+    const existing = Object.entries(game.wars || {}).find(([, war]) => war.status === 'active'
+      && ((war.attacker === attackerId && war.defender === defenderId) || (war.attacker === defenderId && war.defender === attackerId)));
+    if (existing) {
+      const [existingId, war] = existing;
+      if (!war.goals || typeof war.goals !== 'object') war.goals = { attacker: [], defender: [] };
+      if (war.attacker === attackerId) {
+        war.goals.attacker = [...new Set([...(war.goals.attacker || []), ...goals])].slice(0, 80);
+        war.goals.defender = [...new Set([...(war.goals.defender || []), ...defenderGoals])].slice(0, 80);
+      } else {
+        war.goals.defender = [...new Set([...(war.goals.defender || []), ...goals])].slice(0, 80);
+        war.goals.attacker = [...new Set([...(war.goals.attacker || []), ...defenderGoals])].slice(0, 80);
+      }
+      war.arcId = options.arcId || war.arcId || null;
+      war.settleAfter = Math.max(Number(war.settleAfter) || 0, Number(options.settleAfter) || 0);
+      war.maxHalves = Math.max(Number(war.maxHalves) || 0, Number(options.maxHalves) || 0);
+      war.annexAllOnWin = options.annexAllOnWin !== false;
+      for (const stateId of goals) addClaim(game, stateId, attackerId, `${shortName(defenderId)}への戦争目標`);
+      if (Array.isArray(game.formations)) assignNpcFormationOrders(game);
+      refreshMaritime(game);
+      return existingId;
+    }
+    const warId = uid('war');
+    game.wars[warId] = {
+      attacker: attackerId,
+      defender: defenderId,
+      startedTurn: game.completedTurns,
+      status: 'active',
+      reason: String(options.reason || '国境紛争').slice(0, 400),
+      npc: true,
+      arcId: options.arcId || null,
+      goals: { attacker: goals, defender: defenderGoals },
+      settleAfter: Math.max(2, Math.round(Number(options.settleAfter) || 8)),
+      maxHalves: Math.max(4, Math.round(Number(options.maxHalves) || 36)),
+      annexAllOnWin: options.annexAllOnWin !== false,
+      vassalizeOnWin: Boolean(options.vassalizeOnWin)
+    };
+    for (const stateId of goals) addClaim(game, stateId, attackerId, `${shortName(defenderId)}への戦争目標`);
+    for (const stateId of defenderGoals) addClaim(game, stateId, defenderId, `${shortName(attackerId)}への反攻目標`);
+    game.tension = clamp((game.tension || 0) + 5, 0, 100);
+    game.establishedFacts = [...(game.establishedFacts || []), `${shortName(attackerId)}と${shortName(defenderId)}が戦争状態に入った（${options.reason || '国境紛争'}）`].slice(-400);
+    if (Array.isArray(game.formations)) assignNpcFormationOrders(game);
+    refreshMaritime(game);
+    return warId;
+  }
+
+  function npcWarHeldStates(game, war) {
+    const attackerParty = new Set(warPartyIds(game, war.attacker));
+    const defenderParty = new Set(warPartyIds(game, war.defender));
+    const attackerHeld = [];
+    const defenderHeld = [];
+    for (const [stateId, prior] of Object.entries(game.occupations || {})) {
+      const region = regionById(stateId);
+      if (!region || !isLandRegion(region)) continue;
+      if (game.territories?.[stateId] === war.attacker && defenderParty.has(prior)) attackerHeld.push(stateId);
+      else if (game.territories?.[stateId] === war.defender && attackerParty.has(prior)) defenderHeld.push(stateId);
+    }
+    return { attackerHeld, defenderHeld, attackerParty, defenderParty };
+  }
+
+  function forceNpcWarPeace(game, warId, victorId, options = {}, notes = []) {
+    const war = game?.wars?.[warId];
+    if (!war || war.status !== 'active') return null;
+    const victor = victorId === war.defender ? war.defender : war.attacker;
+    const { attackerHeld, defenderHeld } = npcWarHeldStates(game, war);
+    const allHeld = [...new Set([...attackerHeld, ...defenderHeld])];
+    let annex = [];
+    if (victor === war.attacker) {
+      const goals = new Set(war.goals?.attacker || []);
+      annex = attackerHeld.filter(id => war.annexAllOnWin !== false || goals.has(id));
+    } else if (options.defenderAnnex) {
+      annex = defenderHeld.slice();
+    }
+    if (Array.isArray(options.annexStateIds)) annex = options.annexStateIds.filter(id => allHeld.includes(id));
+    const annexSet = new Set(annex);
+    const returnIds = allHeld.filter(id => !annexSet.has(id));
+    const vassalize = Boolean(options.vassalizeEnemy && victor === war.attacker && war.vassalizeOnWin && game.nations?.[war.defender] && !game.nations[war.defender].suzerain);
+    const ended = endWarOnGame(game, warId, [], returnIds, {
+      victor,
+      annexStateIds: annex,
+      vassalizeEnemy: vassalize,
+      vassalizeSponsor: victor,
+      vassalizeNationId: war.defender
+    });
+    if (!ended) return null;
+    war.result = {
+      victor,
+      victorSide: victor === war.attacker ? 'attacker' : 'defender',
+      annexed: annex.slice(0, 80),
+      returned: returnIds.slice(0, 120),
+      vassalized: vassalize,
+      resolvedTurn: game.completedTurns
+    };
+    const parts = [];
+    if (annex.length) parts.push(`${annex.length}州を併合`);
+    if (returnIds.length) parts.push(`${returnIds.length}州を返還`);
+    if (vassalize) parts.push(`${shortName(war.defender)}を従属化`);
+    notes.push(`${shortName(war.attacker)}と${shortName(war.defender)}が和平。${parts.join('、') || '現状維持'}。`);
+    game.establishedFacts = [...(game.establishedFacts || []), `${shortName(war.attacker)}と${shortName(war.defender)}の戦争が終結（${parts.join('、') || '現状維持'}）`].slice(-400);
+    return { ...war.result, warId, attacker: war.attacker, defender: war.defender };
+  }
+
+  function arcEndWarsFor(game, nationIds, victorSide, notes = []) {
+    const targets = new Set(nationIds);
+    let ended = 0;
+    let changed = 0;
+    for (const [warId, war] of Object.entries(game.wars || {})) {
+      if (war.status !== 'active') continue;
+      if (war.attacker === game.playerNationId || war.defender === game.playerNationId) continue;
+      if (!targets.has(war.attacker) && !targets.has(war.defender)) continue;
+      const victor = victorSide === 'defender'
+        ? (targets.has(war.attacker) ? war.defender : war.attacker)
+        : (targets.has(war.attacker) ? war.attacker : war.defender);
+      const result = forceNpcWarPeace(game, warId, victor, { defenderAnnex: false }, notes);
+      if (result) {
+        ended++;
+        changed += result.annexed.length + result.returned.length;
+      }
+    }
+    return { ended, changed };
+  }
+
+  function worldArcBlockReason(game, arc) {
+    const playerId = game.playerNationId;
+    if (!arc.playerCanBlock?.includes(playerId)) return '';
+    const policy = String(game.standingPolicy || '');
+    if (policy) {
+      const mentions = (arc.keywords || [arc.label]).some(keyword => keyword && policy.includes(keyword));
+      const blocks = /(阻止|反対|見送|延期|不介入|独立保障|現状維持|平和解決)/.test(policy);
+      if (mentions && blocks) return '常設方針';
+    }
+    const targetId = arc.id === 'germany_anschluss' ? 'austria'
+      : arc.id === 'germany_sudeten' || arc.id === 'germany_prague' ? 'czechoslovakia'
+        : arc.id === 'germany_poland' ? 'poland'
+          : arc.id === 'italy_ethiopia' ? 'ethiopia'
+            : arc.id === 'japan_china_war' ? 'china'
+              : arc.id === 'india_independence' ? 'india'
+                : arc.id === 'korea_division' ? 'col_japan_korea'
+                  : null;
+    const actorId = arc.id === 'germany_anschluss' || arc.id === 'germany_sudeten' || arc.id === 'germany_prague' || arc.id === 'germany_poland' ? 'germany'
+      : arc.id === 'italy_ethiopia' ? 'italy'
+        : arc.id === 'japan_china_war' ? 'japan'
+          : arc.id === 'india_independence' ? 'uk'
+            : null;
+    if (actorId && activeWarBetween(game, playerId, actorId)) return '交戦中';
+    if (targetId && playerId === targetId && actorId) {
+      const relation = game.relations?.[playerId]?.[actorId] ?? -100;
+      if (relation >= 25) return '関係改善';
+      if (game.nations?.[playerId]?.mil >= (game.nations?.[actorId]?.mil || 0) + 10) return '国力差';
+    }
+    if (targetId && game.treaties?.some(treaty => treaty.nationId === targetId && treaty.type === 'defense' && treaty.remaining > 0)) return '防衛条約';
+    if (playerId === 'uk' && arc.id === 'germany_poland' && focusStateFor(game, 'uk').completed.includes('uk_collective_security')) return '国策';
+    if (playerId === 'france' && arc.id === 'germany_west' && focusStateFor(game, 'france').completed.includes('fr_containment')) return '国策';
+    return '';
+  }
+
+  function fireWorldArc(game, arc, notes = []) {
+    const state = ensureWorldArcState(game, arc);
+    if (state.status === 'fired') return null;
+    let result = null;
+    try { result = arc.run(game, notes) || {}; }
+    catch (error) { result = { headline: arc.label, body: `史実の弧の処理で例外：${error.message}`, summary: '処理例外' }; }
+    state.status = 'fired';
+    state.firedHalf = game.completedTurns;
+    state.delayCount = 0;
+    state.blockReason = '';
+    state.result = {
+      headline: String(result.headline || arc.label).slice(0, 160),
+      summary: String(result.summary || '').slice(0, 500),
+      warId: result.warId || null,
+      warIds: Array.isArray(result.warIds) ? result.warIds.slice(0, 12) : undefined
+    };
+    if (result.summary) notes.push(`史実の弧「${arc.label}」：${result.summary}`);
+    pushWorldArcLog(game, arc, 'fired', result.summary || result.headline || arc.label, { warId: result.warId || null });
+    if (!result.headline) return null;
+    return {
+      kind: 'world-arc',
+      id: arc.id,
+      headline: result.headline,
+      body: result.body || result.summary || '',
+      summary: result.summary || '',
+      date: dateOf(game),
+      location: result.location || '',
+      lon: result.lon ?? (regionById(result.stateId)?.lon ?? 20),
+      lat: result.lat ?? (regionById(result.stateId)?.lat ?? 30),
+      stateId: result.stateId
+    };
+  }
+
+  function tickWorldDynamics(game, notes = []) {
+    if (!game?.nations) return [];
+    ensureWorldArcs(game);
+    const current = game.completedTurns || 0;
+    const items = [];
+    for (const arc of WORLD_ARCS) {
+      const state = ensureWorldArcState(game, arc);
+      if (state.status === 'fired' || state.status === 'prevented' || state.status === 'deferred') continue;
+      if (state.status === 'delayed' && current < (state.delayedUntil ?? current)) continue;
+      if (state.status === 'pending' && current < (state.dueHalf ?? current)) continue;
+      if (arc.requires && !arc.requires(game)) continue;
+      if (arc.playerSensitive?.includes(game.playerNationId)) {
+        state.status = 'deferred';
+        state.blockReason = 'プレイヤー当事国';
+        pushWorldArcLog(game, arc, 'deferred', 'プレイヤーが当事国のため、史実の弧はプレイヤーの判断に委ねられた');
+        notes.push(`史実の弧「${arc.label}」はプレイヤーが当事者のため自動進行しない。`);
+        continue;
+      }
+      const blockReason = worldArcBlockReason(game, arc);
+      if (blockReason) {
+        state.delayCount = (state.delayCount || 0) + 1;
+        state.blockReason = blockReason;
+        const toHalf = arcHalfIndex(...arc.to, 'second');
+        if (state.delayCount >= 3 || current > toHalf + 24) {
+          state.status = 'prevented';
+          pushWorldArcLog(game, arc, 'prevented', `${blockReason}により史実の弧は不発`);
+          notes.push(`史実の弧「${arc.label}」は${blockReason}により不発。`);
+        } else {
+          state.status = 'delayed';
+          state.delayedUntil = current + 4 + Math.floor(worldArcRandom(game) * 7);
+          pushWorldArcLog(game, arc, 'delayed', `${blockReason}により${state.delayedUntil - current}半月延期`, { blockReason });
+          notes.push(`史実の弧「${arc.label}」は${blockReason}により延期。`);
+        }
+        continue;
+      }
+      const item = fireWorldArc(game, arc, notes);
+      if (item) items.push(item);
+    }
+    for (const arc of WORLD_ARCS) {
+      const state = game.worldArcs?.states?.[arc.id];
+      if (!state || state.status !== 'fired' || !arc.tick) continue;
+      try { arc.tick(game, state, notes); }
+      catch (error) { notes.push(`史実の弧「${arc.label}」の継続処理で例外：${error.message}`); }
+    }
+    return items;
+  }
+
+  function worldArcStatus(arcId, game = campaign) {
+    const arc = arcById(arcId);
+    if (!arc || !game) return null;
+    const state = ensureWorldArcState(game, arc);
+    return {
+      id: arc.id, label: arc.label, major: Boolean(arc.major),
+      from: arc.from.slice(), to: arc.to.slice(),
+      status: state.status, dueHalf: state.dueHalf, firedHalf: state.firedHalf,
+      delayedUntil: state.delayedUntil, delayCount: state.delayCount || 0,
+      blockReason: state.blockReason || '', result: state.result ? copy(state.result) : null
+    };
+  }
+
+  function worldArcList(game = campaign) {
+    return WORLD_ARCS.map(arc => worldArcStatus(arc.id, game)).filter(Boolean);
+  }
+
+  function worldArcLog(game = campaign) {
+    return copy(game?.worldArcs?.log || []);
+  }
+
+  function forceWorldArc(arcId, options = {}) {
+    if (!campaign) return { ok: false, error: 'キャンペーンがありません。' };
+    const arc = arcById(arcId);
+    if (!arc) return { ok: false, error: '史実の弧が見つかりません。' };
+    const state = ensureWorldArcState(campaign, arc);
+    if (state.status === 'fired' && !options.refire) {
+      return { ok: true, status: 'fired', state: worldArcStatus(arcId), item: null };
+    }
+    if (options.checkRequires && arc.requires && !arc.requires(campaign)) return { ok: false, error: '前提条件を満たしていません。' };
+    if (arc.playerSensitive?.includes(campaign.playerNationId) && !options.ignoreSensitive) {
+      state.status = 'deferred';
+      state.blockReason = 'プレイヤー当事国';
+      pushWorldArcLog(campaign, arc, 'deferred', 'プレイヤーが当事国のため自動進行しない');
+      saveCampaign();
+      return { ok: true, status: 'deferred', state: worldArcStatus(arcId), item: null };
+    }
+    const blockReason = options.ignoreBlock ? '' : worldArcBlockReason(campaign, arc);
+    if (blockReason) {
+      state.status = 'delayed';
+      state.blockReason = blockReason;
+      state.delayCount = (state.delayCount || 0) + 1;
+      state.delayedUntil = campaign.completedTurns + 6;
+      pushWorldArcLog(campaign, arc, 'delayed', `${blockReason}により延期`, { blockReason });
+      saveCampaign();
+      render();
+      return { ok: true, status: 'delayed', blockReason, state: worldArcStatus(arcId), item: null };
+    }
+    state.status = 'pending';
+    const notes = [];
+    const item = fireWorldArc(campaign, arc, notes);
+    saveCampaign();
+    syncWorld();
+    render();
+    return { ok: true, status: state.status, item, notes, state: worldArcStatus(arcId) };
   }
 
   function attackerSphereIds(game, attacker) {
@@ -2672,7 +3621,7 @@ const Orbis = (() => {
         game.conflicts[target.id] = { attacker: factionId, defender: nationId, months: war.halves, reason: '内戦戦線' };
         notes.push(`${shortName(nationId)}内戦：${regionLabel(target)}が${game.factions[factionId].label}の支配下に。`);
       }
-      if (game.nations[nationId].stb >= 40 && war.halves >= 6) {
+      if (game.nations[nationId].stb >= 40 && war.halves >= 6 && !(Number.isFinite(war.holdUntil) && game.completedTurns < war.holdUntil)) {
         war.status = 'resolved';
         notes.push(`${shortName(nationId)}の内戦が収束。`);
       }
@@ -2689,15 +3638,18 @@ const Orbis = (() => {
   }
 
   function tickNpcWars(game, notes) {
-    // 戦争の自動発生のみを扱う。占領は部隊前進（resolveFormationFronts）だけが行う。
-    if (game.tension >= 88 && game.completedTurns % 80 === 0 && game.completedTurns > 0) {
-      const pairs = [['germany', 'poland'], ['japan', 'china']];
-      const [a, b] = pairs[Math.floor(game.completedTurns / 80) % pairs.length];
-      const exists = Object.values(game.wars || {}).some(w => w.status === 'active' && ((w.attacker === a && w.defender === b) || (w.attacker === b && w.defender === a)));
-      if (game.nations[a] && game.nations[b] && !exists) {
-        const warId = uid('war');
-        game.wars[warId] = { attacker: a, defender: b, startedTurn: game.completedTurns, status: 'active', reason: '国境紛争の拡大', npc: true };
-        notes.push(`${shortName(a)}と${shortName(b)}の間で武力衝突がエスカレート。部隊の前進を待つ。`);
+    // 緊張の高い時期に、史実の弧とは別の偶発戦争を低確率で起こす。占領は部隊前進だけが行う。
+    if (game.tension >= 84 && game.completedTurns > 0 && game.completedTurns % 80 === 0) {
+      const pairs = [['germany', 'poland'], ['japan', 'china'], ['italy', 'yugoslavia'], ['russia', 'finland']];
+      let [a, b] = pairs[Math.floor(game.completedTurns / 80) % pairs.length];
+      if (a === game.playerNationId || b === game.playerNationId) {
+        const safe = pairs.find(([x, y]) => x !== game.playerNationId && y !== game.playerNationId);
+        if (safe) [a, b] = safe;
+      }
+      if (game.nations[a] && game.nations[b] && !game.nations[a].dissolved && !game.nations[b].dissolved) {
+        const goals = arcStatesHeldBy(game, b).slice(0, 6);
+        const warId = arcDeclareNpcWar(game, a, b, { reason: '国境紛争の拡大', goals, settleAfter: 8, maxHalves: 24, annexAllOnWin: true });
+        if (warId) notes.push(`${shortName(a)}と${shortName(b)}の間で武力衝突がエスカレート。部隊の前進を待つ。`);
       }
     }
   }
@@ -3011,13 +3963,16 @@ const Orbis = (() => {
     if (!war || war.status !== 'active') return false;
     war.status = 'peace';
     war.resolvedTurn = game.completedTurns;
+    // 従来の呼び出しは攻撃側の勝利。NPC和平では options.victor で防御側の勝利も扱う。
+    const victor = options.victor && game.nations?.[options.victor] ? options.victor : war.attacker;
+    const loser = victor === war.attacker ? war.defender : war.attacker;
     for (const stateId of cedeStateIds) {
       if (!stateId) continue;
       const region = window.ORBIS_STATES_DB.find(r => r.id === stateId);
       const prior = game.occupations?.[stateId] || region?.country;
-      addClaim(game, stateId, prior || war.defender, '戦争で失った領土');
-      game.territories[stateId] = war.attacker;
-      game.occupations[stateId] = war.defender;
+      addClaim(game, stateId, prior || loser, '戦争で失った領土');
+      game.territories[stateId] = victor;
+      game.occupations[stateId] = loser;
       delete game.conflicts[stateId];
     }
     for (const stateId of options.annexStateIds || []) {
@@ -3026,7 +3981,7 @@ const Orbis = (() => {
       if (!region) continue;
       const prior = game.occupations?.[stateId] || region.country;
       addClaim(game, stateId, prior, '和平会議で併合された領土');
-      game.territories[stateId] = war.attacker;
+      game.territories[stateId] = victor;
       delete game.occupations[stateId];
       delete game.conflicts[stateId];
     }
@@ -3043,8 +3998,9 @@ const Orbis = (() => {
       delete game.conflicts[stateId];
     }
     if (options.vassalizeEnemy) {
-      const sponsorId = options.vassalizeSponsor || war.attacker;
-      createDependent(sponsorId, war.defender, 'protectorate', `${shortName(war.defender)}保護国`, game);
+      const sponsorId = options.vassalizeSponsor || victor;
+      const vassalId = options.vassalizeNationId && game.nations?.[options.vassalizeNationId] ? options.vassalizeNationId : loser;
+      createDependent(sponsorId, vassalId, 'protectorate', `${shortName(vassalId)}保護国`, game);
     }
     const warParties = new Set([...warPartyIds(game, war.attacker), ...warPartyIds(game, war.defender)]);
     for (const [rid, c] of Object.entries(game.conflicts || {})) {
@@ -3121,27 +4077,37 @@ const Orbis = (() => {
       if (war.status !== 'active') continue;
       if (war.attacker === game.playerNationId || war.defender === game.playerNationId) continue;
       const halves = Math.max(0, (game.completedTurns || 0) - (war.startedTurn || 0));
-      if (halves < 8) continue;
+      const settleAfter = Math.max(2, Number(war.settleAfter) || 8);
+      const maxHalves = Math.max(settleAfter, Number(war.maxHalves) || 36);
+      if (halves < settleAfter) continue;
       const score = warScoreSummary(game, warId);
       if (!score) continue;
+      const { attackerHeld, defenderHeld } = npcWarHeldStates(game, war);
+      const goals = Array.isArray(war.goals?.attacker) ? war.goals.attacker : [];
+      const goalsHeld = goals.filter(stateId => game.territories?.[stateId] === war.attacker).length;
+      const goalReached = goals.length > 0 && goalsHeld >= Math.max(1, Math.ceil(goals.length * 0.6));
       const advantage = score.attacker.total - score.defender.total;
-      if (Math.abs(advantage) < 8 && halves < 14) continue;
-      const attackerHeld = Object.entries(game.occupations || {})
-        .filter(([stateId, prior]) => game.territories?.[stateId] === war.attacker && warPartyIds(game, war.defender).includes(prior))
-        .map(([stateId]) => stateId);
-      const defenderHeld = Object.entries(game.occupations || {})
-        .filter(([stateId, prior]) => game.territories?.[stateId] === war.defender && warPartyIds(game, war.attacker).includes(prior))
-        .map(([stateId]) => stateId);
-      if (advantage >= 8 && attackerHeld.length) {
-        const stateId = attackerHeld[0];
-        endWarOnGame(game, warId, [], [], { annexStateIds: [stateId] });
-        notes.push(`${shortName(war.attacker)}と${shortName(war.defender)}が停戦。${regionLabel(regionById(stateId))}は${shortName(war.attacker)}が確保。`);
-      } else if (advantage <= -8 && defenderHeld.length) {
-        endWarOnGame(game, warId, [], defenderHeld);
-        notes.push(`${shortName(war.attacker)}と${shortName(war.defender)}が停戦。占領地は返還された。`);
+      const balance = attackerHeld.length - defenderHeld.length;
+      const forced = halves >= maxHalves;
+      const decisive = goalReached || advantage >= 8 || advantage <= -8 || balance >= 2 || balance <= -2;
+      if (!forced && !decisive && halves < settleAfter + 8) continue;
+      let victor = null;
+      if (goalReached && attackerHeld.length) victor = war.attacker;
+      else if ((advantage >= 8 || balance >= 2) && attackerHeld.length) victor = war.attacker;
+      else if ((advantage <= -8 || balance <= -2) && defenderHeld.length) victor = war.defender;
+      else if (forced && (advantage > 0 || balance > 0) && attackerHeld.length) victor = war.attacker;
+      else if (forced && (advantage < 0 || balance < 0) && defenderHeld.length) victor = war.defender;
+      if (!victor) {
+        // 戦果が拮抗したまま長期化した場合は、占領地を返還して現状維持停戦。
+        const allHeld = [...new Set([...attackerHeld, ...defenderHeld])];
+        if (!forced && !allHeld.length) continue;
+        forceNpcWarPeace(game, warId, war.attacker, { annexStateIds: [] }, notes);
+        continue;
+      }
+      if (victor === war.attacker) {
+        forceNpcWarPeace(game, warId, victor, { vassalizeEnemy: true }, notes);
       } else {
-        endWarOnGame(game, warId, [], [...attackerHeld, ...defenderHeld]);
-        notes.push(`${shortName(war.attacker)}と${shortName(war.defender)}が現状維持で停戦。`);
+        forceNpcWarPeace(game, warId, victor, { defenderAnnex: false }, notes);
       }
     }
   }
@@ -3283,7 +4249,7 @@ const Orbis = (() => {
     if (!campaign) return;
     const { wars, civil, fronts } = listConflicts();
     const warRows = wars.map(w => {
-      const isPlayerWar = Boolean(campaign.wars?.[w.id]);
+      const isPlayerWar = Boolean(campaign.wars?.[w.id] && [w.attacker, w.defender].includes(campaign.playerNationId));
       const score = isPlayerWar ? warScoreSummary(campaign, w.id) : null;
       const scoreLine = score
         ? `<p class="small">戦時得点 味方 ${score.own.total} / 相手 ${score.opponent.total} · 要求可能 ${score.available}</p>`
@@ -3294,9 +4260,12 @@ const Orbis = (() => {
       return `<article class="review-item"><strong>${escapeHtml(shortName(w.attacker))} ⇄ ${escapeHtml(shortName(w.defender))}</strong>${scoreLine}<p class="small">${escapeHtml(w.reason || '')}</p>${actions}${w.attacker === campaign.playerNationId ? '' : `<span class="small muted">侵攻側：${escapeHtml(shortName(w.attacker))}</span>`}</article>`;
     }).join('') || '<p class="empty-state">進行中の国際戦争はありません。</p>';
     const civilRows = civil.map(c => `<article class="review-item"><strong>${escapeHtml(c.label || c.factionId)}</strong><p class="small">第${c.halves || 0}戦線 · ${escapeHtml(shortName(c.nationId))}</p><div class="war-actions"><button class="btn btn-primary" data-civil-conference="${escapeHtml(c.nationId)}">内戦和平会議</button><button class="btn btn-ghost" data-civil-peace="${escapeHtml(c.nationId)}">特赦と交渉</button></div></article>`).join('') || '<p class="empty-state">内戦は発生していません。</p>';
+    const arcStatusLabel = { fired: '発火', delayed: '延期', prevented: '不発', deferred: '当事者' };
+    const arcLog = (campaign.worldArcs?.log || []).slice(-10).reverse();
+    const arcRows = arcLog.map(entry => `<article class="review-item"><strong>${escapeHtml(entry.label || entry.id)}</strong><p class="small">${escapeHtml(entry.date || '')} · ${escapeHtml(arcStatusLabel[entry.status] || entry.status)}</p><p class="small muted">${escapeHtml(entry.summary || '')}</p></article>`).join('') || '<p class="empty-state">史実の弧はまだ記録されていません。</p>';
     const playerFormations = (campaign.formations || []).filter(item => item.nationId === campaign.playerNationId);
     const formationRows = playerFormations.map(formationCommandHtml).join('') || '<p class="empty-state">命令できる部隊はありません。</p>';
-    html('war-panel-body', `<section><h3>国際戦争</h3>${warRows}</section>${maritimeSectionHtml()}<section style="margin-top:14px"><h3>内戦・反乱</h3>${civilRows}</section><section style="margin-top:14px"><h3>戦線（${fronts.length}）</h3><p class="small muted">地図上の赤枠・斜線が占領と戦闘地域です。</p></section><section style="margin-top:14px"><h3>部隊・戦線（${playerFormations.length}）</h3><p class="small muted">防御は現在地で待機、攻勢は目標方向の隣接する敵領へ1ターンに1州ずつ進みます。攻勢は戦争中の相手にだけ指示できます。</p>${formationRows}</section><div class="form-row" style="margin-top:12px"><label>宣戦<select id="war-target-select" class="form-select">${Object.keys(campaign.nations).filter(id => id !== campaign.playerNationId).map(id => `<option value="${id}">${escapeHtml(shortName(id))}</option>`).join('')}</select></label><button class="btn btn-primary" id="btn-declare-war-submit">宣戦布告</button></div>`);
+    html('war-panel-body', `<section><h3>国際戦争</h3>${warRows}</section>${maritimeSectionHtml()}<section style="margin-top:14px"><h3>内戦・反乱</h3>${civilRows}</section><section style="margin-top:14px"><h3>史実の弧・記録（${arcLog.length}）</h3><p class="small muted">史実寄りの駆動は、宣戦・隣接占領・政治移管・独立・内戦の既存ルールを通じて地図を動かします。</p>${arcRows}</section><section style="margin-top:14px"><h3>戦線（${fronts.length}）</h3><p class="small muted">地図上の赤枠・斜線が占領と戦闘地域です。</p></section><section style="margin-top:14px"><h3>部隊・戦線（${playerFormations.length}）</h3><p class="small muted">防御は現在地で待機、攻勢は目標方向の隣接する敵領へ1ターンに1州ずつ進みます。攻勢は戦争中の相手にだけ指示できます。</p>${formationRows}</section><div class="form-row" style="margin-top:12px"><label>宣戦<select id="war-target-select" class="form-select">${Object.keys(campaign.nations).filter(id => id !== campaign.playerNationId).map(id => `<option value="${id}">${escapeHtml(shortName(id))}</option>`).join('')}</select></label><button class="btn btn-primary" id="btn-declare-war-submit">宣戦布告</button></div>`);
     openDialog('modal-war-panel');
   }
 
@@ -4668,6 +5637,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     notes.push(maritimeNote(game));
     tickCivilWars(game, notes);
     tickEconomy(game, notes);
+    const worldArcItems = tickWorldDynamics(game, notes);
     assignNpcFormationOrders(game);
     resolveFormationFronts(game, notes);
     tickNpcWars(game, notes);
@@ -4675,6 +5645,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     tickGlobalWorldWar(game, notes);
     notes.push(...crisisRecoveryNotes(game));
     const timelineItems = globalThis.ORBIS_TIMELINE?.applyForTurn(game) || [];
+    const playbackItems = [...timelineItems, ...worldArcItems];
     game.completedTurns++;
     refreshMaritime(game);
     refreshWarScores(game);
@@ -4701,7 +5672,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     pushTurnArticles(game, [resolutionArticle]);
     pushTurnArticles(game, (evaluation.developments || []).map(article => ({ id: uid('article'), kind: 'world', date: dateOf(game), turn: game.completedTurns, ...article })));
     pushTurnArticles(game, (evaluation.npcEvents || []).map(event => ({ id: uid('article'), kind: 'world', date: dateOf(game), turn: game.completedTurns, headline: event.headline, body: event.body })));
-    for (const item of timelineItems) if (item.body) pushTurnArticles(game, [{ id: uid('article'), kind: 'world', date: dateOf(game), turn: game.completedTurns, headline: item.headline, body: item.body }]);
+    for (const item of playbackItems) if (item.body) pushTurnArticles(game, [{ id: uid('article'), kind: 'world', date: dateOf(game), turn: game.completedTurns, headline: item.headline, body: item.body }]);
     game.adviserBriefings = [...(game.adviserBriefings || []), {
       date: adviser.date,
       turn: game.completedTurns,
@@ -4709,7 +5680,8 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       policy: adviser.policy,
       sections: adviser.sections.map(section => ({ id: section.id, title: section.title, lines: section.lines.slice(0, 6).map(line => line.slice(0, 500)) }))
     }].slice(-12);
-    buildTurnPlayback(game, evaluation, timelineItems);
+    buildTurnPlayback(game, evaluation, playbackItems);
+    compactCampaign(game);
     return game;
   }
 
@@ -4773,8 +5745,80 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     runtime.mapDirty = true;
   }
 
+  function articleSummary(article) {
+    if (!article || typeof article !== 'object') return null;
+    const id = typeof article.id === 'string' ? article.id : '';
+    const headline = typeof article.headline === 'string' ? article.headline.slice(0, 140) : '';
+    if (!headline) return null;
+    const body = typeof article.body === 'string' ? article.body.replace(/\s+/g, ' ').trim() : '';
+    return {
+      articleId: id.slice(0, 100),
+      turn: finite(article.turn, 0, SAVE_TURN_CEILING(), 0),
+      date: typeof article.date === 'string' ? article.date.slice(0, 40) : '',
+      headline,
+      kind: ['opening', 'resolution', 'world'].includes(article.kind) ? article.kind : 'world',
+      memo: body.slice(0, 150)
+    };
+  }
+
+  // 古い記事は本文を落として年表用の要約だけを残す。直近の記事だけ本文付きで保存する。
+  // 保存前に呼ぶので、localStorage と長時間ランのセーブサイズに直接効く。
+  function compactCampaign(game) {
+    if (!game) return;
+    if (!Array.isArray(game.articles)) game.articles = [];
+    if (!Array.isArray(game.turnSummaries)) game.turnSummaries = [];
+    const summaries = new Map();
+    const priority = { resolution: 3, opening: 2, world: 1 };
+    const putSummary = summary => {
+      if (!summary) return;
+      const key = summary.turn;
+      const current = summaries.get(key);
+      if (!current || (priority[summary.kind] || 0) >= (priority[current.kind] || 0)) summaries.set(key, summary);
+    };
+    for (const item of game.turnSummaries) {
+      if (!item || typeof item !== 'object') continue;
+      putSummary({
+        articleId: typeof item.articleId === 'string' ? item.articleId.slice(0, 100) : '',
+        turn: finite(item.turn, 0, SAVE_TURN_CEILING(), 0),
+        date: typeof item.date === 'string' ? item.date.slice(0, 40) : '',
+        headline: typeof item.headline === 'string' ? item.headline.slice(0, 140) : '',
+        kind: ['opening', 'resolution', 'world'].includes(item.kind) ? item.kind : 'world',
+        memo: typeof item.memo === 'string' ? item.memo.slice(0, 150) : ''
+      });
+    }
+    for (const article of game.articles) putSummary(articleSummary(article));
+    game.turnSummaries = [...summaries.values()].sort((a, b) => a.turn - b.turn).slice(-1200);
+    const keepArticles = 40;
+    if (game.articles.length > keepArticles) game.articles = game.articles.slice(-keepArticles);
+    if (game.turnPlaybackQueue?.length > 24) game.turnPlaybackQueue = game.turnPlaybackQueue.slice(-24);
+    for (const item of game.turnPlaybackQueue || []) {
+      if (typeof item.body === 'string' && item.body.length > 1600) item.body = item.body.slice(0, 1600);
+    }
+    if (Array.isArray(game.actionHistory) && game.actionHistory.length > 320) game.actionHistory = game.actionHistory.slice(-320);
+    if (Array.isArray(game.adviserBriefings) && game.adviserBriefings.length > 12) game.adviserBriefings = game.adviserBriefings.slice(-12);
+    if (Array.isArray(game.establishedFacts) && game.establishedFacts.length > 400) game.establishedFacts = game.establishedFacts.slice(-400);
+    if (game.worldArcs?.log?.length > 140) game.worldArcs.log = game.worldArcs.log.slice(-140);
+    // 電報は直近の往復だけ残す。古い電報は記事の要約と確定事実で追跡できる。
+    let kept = 0;
+    for (const channel of Object.values(game.threads || {})) {
+      if (!Array.isArray(channel.messages)) channel.messages = [];
+      if (channel.messages.length > 80) channel.messages = channel.messages.slice(-80);
+      kept += channel.messages.length;
+      channel.unread = Math.min(channel.unread || 0, channel.messages.length);
+    }
+    if (kept > 900) {
+      const channels = Object.values(game.threads || {}).filter(channel => channel.messages?.length);
+      for (const channel of channels) {
+        if (kept <= 900) break;
+        const cut = Math.min(channel.messages.length, Math.max(0, kept - 900));
+        if (cut) { channel.messages = channel.messages.slice(cut); kept -= cut; }
+      }
+    }
+  }
+
   function saveCampaign() {
     if (!campaign) return;
+    compactCampaign(campaign);
     campaign.savedAt = new Date().toISOString();
     const serialized = JSON.stringify(campaign);
     runtime.saved = JSON.parse(serialized);
@@ -5527,12 +6571,18 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     }
     const priority = { resolution: 0, world: 1, opening: 2 };
     const articles = [...campaign.articles].sort((a, b) => b.turn - a.turn || priority[a.kind] - priority[b.kind]);
-    html('history-stream', articles.slice(0, runtime.historyLimit).map(article => {
+    const articleHtml = articles.slice(0, runtime.historyLimit).map(article => {
       const deltas = article.changes ? `<div class="stat-deltas-container">${Object.entries(article.changes).filter(([, value]) => value !== 0).map(([key, value]) => `<span class="stat-delta-chip ${(key === 'tension' ? value < 0 : value > 0) ? 'pos' : 'neg'}">${statLabels[key]} ${signed(value)}</span>`).join('')}</div>` : '';
       const reasons = [...(article.reasoning || []).map(item => item.text), ...(article.reactions || []), ...(article.notes || [])];
       const explanation = reasons.length ? `<details><summary>交渉の因果・月次の収支</summary><ul>${reasons.map(reason => `<li>${decorate(reason)}</li>`).join('')}</ul></details>` : '';
       return `<details class="dispatch-entry" data-article-id="${escapeHtml(article.id)}"><summary><div class="dispatch-meta"><span>${escapeHtml(article.date)}</span><span>／</span><span>${article.kind === 'resolution' ? '月次裁定' : article.kind === 'world' ? '世界の動き' : '出発点'}</span></div><h2>${decorate(article.headline)}</h2></summary><div class="dispatch-content"><p>${decorate(article.body)}</p>${deltas}${explanation}</div></details>`;
-    }).join('') + (articles.length > runtime.historyLimit ? `<button class="history-load-more" data-load-history>過去の記事を表示 · 残り${articles.length - runtime.historyLimit}件</button>` : ''));
+    }).join('') + (articles.length > runtime.historyLimit ? `<button class="history-load-more" data-load-history>過去の記事を表示 · 残り${articles.length - runtime.historyLimit}件</button>` : '');
+    const fullIds = new Set(campaign.articles.map(article => article.id));
+    const summaries = (campaign.turnSummaries || []).filter(item => !fullIds.has(item.articleId)).slice(-30).reverse();
+    const summaryHtml = summaries.length
+      ? `<details class="compact-disclosure history-summaries"><summary>ターン要約（古い記録 ${summaries.length}件）</summary><ul>${summaries.map(item => `<li><span class="muted small">${escapeHtml(item.date)}</span> · ${escapeHtml(item.headline)}${item.memo ? `<br><span class="small muted">${escapeHtml(item.memo)}</span>` : ''}</li>`).join('')}</ul></details>`
+      : '';
+    html('history-stream', articleHtml + summaryHtml);
   }
 
   function renderThreads() {
@@ -6235,6 +7285,66 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     return value;
   }
 
+  function plainArcValue(value, depth = 0) {
+    if (depth > 3 || value == null) return value == null ? null : undefined;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.slice(0, 500);
+    if (Array.isArray(value)) return value.slice(0, 80).map(item => plainArcValue(item, depth + 1)).filter(item => item !== undefined);
+    if (typeof value === 'object') {
+      const out = {};
+      for (const [key, item] of Object.entries(value).slice(0, 30)) {
+        const clean = plainArcValue(item, depth + 1);
+        if (clean !== undefined) out[String(key).slice(0, 40)] = clean;
+      }
+      return out;
+    }
+    return undefined;
+  }
+
+  function sanitizeWorldArcs(raw, game) {
+    const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const out = {
+      seed: Number.isInteger(source.seed) && source.seed > 0 ? source.seed : arcSeedFor(game, 'world-arcs'),
+      states: {},
+      log: []
+    };
+    if (source.states && typeof source.states === 'object' && !Array.isArray(source.states)) {
+      for (const [id, item] of Object.entries(source.states)) {
+        if (!arcById(id) || !item || typeof item !== 'object' || Array.isArray(item)) continue;
+        out.states[id] = {
+          status: ['pending', 'fired', 'delayed', 'prevented', 'deferred'].includes(item.status) ? item.status : 'pending',
+          dueHalf: finite(item.dueHalf, 0, SAVE_TURN_CEILING(), 0),
+          firedHalf: item.firedHalf == null ? null : finite(item.firedHalf, 0, SAVE_TURN_CEILING(), 0),
+          delayedUntil: item.delayedUntil == null ? null : finite(item.delayedUntil, 0, SAVE_TURN_CEILING(), 0),
+          delayCount: finite(item.delayCount, 0, 40, 0),
+          blockReason: typeof item.blockReason === 'string' ? item.blockReason.slice(0, 160) : '',
+          result: item.result && typeof item.result === 'object' && !Array.isArray(item.result) ? plainArcValue(item.result) : null,
+          flipped: Boolean(item.flipped)
+        };
+      }
+    }
+    if (Array.isArray(source.log)) {
+      out.log = source.log.slice(-140).map(entry => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+        const id = typeof entry.id === 'string' ? entry.id : '';
+        if (!id) return null;
+        return {
+          id: id.slice(0, 80),
+          label: typeof entry.label === 'string' ? entry.label.slice(0, 120) : id,
+          major: Boolean(entry.major),
+          status: ['fired', 'delayed', 'prevented', 'deferred'].includes(entry.status) ? entry.status : 'fired',
+          half: finite(entry.half, 0, SAVE_TURN_CEILING(), 0),
+          date: typeof entry.date === 'string' ? entry.date.slice(0, 40) : '',
+          summary: typeof entry.summary === 'string' ? entry.summary.slice(0, 500) : '',
+          warId: typeof entry.warId === 'string' ? entry.warId.slice(0, 100) : undefined,
+          blockReason: typeof entry.blockReason === 'string' ? entry.blockReason.slice(0, 160) : undefined
+        };
+      }).filter(Boolean);
+    }
+    return out;
+  }
+
   function validateSave(rawIn) {
     requireObject(rawIn, 'セーブ');
     const saveVersion = Number(rawIn.version);
@@ -6262,6 +7372,7 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
     game.factions = raw.factions && typeof raw.factions === 'object' ? copy(raw.factions) : {};
     game.peaceOffers = raw.peaceOffers && typeof raw.peaceOffers === 'object' ? copy(raw.peaceOffers) : {};
     game.timelineFired = raw.timelineFired && typeof raw.timelineFired === 'object' ? copy(raw.timelineFired) : {};
+    game.worldArcs = sanitizeWorldArcs(raw.worldArcs, game);
     const turnCap = saveTurnLimit(game);
     game.completedTurns = saveNumber(raw.completedTurns, '経過ターン', 0, turnCap);
     game.undo = null;
@@ -6497,6 +7608,28 @@ memoryは、発生済みの分岐、持ち越す対立、合意とその条件�
       if (article.changes) for (const key of Object.keys(statLabels)) if (Object.hasOwn(article.changes, key)) changes[key] = saveNumber(article.changes[key], '記事の増減値', -100, 100);
       return { id: requiredText(article.id, '記事ID', 100), kind: article.kind, turn: saveNumber(article.turn, '記事のターン', 1, turnCap), date: requiredText(article.date, '記事の日付', 40), headline: requiredText(article.headline, '記事見出し', 140), body: requiredText(article.body, '記事本文', 2600), changes: Object.keys(changes).length ? changes : undefined, reasoning: array(article.reasoning || [], '記事の因果', 6).map(item => ({ text: requiredText(item.text, '因果', 500), sourceActionIds: array(item.sourceActionIds || [], '根拠の発言ID', 8).map(id => requiredText(id, '発言ID', 100)) })), notes: array(article.notes || [], '裁定の注記', 45).map(item => requiredText(item, '裁定の注記', 800)), reactions: array(article.reactions || [], '勢力の反応', 4).map(item => requiredText(item, '勢力の反応', 500)) };
     });
+    const summaryPriority = { resolution: 3, opening: 2, world: 1 };
+    const summaryMap = new Map();
+    const putSummary = summary => {
+      if (!summary) return;
+      const current = summaryMap.get(summary.turn);
+      if (!current || (summaryPriority[summary.kind] || 0) >= (summaryPriority[current.kind] || 0)) summaryMap.set(summary.turn, summary);
+    };
+    for (const item of (Array.isArray(raw.turnSummaries) ? raw.turnSummaries : []).slice(-1400)) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const headline = typeof item.headline === 'string' ? item.headline.slice(0, 140) : '';
+      if (!headline) continue;
+      putSummary({
+        articleId: typeof item.articleId === 'string' ? item.articleId.slice(0, 100) : '',
+        turn: finite(item.turn, 0, turnCap, 0),
+        date: typeof item.date === 'string' ? item.date.slice(0, 40) : '',
+        headline,
+        kind: ['opening', 'resolution', 'world'].includes(item.kind) ? item.kind : 'world',
+        memo: typeof item.memo === 'string' ? item.memo.slice(0, 150) : ''
+      });
+    }
+    if (!summaryMap.size) for (const article of game.articles) putSummary(articleSummary(article));
+    game.turnSummaries = [...summaryMap.values()].sort((a, b) => a.turn - b.turn).slice(-1200);
     game.treaties = array(raw.treaties, '条約', 75).map(item => {
       if (!game.nations[item.nationId] || !['trade', 'nonaggression', 'defense'].includes(item.type)) throw new Error('条約の相手・種類が不正です。');
       return { id: requiredText(item.id, '条約ID', 100), nationId: item.nationId, type: item.type, title: requiredText(item.title, '条約名', 100), terms: requiredText(item.terms, '条約の条件', 600), duration: saveNumber(item.duration, '条約期間', 3, 6), remaining: saveNumber(item.remaining, '条約の残期間', 0, 6), signedTurn: saveNumber(item.signedTurn, '条約の締結月', 1, turnCap), secret: Boolean(item.secret), sourceActionId: typeof item.sourceActionId === 'string' ? item.sourceActionId.slice(0, 100) : '' };
@@ -7059,5 +8192,5 @@ transferDependent: (vassalId, newSponsorId) => transferDependent(vassalId, newSp
 grantAutonomy: (vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta) => grantAutonomy(vassalId, autonomyDelta, loyaltyDelta, legitimacyDelta, campaign),
 actorRoster: () => Object.keys(actors),
 createDependentCommand, createDependentRegionCommand, integrateDependentCommand, transferDependentCommand, grantAutonomyCommand,
-warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, onboardingInfo, openOnboarding, maybeShowOnboarding, advanceOnboarding, previousOnboarding, completeOnboarding, dismissOnboarding, undoInfo, undoLastTurn, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
+warlordClientsFor: () => warlordClientsOf(campaign, campaign?.playerNationId), summonWarlords, conferenceInfo, sendConferenceMessage, colonialColorGroups, prepareRegionalOrder, provincePanelData, configure, render, snapshot: () => campaign ? copy(campaign) : null, restore: activateSave, onboardingInfo, openOnboarding, maybeShowOnboarding, advanceOnboarding, previousOnboarding, completeOnboarding, dismissOnboarding, undoInfo, undoLastTurn, declareWar, signPeace, proposePeace, negotiateCivilWar, settleCivilWar, civilWarPeaceSummary: nationId => civilWarPeaceSummary(nationId || campaign?.playerNationId), warScoreSummary: warId => warScoreSummary(campaign, warId), peaceConferenceSummary: warId => peaceConferenceSummary(campaign, warId), togglePeaceDemand, confirmPeaceConference, openPeaceConference, openCivilPeaceConference, refreshMaritime: () => refreshMaritime(campaign), maritimeSummary, openWarPanel, openEconomyPanel, economySummary, setMobilization: setMobilizationLevel, setProductionSplit, recruitFormation, openFocusPanel, openResearchPanel, focusSummary, researchSummary, selectFocus, selectResearch, nationalModifiers: nationId => nationalModifiers(campaign, nationId || campaign?.playerNationId), focusTrees: () => copy(FOCUS_TREES), researchBranches: () => copy(RESEARCH_BRANCHES), formationSupply: id => formationSupplyInfo(campaign, formationById(id)), listConflicts, listFormations, setFormationOrder, formationTargets, formationOrderError: () => lastFormationOrderError, continuePastMilestone, playtestStabilize, worldArcStatus, worldArcList, worldArcLog, forceWorldArc, hudTurnLabel, verifyOccupationsAdjacent, landAdjacency, flushDeferredToasts, regionLabel, applyResolutionValidation, applyMeanReversion, endingTitleFor: game => { if (!game?.ending) return ''; const unlimited = !game.maxTurns; const m = game.ending.result === 'milestone'; if (m) return '時代の節目'; if (unlimited && game.ending.result === 'defeat') return '歴史の転換点'; if (unlimited && game.ending.result === 'victory') return '国策の達成'; if (unlimited) return '時代の振り返り'; return game.ending.result === 'victory' ? '国家目標達成' : game.ending.result === 'survived' ? '任期完走' : '任期終了'; }, ...calendarExport() });
 })();
